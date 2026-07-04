@@ -1,0 +1,18 @@
+{
+  "name": "scholia",
+  "version": "0.1.0",
+  "description": "Local-first knowledge annotation tool",
+  "type": "commonjs",
+  "main": "server/index.js",
+  "bin": { "scholia": "./cli/index.js" },
+  "scripts": {
+    "test": "node tests/config.test.js && node tests/video-source.test.js && node tests/article-source.test.js && node tests/server.test.js",
+    "web:build": "cd web && npm run build",
+    "postinstall": "cd web && npm install && npm run build"
+  },
+  "dependencies": {
+    "koa": "^2.15.0",
+    "koa-bodyparser": "^4.4.0",
+    "koa-router": "^12.0.0"
+  }
+}
