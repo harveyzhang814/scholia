@@ -7,7 +7,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 const { getVideoDirs, getArticleDirs } = require('./paths');
-const { isVideoId, listVideos, getVideoTask, getVideoMediaInfo, getVideoSubtitles, getVideoContent } = require('./video-source');
+const { listVideos, getVideoTask, getVideoMediaInfo, getVideoSubtitles, getVideoContent } = require('./video-source');
 const { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent } = require('./article-source');
 const { createStaticServe } = require('./static-serve');
 
@@ -108,6 +108,7 @@ function createApp(options = {}) {
     if (!WORK_DIR) { ctx.status = 404; return; }
     const filename = kind === 'video' ? 'video.mp4' : 'audio.m4a';
     const filePath = path.join(WORK_DIR, taskId, 'media', filename);
+    if (!WORK_DIR || !filePath.startsWith(WORK_DIR + path.sep)) { ctx.status = 400; return; }
     if (!fs.existsSync(filePath)) { ctx.status = 404; ctx.body = { error: 'file not found' }; return; }
     const stat = fs.statSync(filePath);
     const total = stat.size;
