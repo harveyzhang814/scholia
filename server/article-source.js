@@ -1,0 +1,83 @@
+'use strict';
+const fs = require('fs');
+const path = require('path');
+
+function slugFromFilePath(filePath, contentDir) {
+  return path.relative(contentDir, filePath).replace(/\.md$/i, '').replace(/[/\\]/g, '-');
+}
+
+function titleFromSlug(slug) {
+  return slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function parseFrontmatter(content) {
+  const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!m) return { title: null, date: null };
+  const fm = m[1];
+  return {
+    title: fm.match(/^title:\s*(.+)$/m)?.[1]?.trim() ?? null,
+    date:  fm.match(/^date:\s*(.+)$/m)?.[1]?.trim() ?? null,
+  };
+}
+
+async function findMdFiles(dir) {
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+  const results = [];
+  for (const e of entries) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) results.push(...await findMdFiles(full));
+    else if (e.isFile() && /\.md$/i.test(e.name)) results.push(full);
+  }
+  return results;
+}
+
+function isArticleId(id) {
+  return typeof id === 'string' && id.startsWith('article-');
+}
+
+function slugFromId(id) {
+  return id.slice('article-'.length);
+}
+
+async function resolveArticleFile(contentDir, slug) {
+  let files;
+  try { files = await findMdFiles(contentDir); } catch { return null; }
+  return files.find(f => slugFromFilePath(f, contentDir) === slug) ?? null;
+}
+
+async function articleFileExists(contentDir, slug) {
+  return (await resolveArticleFile(contentDir, slug)) !== null;
+}
+
+async function listArticles(contentDir) {
+  let files;
+  try { files = await findMdFiles(contentDir); } catch { return []; }
+  const articles = await Promise.all(files.map(async (f) => {
+    const slug = slugFromFilePath(f, contentDir);
+    const stat = await fs.promises.stat(f).catch(() => null);
+    let title = null, date = null;
+    try { const raw = await fs.promises.readFile(f, 'utf8'); ({ title, date } = parseFrontmatter(raw)); } catch {}
+    return { slug, id: `article-${slug}`, title: title || titleFromSlug(slug), date: date || undefined, updatedAt: stat ? stat.mtimeMs : Date.now() };
+  }));
+  return articles.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+async function getArticleTask(taskId, contentDir) {
+  const slug = slugFromId(taskId);
+  const filePath = await resolveArticleFile(contentDir, slug);
+  if (!filePath) return null;
+  const stat = await fs.promises.stat(filePath).catch(() => null);
+  let title = null, date = null;
+  try { const raw = await fs.promises.readFile(filePath, 'utf8'); ({ title, date } = parseFrontmatter(raw)); } catch {}
+  const ts = stat ? stat.mtime.toISOString() : new Date().toISOString();
+  return { task_id: taskId, status: 'completed', meta: { title: title || titleFromSlug(slug), url: '', mode: 'media', ts, created_at: ts } };
+}
+
+async function getArticleContent(taskId, contentDir) {
+  const slug = slugFromId(taskId);
+  const filePath = await resolveArticleFile(contentDir, slug);
+  if (!filePath) return null;
+  try { return await fs.promises.readFile(filePath, 'utf8'); } catch { return null; }
+}
+
+module.exports = { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent };
