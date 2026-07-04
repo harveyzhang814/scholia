@@ -1,6 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
@@ -11,7 +12,16 @@ async function test(name, fn) {
   catch (e) { console.error(`  ✗ ${name}: ${e.message}`); failed++; }
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function waitForServer(url, timeout, resolve, reject, start = Date.now()) {
+  http.get(url, (res) => {
+    if (res.statusCode === 200) resolve();
+    else if (Date.now() - start > timeout) reject(new Error('server timeout'));
+    else setTimeout(() => waitForServer(url, timeout, resolve, reject, start), 200);
+  }).on('error', () => {
+    if (Date.now() - start > timeout) reject(new Error('server timeout'));
+    else setTimeout(() => waitForServer(url, timeout, resolve, reject, start), 200);
+  });
+}
 
 (async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'scholia-int-'));
@@ -24,7 +34,8 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     const set = spawn(process.execPath, [CLI, 'config', 'set', 'work-dir', workDir], {
       env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
     });
-    await new Promise(r => set.on('close', r));
+    const setCode = await new Promise(r => set.on('close', r));
+    assert.equal(setCode, 0, 'config set should exit 0');
     const get = spawn(process.execPath, [CLI, 'config', 'get', 'work-dir'], {
       env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
     });
@@ -38,9 +49,10 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
     const srv = spawn(process.execPath, [CLI, 'serve', '--port', '17654'], {
       env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
     });
-    // Give it 2 seconds to start
-    await sleep(2000);
     try {
+      await new Promise((resolve, reject) =>
+        waitForServer('http://127.0.0.1:17654/healthz', 5000, resolve, reject)
+      );
       const res = await fetch('http://127.0.0.1:17654/healthz');
       const body = await res.json();
       assert.equal(res.status, 200);

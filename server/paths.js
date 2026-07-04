@@ -11,6 +11,7 @@ function expandPath(value) {
 
 function getVideoDirs(workDir, taskId) {
   if (!taskId || typeof taskId !== 'string') throw new Error('taskId required');
+  if (/[/\\]/.test(taskId) || taskId.includes('..')) throw new Error(`Invalid taskId: ${taskId}`);
   const base = path.join(workDir, taskId);
   return {
     base,
