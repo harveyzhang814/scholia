@@ -20,7 +20,7 @@ meta:
 # merge_from 使用 shell glob 语法（* 匹配任意字符，不含 /）
 branches:
   protected:
-    - name: main
+    - name: master
       allow_direct_commit: false
       merge_from:
         - staging
@@ -48,7 +48,7 @@ branch_naming:
     - "^doc/.+"
     - "^release/[0-9]+\\.[0-9]+\\.[0-9]+(-.+)?$"
   exempt:                      # 永远豁免命名检查的分支
-    - main
+    - master
     - staging
 
 # ── 提交信息格式（生成 commit-msg hook）──────────────────────────────────────
@@ -95,5 +95,5 @@ tags:
 push_rules:
   enforce: true
   block_force_push:
-    - main
+    - master
     - staging

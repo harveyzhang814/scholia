@@ -12,19 +12,19 @@ merge_source_branch() {
     head -1 "$msg_file" | sed "s/Merge branch '//;s/'.*//"
 }
 
-# --- BEGIN MANAGED: branches.protected/main (hash:63f6333b) ---
-if [ "$BRANCH" = "main" ]; then
+# --- BEGIN MANAGED: branches.protected/master (hash:b2d4c476) ---
+if [ "$BRANCH" = "master" ]; then
     if [ "$IS_MERGE" -eq 0 ]; then
-        echo "❌ 禁止直接在 main 上提交。请在 staging 或 release/* 分支开发后合并。"
+        echo "❌ 禁止直接在 master 上提交。请在 staging 或 release/* 分支开发后合并。"
         exit 1
     fi
     SRC=$(merge_source_branch)
     case "$SRC" in
         staging|release/*) exit 0 ;;
-        *) echo "❌ main 只接受来自 staging 或 release/* 的合并，当前来源：'${SRC:-unknown}'"; exit 1 ;;
+        *) echo "❌ master 只接受来自 staging 或 release/* 的合并，当前来源：'${SRC:-unknown}'"; exit 1 ;;
     esac
 fi
-# --- END MANAGED: branches.protected/main ---
+# --- END MANAGED: branches.protected/master ---
 
 # --- BEGIN MANAGED: branches.protected/staging (hash:88d467d2) ---
 if [ "$BRANCH" = "staging" ]; then
