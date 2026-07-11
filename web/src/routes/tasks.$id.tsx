@@ -86,7 +86,6 @@ export default function TaskDetail() {
           </Link>
           <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
             <kbd className="px-1 py-0.5 rounded border" style={{ borderColor: 'var(--border-subtle)' }}>⌘K</kbd>
-            <button>⋯</button>
           </div>
         </div>
       </header>
