@@ -55,6 +55,16 @@ async function test(name, fn) {
     assert.equal(dive.title, 'Deep Dive');
   });
 
+  await test('listArticles sorts by fetch_date, falling back to mtime', async () => {
+    // Written last (newest mtime) but has the oldest fetch_date
+    fs.writeFileSync(path.join(contentDir, 'old-fetch.md'),
+      '---\ntitle: Old Fetch\nfetch_date: 2020-01-01\n---\n\n# Old');
+    const articles = await listArticles(contentDir);
+    assert.equal(articles.length, 4);
+    assert.equal(articles[articles.length - 1].slug, 'old-fetch');
+    fs.rmSync(path.join(contentDir, 'old-fetch.md'));
+  });
+
   await test('listArticles returns [] for missing dir', async () => {
     const r = await listArticles('/nonexistent');
     assert.deepEqual(r, []);
