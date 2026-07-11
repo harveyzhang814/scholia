@@ -118,7 +118,7 @@ export function Player({
   const hasMultipleTracks = tracks.length > 1;
 
   return (
-    <div className={`relative bg-black flex-shrink-0${audioOnly ? ' w-full' : ''}${className ? ` ${className}` : ''}`}
+    <div className={`relative bg-black flex-shrink-0 player-cq-container${audioOnly ? ' w-full' : ''}${className ? ` ${className}` : ''}`}
          style={{
            aspectRatio: (!audioOnly && kind === 'video') ? '16/9' : 'auto',
            height: (audioOnly || kind === 'audio') ? 72 : undefined,
