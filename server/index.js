@@ -132,6 +132,15 @@ function createApp(options = {}) {
     }
   });
 
+  // Step timing (gantt chart). No per-step timestamp data is recorded in
+  // meta.json today, so this always returns an empty list rather than
+  // fabricating timing — the frontend already renders a clean empty state.
+  router.get('/tasks/:taskId/steps', async (ctx) => {
+    const { taskId } = ctx.params;
+    if (!await assertItemExists(taskId, WORK_DIR, CONTENT_DIR)) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    ctx.body = [];
+  });
+
   // Subtitles
   router.get('/tasks/:taskId/subtitles', async (ctx) => {
     const { taskId } = ctx.params;
