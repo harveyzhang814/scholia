@@ -51,3 +51,7 @@ This is a **local-first annotation tool** with three layers:
 - Article task IDs are prefixed `article-` (`isArticleId` in `server/article-source.js` is the discriminator used everywhere).
 - Writes use atomic rename: write to `.tmp` then `fs.rename`.
 - No database — everything is JSON files read on each request.
+
+## Git 工作流
+
+分支命名规范、保护规则与合并流程详见 [docs/reference/git-workflow.md](docs/reference/git-workflow.md)。
