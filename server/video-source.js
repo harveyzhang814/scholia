@@ -7,6 +7,18 @@ function isVideoId(id) {
   return typeof id === 'string' && id.length > 0 && !id.startsWith('article-');
 }
 
+function occurrenceDate(meta, fallbackMs) {
+  for (const candidate of [meta.ts, meta.created_at]) {
+    if (candidate) {
+      const t = Date.parse(candidate);
+      if (!Number.isNaN(t)) return t;
+    }
+  }
+  const m = typeof meta.upload_date === 'string' && /^(\d{4})(\d{2})(\d{2})$/.exec(meta.upload_date);
+  if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  return fallbackMs;
+}
+
 async function listVideos(workDir) {
   let entries;
   try { entries = await fs.promises.readdir(workDir, { withFileTypes: true }); }
@@ -30,7 +42,7 @@ async function listVideos(workDir) {
         output_lang: meta.output_lang,
         created_at: meta.ts || meta.created_at,
         updated_at: meta.ts || meta.created_at,
-        updatedAt: stat.mtimeMs,
+        updatedAt: occurrenceDate(meta, stat.mtimeMs),
       });
     } catch { /* skip dirs without valid meta.json */ }
   }

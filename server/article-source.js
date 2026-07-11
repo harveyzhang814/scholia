@@ -12,11 +12,12 @@ function titleFromSlug(slug) {
 
 function parseFrontmatter(content) {
   const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!m) return { title: null, date: null };
+  if (!m) return { title: null, date: null, fetchDate: null };
   const fm = m[1];
   return {
     title: fm.match(/^title:\s*(.+)$/m)?.[1]?.trim() ?? null,
     date:  fm.match(/^date:\s*(.+)$/m)?.[1]?.trim() ?? null,
+    fetchDate: fm.match(/^fetch_date:\s*(.+)$/m)?.[1]?.trim() ?? null,
   };
 }
 
@@ -55,11 +56,14 @@ async function listArticles(contentDir) {
   const articles = await Promise.all(files.map(async (f) => {
     const slug = slugFromFilePath(f, contentDir);
     const stat = await fs.promises.stat(f).catch(() => null);
-    let title = null, date = null;
-    try { const raw = await fs.promises.readFile(f, 'utf8'); ({ title, date } = parseFrontmatter(raw)); } catch {}
-    return { slug, id: `article-${slug}`, title: title || titleFromSlug(slug), date: date || undefined, updatedAt: stat ? stat.mtimeMs : Date.now() };
+    let title = null, date = null, fetchDate = null;
+    try { const raw = await fs.promises.readFile(f, 'utf8'); ({ title, date, fetchDate } = parseFrontmatter(raw)); } catch {}
+    const fallbackMs = stat ? stat.mtimeMs : Date.now();
+    const parsedFetchDate = fetchDate ? Date.parse(fetchDate) : NaN;
+    const sortKey = Number.isNaN(parsedFetchDate) ? fallbackMs : parsedFetchDate;
+    return { slug, id: `article-${slug}`, title: title || titleFromSlug(slug), date: date || undefined, updatedAt: fallbackMs, sortKey };
   }));
-  return articles.sort((a, b) => b.updatedAt - a.updatedAt);
+  return articles.sort((a, b) => b.sortKey - a.sortKey).map(({ sortKey, ...rest }) => rest);
 }
 
 async function getArticleTask(taskId, contentDir) {
