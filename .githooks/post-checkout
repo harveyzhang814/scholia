@@ -4,13 +4,14 @@
 BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
 [ -z "$BRANCH" ] && exit 0
 
-# --- BEGIN MANAGED: post-checkout/branch-naming (hash:f1066b3c) ---
+# --- BEGIN MANAGED: post-checkout/branch-naming (hash:44a68c6b) ---
 case "$BRANCH" in
-    main|staging) exit 0 ;;
+    master|staging) exit 0 ;;
 esac
 MATCHED=0
 for PATTERN in "^feature/.+" "^fix/.+" "^chore/.+" "^doc/.+" "^release/[0-9]+\.[0-9]+\.[0-9]+(-.+)?$"; do
-    printf '%s\n' "$BRANCH" | grep -qE "$PATTERN" && MATCHED=1 && break
+    printf '%s
+' "$BRANCH" | grep -qE "$PATTERN" && MATCHED=1 && break
 done
 if [ "$MATCHED" -eq 0 ]; then
     echo "⚠️ 分支命名不符合规范：$BRANCH"
