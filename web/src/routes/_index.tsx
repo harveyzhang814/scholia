@@ -72,12 +72,12 @@ export default function Home() {
       </header>
 
       {/* Tab bar */}
-      <div className="flex border-b mb-8" style={{ borderColor: 'var(--border-subtle)' }}>
+      <div className="flex border-b mb-8 -ml-3" style={{ borderColor: 'var(--border-subtle)' }}>
         {(['video', 'article'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className="py-2 mr-6 text-sm border-b-2 transition-colors cursor-pointer"
+            className="px-3 py-2.5 text-sm border-b-2 transition-colors cursor-pointer"
             style={{
               borderColor: tab === t ? 'var(--accent-9)' : 'transparent',
               color: tab === t ? 'var(--text-primary)' : 'var(--text-tertiary)',
