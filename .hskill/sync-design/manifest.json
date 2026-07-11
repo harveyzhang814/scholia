@@ -1,0 +1,33 @@
+{
+  "version": 4,
+  "baseBranch": "staging",
+  "config": {
+    "outputDir": ".hskill/sync-design/html",
+    "designSpec": "DESIGN.md",
+    "platforms": {
+      "web": {
+        "label": "Web",
+        "stackRef": "references/stack-react.md",
+        "uiFilePatterns": [
+          "web/src/routes/**/*.tsx",
+          "web/src/components/**/*.tsx"
+        ],
+        "designSystemFile": "web/src/styles/globals.css",
+        "styleStrategy": "tailwind",
+        "notes": null
+      }
+    }
+  },
+  "entries": [],
+  "drafts": [
+    {
+      "id": "player-subtitle-menu-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/drafts/player-subtitle-menu-web-design.html",
+      "uiStates": ["菜单关闭（默认）", "菜单展开-多语言"],
+      "description": "视频播放器控制栏上的字幕按钮，点击展开弹出菜单，可切换字幕开关、选择语言轨道、调节字幕字号",
+      "linkedEntryId": null
+    }
+  ],
+  "ignoredFiles": []
+}
