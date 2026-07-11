@@ -84,14 +84,17 @@ None of the 11 blacklisted patterns were observed: no purple/gradient background
 
 ## Full Audit (2026-07-11)
 
-Ran a full `/design-review` pass (home video/article tabs, task detail, gantt empty state, pure-read mode). Fixed and committed:
+Ran a full `/design-review` pass (home video/article tabs, task detail — video/reader/pure-read/theater modes, gantt empty state, mobile viewport, `⌘K`). Fixed and committed:
 - `--text-tertiary` contrast (light + dark) — see Color Palette above.
 - Home page 视频/文章 tab buttons: hit area was 28×43px (below the 44px minimum for a primary nav control); widened to 52×47px without shifting visible text.
 - ArticleCard: title now `line-clamp-2`, slug line now `truncate` — matches TaskCard's existing pattern, fixes inconsistent card heights caused by unbounded slug wrapping.
+- `web/src/components/toc.tsx`: the reader-mode article outline (TOC) used `position: sticky` but its `<aside>` had `alignSelf: 'flex-start'`, so the container only stood as tall as its own content (~727px) instead of stretching to the full article height (~3264px in the audited example). Sticky elements detach once you scroll past their own containing block, so the TOC vanished after ~20% of the article — for a 12-section outline, that defeats the point. Removed the inline style; aside now stretches via flexbox default, TOC (and its scroll-driven active-item highlight) stays visible for the whole article.
 
 Flagged but **not fixed** (outside design-review's CSS-only scope — needs a product decision, not a style fix):
+- **Task-detail page is not responsive.** At a 375px mobile viewport the desktop multi-column workspace (subtitle sidebar / article / notes) doesn't stack or collapse — it just gets squeezed, and body text wraps to one CJK character per line in the narrowed columns. Unusable on a phone. Home page (card grid) degrades gracefully by contrast — this is specific to the mode-switcher workspace layout in `tasks.$id.tsx` / `globals.css`'s `MODE A/B/C/E/F` blocks. Needs a real mobile layout decision (single-pane? drawer for notes/TOC?), not a CSS patch.
 - The task-detail header's `⋯` overflow-menu button (`web/src/routes/tasks.$id.tsx:89`) has no `onClick` handler at all — it's dead UI, not just unstyled. Either wire it to something or remove it.
 - Console logs a recurring 404 loop: `GET /api/events` (SSE) and `GET /api/tasks/:id/steps` fire repeatedly and fail. Backend/routing issue, not visual — worth a look since it's firing continuously in production use.
+- The subtitle/transcript sidebar renders all segments unvirtualized — in the audited task (811 segments) its scroll container measured ~88,000px tall. Not a visual defect, but worth flagging as a performance risk for longer videos; needs list virtualization (structural JS change, out of design-review scope).
 
 ## Open Questions / Not Yet Covered
 
