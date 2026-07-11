@@ -322,6 +322,10 @@ html, body {
 [data-mode="F"] .notes-col { display: flex !important; flex-direction: column; }
 
 /* CC overlay */
+.player-cq-container {
+  container-type: inline-size;
+}
+
 .cc-overlay-text {
   position: absolute;
   bottom: 52px;
@@ -330,7 +334,7 @@ html, body {
   max-width: 80%;
   text-align: center;
   color: #fff;
-  font-size: 15px;
+  font-size: calc(clamp(14px, 4.5cqw, 40px) * var(--cc-scale, 1));
   line-height: 1.5;
   text-shadow: 0 1px 4px rgba(0,0,0,0.9);
   pointer-events: none;
