@@ -1,9 +1,10 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { usePlayerStore, parseVtt, normLang, langLabel } from '@/stores/player-store';
+import { usePlayerStore, parseVtt, normLang } from '@/stores/player-store';
 import type { Track } from '@/stores/player-store';
 import { formatDuration } from '@/lib/time';
 import { api } from '@/lib/api';
 import { CcOverlay } from './cc-overlay';
+import { SubtitleMenu } from './subtitle-menu';
 
 export function Player({
   taskId,
@@ -31,10 +32,7 @@ export function Player({
   const playing = usePlayerStore((s) => s.playing);
   const setPlaying = usePlayerStore((s) => s.setPlaying);
   const duration = usePlayerStore((s) => s.duration);
-  const tracks = usePlayerStore((s) => s.tracks);
-  const activeLang = usePlayerStore((s) => s.activeLang);
   const setTracks = usePlayerStore((s) => s.setTracks);
-  const setActiveLang = usePlayerStore((s) => s.setActiveLang);
 
   // On mount: restore position + resume if was playing before a mode switch
   useEffect(() => {
@@ -78,13 +76,6 @@ export function Player({
     return () => { cancelled = true; };
   }, [taskId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const cycleTrack = useCallback(() => {
-    if (tracks.length < 2) return;
-    const idx = tracks.findIndex((t) => t.lang === activeLang);
-    const next = tracks[(idx + 1) % tracks.length];
-    setActiveLang(next.lang);
-  }, [tracks, activeLang, setActiveLang]);
-
   const seekTo = useCallback((clientX: number) => {
     const bar = seekBarRef.current;
     const el = ref.current;
@@ -115,7 +106,6 @@ export function Player({
 
   const MediaTag = kind === 'video' ? 'video' : 'audio';
   const showCustomControls = kind === 'video' || audioOnly;
-  const hasMultipleTracks = tracks.length > 1;
 
   return (
     <div className={`relative bg-black flex-shrink-0 player-cq-container${audioOnly ? ' w-full' : ''}${className ? ` ${className}` : ''}`}
@@ -170,24 +160,8 @@ export function Player({
               {formatDuration(currentTime)}
               <span style={{ color: 'rgba(255,255,255,0.35)' }}> / {formatDuration(duration || 0)}</span>
             </span>
-            {/* 字幕轨道切换 — 仅当存在多轨道时显示 */}
-            {hasMultipleTracks && (
-              <button
-                className="ml-auto flex-shrink-0 h-7 px-2 rounded hover:bg-white/15 transition-colors text-xs font-medium"
-                style={{ color: 'rgba(255,255,255,0.85)' }}
-                title="切换字幕语言"
-                onClick={cycleTrack}
-              >
-                {langLabel(activeLang)}
-              </button>
-            )}
             {showCc && (
-              <button
-                className={`cc-btn${!hasMultipleTracks ? ' ml-auto' : ''}${ccEnabled ? ' on' : ''}`}
-                onClick={onToggleCc}
-              >
-                CC
-              </button>
+              <SubtitleMenu ccEnabled={ccEnabled} onToggleCc={onToggleCc} className="ml-auto" />
             )}
           </div>
         </div>
