@@ -33,7 +33,7 @@ This is a **local-first annotation tool** with three layers:
 
 ### Backend (`server/`, `cli/`, CommonJS)
 - `server/index.js` — `createApp(options)` factory; returns `{ app, token }`. The Koa app + router are assembled here; all API routes live in this file. Bearer token is generated per-process and required on all routes except media streaming (which accepts `?token=` query param for `<video>` src compatibility).
-- `server/paths.js` — pure path helpers. Videos: `<workDir>/<taskId>/` (highlights/notes co-located). Articles: `~/.config/scholia/data/article-<slug>/` (annotations separated from the vault).
+- `server/paths.js` — pure path helpers. Videos: `<workDir>/<taskId>/` (highlights/notes co-located). Articles: `<workDir>/article-<slug>/` — annotations live under the same `workDir` as videos, not under the article vault (`contentDir`).
 - `server/video-source.js` / `server/article-source.js` — read-only adapters over the two content formats.
 - `cli/index.js` — thin CLI; reads config, calls `createApp`, starts `http.createServer`. No framework.
 
@@ -45,7 +45,7 @@ This is a **local-first annotation tool** with three layers:
 
 ### Content formats
 - **Videos** — VDL format: `<workDir>/<taskId>/{meta.json, article.md, subtitles.json, media/video.mp4}`. Scholia writes `highlights.json` and `notes.json` alongside.
-- **Articles** — Any Markdown directory. Slugs derived from relative path (`2024/react-tips.md` → `article-2024-react-tips`). Annotations stored in `~/.config/scholia/data/`.
+- **Articles** — Any Markdown directory (`contentDir`, read-only). Slugs derived from relative path (`2024/react-tips.md` → `article-2024-react-tips`). Annotations stored in `<workDir>/article-<slug>/{highlights.json,notes.json}` — same `workDir` as videos, kept separate from `contentDir` so the source vault is never written to.
 
 ### Key invariants
 - Article task IDs are prefixed `article-` (`isArticleId` in `server/article-source.js` is the discriminator used everywhere).
