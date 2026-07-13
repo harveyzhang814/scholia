@@ -2,7 +2,6 @@ import { useParams, Link } from 'react-router';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTask, useContent, useReveal, useMediaInfo, useHighlights, useAddHighlight, useDeleteHighlight } from '@/hooks/use-tasks';
 import { Reader } from '@/components/reader';
-import { ArticleMetaBar } from '@/components/article-meta-bar';
 import { Toc, extractToc } from '@/components/toc';
 import { SubtitleList } from '@/components/subtitle-list';
 import { Player } from '@/components/player';
@@ -158,14 +157,13 @@ export default function TaskDetail() {
                 </div>
               </div>
 
-              {tab === 'article' && <ArticleMetaBar frontmatter={task.frontmatter} />}
-
               {/* Article + Notes row (B/C/E/F modes) */}
               <div className="flex-1 overflow-y-auto">
                 <div className="article-notes-row">
                   <div className="article-col" ref={articleRef}>
                     <Reader
                       content={content}
+                      frontmatter={tab === 'article' ? task.frontmatter : undefined}
                       highlights={highlights}
                       onAnchorSelect={(anchor) => setPendingAnchor(anchor)}
                       onAddHighlight={(anchor, color) => addHighlight.mutate({ anchor, color })}
