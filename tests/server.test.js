@@ -87,6 +87,12 @@ async function req(port, method, urlPath, body) {
     assert.equal(r.body.meta.title, 'Intro');
   });
 
+  await test('GET /api/tasks/article-intro includes parsed frontmatter', async () => {
+    const r = await req(port, 'GET', '/api/tasks/article-intro');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.meta.frontmatter, { title: 'Intro' });
+  });
+
   await test('GET /api/tasks/:id returns 404 for unknown id', async () => {
     const r = await req(port, 'GET', '/api/tasks/nonexistent');
     assert.equal(r.status, 404);
