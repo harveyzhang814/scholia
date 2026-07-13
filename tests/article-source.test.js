@@ -115,6 +115,19 @@ async function test(name, fn) {
     assert.throws(() => getArticleDirs('/some/dir', 'foo/bar'), /Invalid article slug/);
   });
 
+  await test('resolveArticleFile resolves nested slug to its file path', async () => {
+    const { resolveArticleFile } = require('../server/article-source');
+    const filePath = await resolveArticleFile(contentDir, '2024-tips');
+    assert.equal(filePath, path.join(contentDir, '2024', 'tips.md'));
+  });
+
+  await test('resolveArticleFile returns null for unmatched or path-traversal-like slugs', async () => {
+    const { resolveArticleFile } = require('../server/article-source');
+    assert.equal(await resolveArticleFile(contentDir, 'nonexistent'), null);
+    assert.equal(await resolveArticleFile(contentDir, '../evil'), null);
+    assert.equal(await resolveArticleFile(contentDir, 'foo/bar'), null);
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 })();
