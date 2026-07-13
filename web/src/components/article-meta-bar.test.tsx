@@ -28,4 +28,22 @@ describe('ArticleMetaBar', () => {
     expect(screen.getByText('ai')).toBeInTheDocument();
     expect(screen.getByText('ml')).toBeInTheDocument();
   });
+
+  it('renders description on its own full-width row, excluded from the scalar grid', () => {
+    const { container } = render(
+      <ArticleMetaBar frontmatter={{ author: 'Jane', description: 'A long summary of the article.' }} />
+    );
+    expect(screen.getByText('Description')).toBeInTheDocument();
+    expect(screen.getByText('A long summary of the article.')).toBeInTheDocument();
+    const grid = container.querySelector('.grid');
+    expect(grid?.textContent).not.toContain('A long summary of the article.');
+  });
+
+  it('places description after tag rows', () => {
+    const { container } = render(
+      <ArticleMetaBar frontmatter={{ tags: ['ai', 'ml'], description: 'A long summary.' }} />
+    );
+    const labels = Array.from(container.querySelectorAll('.mt-2 > div:first-child')).map((el) => el.textContent);
+    expect(labels).toEqual(['Tags', 'Description']);
+  });
 });
