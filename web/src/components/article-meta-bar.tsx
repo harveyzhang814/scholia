@@ -6,8 +6,9 @@ export function ArticleMetaBar({ frontmatter }: { frontmatter?: Record<string, u
   const entries = Object.entries(frontmatter ?? {}).filter(([k]) => k !== 'title');
   if (entries.length === 0) return null;
 
-  const scalarEntries = entries.filter(([, v]) => !Array.isArray(v));
   const arrayEntries = entries.filter(([, v]) => Array.isArray(v)) as [string, unknown[]][];
+  const descriptionEntries = entries.filter(([k, v]) => k === 'description' && !Array.isArray(v));
+  const scalarEntries = entries.filter(([k, v]) => !Array.isArray(v) && k !== 'description');
 
   return (
     <div className="pb-4 mb-2 text-xs border-b" style={{ borderColor: 'var(--border-subtle)' }}>
@@ -43,6 +44,15 @@ export function ArticleMetaBar({ frontmatter }: { frontmatter?: Record<string, u
               </span>
             ))}
           </div>
+        </div>
+      ))}
+
+      {descriptionEntries.map(([key, value]) => (
+        <div key={key} className="mt-2">
+          <div className="mb-0.5" style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', opacity: 0.7 }}>
+            {humanizeKey(key)}
+          </div>
+          <div style={{ color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>{String(value)}</div>
         </div>
       ))}
     </div>
