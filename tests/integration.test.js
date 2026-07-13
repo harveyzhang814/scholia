@@ -62,6 +62,103 @@ function waitForServer(url, timeout, resolve, reject, start = Date.now()) {
     }
   });
 
+  await test('scholia serve writes running.json on start and removes it on SIGTERM', async () => {
+    const runningPath = path.join(tmp, 'running.json');
+    const srv = spawn(process.execPath, [CLI, 'serve', '--port', '17655'], {
+      env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+    });
+    try {
+      await new Promise((resolve, reject) =>
+        waitForServer('http://127.0.0.1:17655/healthz', 5000, resolve, reject)
+      );
+      const info = JSON.parse(fs.readFileSync(runningPath, 'utf8'));
+      assert.equal(info.pid, srv.pid);
+      assert.equal(info.port, 17655);
+      const exitPromise = new Promise(r => srv.on('close', r));
+      srv.kill('SIGTERM');
+      await exitPromise;
+      assert.equal(fs.existsSync(runningPath), false);
+    } finally {
+      if (!srv.killed) srv.kill();
+    }
+  });
+
+  await test('scholia serve refuses to start when another instance is already running', async () => {
+    const srv1 = spawn(process.execPath, [CLI, 'serve', '--port', '17656'], {
+      env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+    });
+    try {
+      await new Promise((resolve, reject) =>
+        waitForServer('http://127.0.0.1:17656/healthz', 5000, resolve, reject)
+      );
+      const srv2 = spawn(process.execPath, [CLI, 'serve', '--port', '17657'], {
+        env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+      });
+      let stderr = '';
+      srv2.stderr.on('data', d => { stderr += d; });
+      const code2 = await new Promise(r => srv2.on('close', r));
+      assert.equal(code2, 1);
+      assert.match(stderr, /already running/);
+    } finally {
+      const exitPromise = new Promise(r => srv1.on('close', r));
+      srv1.kill();
+      await exitPromise;
+    }
+  });
+
+  await test('scholia stop stops a running instance', async () => {
+    const runningPath = path.join(tmp, 'running.json');
+    const srv = spawn(process.execPath, [CLI, 'serve', '--port', '17658'], {
+      env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+    });
+    try {
+      await new Promise((resolve, reject) =>
+        waitForServer('http://127.0.0.1:17658/healthz', 5000, resolve, reject)
+      );
+      const exitPromise = new Promise(r => srv.on('close', r));
+      const stop = spawn(process.execPath, [CLI, 'stop'], {
+        env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+      });
+      let out = '';
+      stop.stdout.on('data', d => { out += d; });
+      const stopCode = await new Promise(r => stop.on('close', r));
+      assert.equal(stopCode, 0);
+      assert.match(out, /Stopped scholia/);
+      await exitPromise;
+      assert.equal(fs.existsSync(runningPath), false);
+    } finally {
+      if (!srv.killed) srv.kill();
+    }
+  });
+
+  await test('scholia stop reports not running when no instance is active', async () => {
+    const stop = spawn(process.execPath, [CLI, 'stop'], {
+      env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+    });
+    let out = '';
+    stop.stdout.on('data', d => { out += d; });
+    const code = await new Promise(r => stop.on('close', r));
+    assert.equal(code, 0);
+    assert.match(out, /not running/);
+  });
+
+  await test('scholia stop cleans up a stale PID file', async () => {
+    const runningPath = path.join(tmp, 'running.json');
+    const dead = spawn(process.execPath, ['-e', 'process.exit(0)']);
+    const deadPid = dead.pid;
+    await new Promise(r => dead.on('close', r));
+    fs.writeFileSync(runningPath, JSON.stringify({ pid: deadPid, port: 17659, startedAt: new Date(0).toISOString() }));
+    const stop = spawn(process.execPath, [CLI, 'stop'], {
+      env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+    });
+    let out = '';
+    stop.stdout.on('data', d => { out += d; });
+    const code = await new Promise(r => stop.on('close', r));
+    assert.equal(code, 0);
+    assert.match(out, /stale PID file removed/);
+    assert.equal(fs.existsSync(runningPath), false);
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 })();

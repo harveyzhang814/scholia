@@ -3,7 +3,7 @@
 'use strict';
 const http = require('http');
 const path = require('path');
-const { readConfig, writeValue, readValue } = require('./config');
+const { readConfig, writeValue, readValue, readRunningInfo, writeRunningInfo, clearRunningInfo } = require('./config');
 const { createApp } = require('../server');
 
 function openBrowser(url) {
@@ -11,6 +11,10 @@ function openBrowser(url) {
     : process.platform === 'win32' ? `start "${url}"`
     : `xdg-open "${url}"`;
   require('child_process').exec(cmd, () => {});
+}
+
+function isProcessAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
 const args = process.argv.slice(2);
@@ -38,10 +42,23 @@ if (!cmd || cmd === 'serve') {
     throw err;
   });
   server.listen(port, '127.0.0.1', () => {
+    const existing = readRunningInfo();
+    if (existing && isProcessAlive(existing.pid)) {
+      console.error(`Scholia is already running (pid ${existing.pid}, port ${existing.port}). Run "scholia stop" first.`);
+      process.exit(1);
+    }
+    writeRunningInfo({ pid: process.pid, port, startedAt: new Date().toISOString() });
     const url = `http://localhost:${port}?token=${token}`;
     console.log(`Scholia running at ${url}`);
     if (shouldOpen) openBrowser(url);
   });
+
+  function shutdown() {
+    clearRunningInfo();
+    process.exit(0);
+  }
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 
 } else if (cmd === 'config') {
   const KEY_MAP = { 'work-dir': 'WORK_DIR', 'content-dir': 'CONTENT_DIR' };
@@ -64,7 +81,23 @@ if (!cmd || cmd === 'serve') {
     process.exit(1);
   }
 
+} else if (cmd === 'stop') {
+  const info = readRunningInfo();
+  if (!info) {
+    console.log('Scholia is not running.');
+    process.exit(0);
+  }
+  if (!isProcessAlive(info.pid)) {
+    clearRunningInfo();
+    console.log('Scholia is not running (stale PID file removed).');
+    process.exit(0);
+  }
+  process.kill(info.pid, 'SIGTERM');
+  clearRunningInfo();
+  console.log(`Stopped scholia (pid ${info.pid}, port ${info.port}).`);
+  process.exit(0);
+
 } else {
-  console.error(`Unknown command: ${cmd}\nUsage:\n  scholia serve [--port N] [--open]\n  scholia config set <key> <value>\n  scholia config get <key>`);
+  console.error(`Unknown command: ${cmd}\nUsage:\n  scholia serve [--port N] [--open]\n  scholia stop\n  scholia config set <key> <value>\n  scholia config get <key>`);
   process.exit(1);
 }

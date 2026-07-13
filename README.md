@@ -52,6 +52,18 @@ scholia serve [--port <N>] [--open]
 Scholia running at http://localhost:7654?token=<token>
 ```
 
+### `scholia stop`
+
+停止正在运行的 scholia 实例。
+
+```
+scholia stop
+```
+
+- 未运行：打印 `Scholia is not running.`
+- 已运行：发送 `SIGTERM` 后打印 `Stopped scholia (pid <pid>, port <port>).`
+- 标记文件过期（进程已不存在）：清理后打印 `Scholia is not running (stale PID file removed).`
+
 ### `scholia config`
 
 读写配置项，配置持久化到 `~/.config/scholia/settings.conf`。
