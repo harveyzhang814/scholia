@@ -62,6 +62,27 @@ function waitForServer(url, timeout, resolve, reject, start = Date.now()) {
     }
   });
 
+  await test('scholia serve writes running.json on start and removes it on SIGTERM', async () => {
+    const runningPath = path.join(tmp, 'running.json');
+    const srv = spawn(process.execPath, [CLI, 'serve', '--port', '17655'], {
+      env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+    });
+    try {
+      await new Promise((resolve, reject) =>
+        waitForServer('http://127.0.0.1:17655/healthz', 5000, resolve, reject)
+      );
+      const info = JSON.parse(fs.readFileSync(runningPath, 'utf8'));
+      assert.equal(info.pid, srv.pid);
+      assert.equal(info.port, 17655);
+      const exitPromise = new Promise(r => srv.on('close', r));
+      srv.kill('SIGTERM');
+      await exitPromise;
+      assert.equal(fs.existsSync(runningPath), false);
+    } finally {
+      if (!srv.killed) srv.kill();
+    }
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 })();
