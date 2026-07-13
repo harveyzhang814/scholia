@@ -81,7 +81,23 @@ if (!cmd || cmd === 'serve') {
     process.exit(1);
   }
 
+} else if (cmd === 'stop') {
+  const info = readRunningInfo();
+  if (!info) {
+    console.log('Scholia is not running.');
+    process.exit(0);
+  }
+  if (!isProcessAlive(info.pid)) {
+    clearRunningInfo();
+    console.log('Scholia is not running (stale PID file removed).');
+    process.exit(0);
+  }
+  process.kill(info.pid, 'SIGTERM');
+  clearRunningInfo();
+  console.log(`Stopped scholia (pid ${info.pid}, port ${info.port}).`);
+  process.exit(0);
+
 } else {
-  console.error(`Unknown command: ${cmd}\nUsage:\n  scholia serve [--port N] [--open]\n  scholia config set <key> <value>\n  scholia config get <key>`);
+  console.error(`Unknown command: ${cmd}\nUsage:\n  scholia serve [--port N] [--open]\n  scholia stop\n  scholia config set <key> <value>\n  scholia config get <key>`);
   process.exit(1);
 }
