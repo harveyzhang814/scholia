@@ -10,7 +10,7 @@ export function ArticleMetaBar({ frontmatter }: { frontmatter?: Record<string, u
   const arrayEntries = entries.filter(([, v]) => Array.isArray(v)) as [string, unknown[]][];
 
   return (
-    <div className="px-12 py-3 text-xs border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+    <div className="pb-4 mb-2 text-xs border-b" style={{ borderColor: 'var(--border-subtle)' }}>
       {scalarEntries.length > 0 && (
         <div
           className="grid gap-x-6 gap-y-2"
@@ -21,7 +21,7 @@ export function ArticleMetaBar({ frontmatter }: { frontmatter?: Record<string, u
               <div className="mb-0.5" style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', opacity: 0.7 }}>
                 {humanizeKey(key)}
               </div>
-              <div style={{ color: 'var(--text-secondary)' }}>{String(value)}</div>
+              <div style={{ color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>{String(value)}</div>
             </div>
           ))}
         </div>
