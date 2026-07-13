@@ -84,4 +84,4 @@ async function getArticleContent(taskId, contentDir) {
   try { return await fs.promises.readFile(filePath, 'utf8'); } catch { return null; }
 }
 
-module.exports = { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent };
+module.exports = { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent, resolveArticleFile };

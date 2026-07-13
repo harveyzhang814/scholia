@@ -101,10 +101,25 @@ async function test(name, fn) {
     assert.equal(md, null);
   });
 
-  await test('path traversal slug rejected by getArticleDirs', () => {
-    const { getArticleDirs } = require('../server/paths');
-    assert.throws(() => getArticleDirs('/some/dir', '../evil'), /Invalid article slug/);
-    assert.throws(() => getArticleDirs('/some/dir', 'foo/bar'), /Invalid article slug/);
+  await test('getArticleAnnotationDirs computes sibling directory next to the article file', () => {
+    const { getArticleAnnotationDirs } = require('../server/paths');
+    const dirs = getArticleAnnotationDirs(path.join(contentDir, '2024', 'tips.md'));
+    assert.equal(dirs.base, path.join(contentDir, '2024', 'tips'));
+    assert.equal(dirs.notes, path.join(contentDir, '2024', 'tips', 'notes.json'));
+    assert.equal(dirs.highlights, path.join(contentDir, '2024', 'tips', 'highlights.json'));
+  });
+
+  await test('resolveArticleFile resolves nested slug to its file path', async () => {
+    const { resolveArticleFile } = require('../server/article-source');
+    const filePath = await resolveArticleFile(contentDir, '2024-tips');
+    assert.equal(filePath, path.join(contentDir, '2024', 'tips.md'));
+  });
+
+  await test('resolveArticleFile returns null for unmatched or path-traversal-like slugs', async () => {
+    const { resolveArticleFile } = require('../server/article-source');
+    assert.equal(await resolveArticleFile(contentDir, 'nonexistent'), null);
+    assert.equal(await resolveArticleFile(contentDir, '../evil'), null);
+    assert.equal(await resolveArticleFile(contentDir, 'foo/bar'), null);
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);

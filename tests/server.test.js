@@ -41,6 +41,8 @@ async function req(port, method, urlPath, body) {
   fs.writeFileSync(path.join(workDir, taskId, 'writing', 'article.md'), '# Article\n\nContent');
 
   fs.writeFileSync(path.join(contentDir, 'intro.md'), '---\ntitle: Intro\n---\n\n# Hello');
+  fs.mkdirSync(path.join(contentDir, '2024'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, '2024', 'tips.md'), '---\ntitle: Tips\n---\n\n# Tips');
 
   const { createApp } = require('../server');
   const { app, token: _t } = createApp({ workDir, contentDir, token: TOKEN });
@@ -66,9 +68,8 @@ async function req(port, method, urlPath, body) {
   await test('GET /api/articles returns article list', async () => {
     const r = await req(port, 'GET', '/api/articles');
     assert.equal(r.status, 200);
-    assert.equal(r.body.length, 1);
-    assert.equal(r.body[0].slug, 'intro');
-    assert.equal(r.body[0].title, 'Intro');
+    assert.equal(r.body.length, 2);
+    assert.ok(r.body.some((a) => a.slug === 'intro' && a.title === 'Intro'));
   });
 
   await test('GET /api/tasks/:id returns video task', async () => {
@@ -177,14 +178,57 @@ async function req(port, method, urlPath, body) {
   });
 
   // Article highlights
-  await test('article highlights CRUD', async () => {
+  await test('article highlights CRUD, co-located with the article file', async () => {
     const r = await req(port, 'POST', '/api/tasks/article-intro/highlights', { anchor: 'h-1', color: 'green' });
     assert.equal(r.status, 201);
+    assert.ok(fs.existsSync(path.join(contentDir, 'intro', 'highlights.json')));
+    assert.ok(!fs.existsSync(path.join(workDir, 'article-intro', 'highlights.json')));
     const r2 = await req(port, 'GET', '/api/tasks/article-intro/highlights');
     assert.equal(r2.body.length, 1);
     await req(port, 'DELETE', `/api/tasks/article-intro/highlights/${r.body.id}`);
     const r3 = await req(port, 'GET', '/api/tasks/article-intro/highlights');
     assert.deepEqual(r3.body, []);
+  });
+
+  // Article notes
+  let articleNoteId;
+  await test('article notes: POST creates note co-located with the article file', async () => {
+    const r = await req(port, 'POST', '/api/tasks/article-intro/notes', { anchor: 'p-1', body: 'Article note' });
+    assert.equal(r.status, 201);
+    assert.ok(r.body.id);
+    articleNoteId = r.body.id;
+    assert.ok(fs.existsSync(path.join(contentDir, 'intro', 'notes.json')));
+    assert.ok(!fs.existsSync(path.join(workDir, 'article-intro', 'notes.json')));
+  });
+
+  await test('article notes: PATCH updates note', async () => {
+    const r = await req(port, 'PATCH', `/api/tasks/article-intro/notes/${articleNoteId}`, { body: 'Updated article note' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.body, 'Updated article note');
+  });
+
+  await test('article notes: DELETE removes note', async () => {
+    const r = await req(port, 'DELETE', `/api/tasks/article-intro/notes/${articleNoteId}`);
+    assert.equal(r.status, 204);
+    const r2 = await req(port, 'GET', '/api/tasks/article-intro/notes');
+    assert.deepEqual(r2.body, []);
+  });
+
+  await test('article notes: nested article gets its own sibling dir, not the root one', async () => {
+    const r = await req(port, 'POST', '/api/tasks/article-2024-tips/notes', { anchor: 'p-1', body: 'Nested note' });
+    assert.equal(r.status, 201);
+    assert.ok(fs.existsSync(path.join(contentDir, '2024', 'tips', 'notes.json')));
+    assert.ok(!fs.existsSync(path.join(contentDir, 'tips', 'notes.json')));
+  });
+
+  await test('article notes: the article .md file itself is untouched', async () => {
+    const content = fs.readFileSync(path.join(contentDir, 'intro.md'), 'utf8');
+    assert.ok(content.includes('# Hello'));
+  });
+
+  await test('article notes: 404 for a nonexistent article', async () => {
+    const r = await req(port, 'GET', '/api/tasks/article-nonexistent/notes');
+    assert.equal(r.status, 404);
   });
 
   await test('401 without token', async () => {
