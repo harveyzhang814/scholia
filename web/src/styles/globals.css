@@ -334,7 +334,7 @@ html, body {
   max-width: 80%;
   text-align: center;
   color: #fff;
-  font-size: calc(clamp(14px, 4.5cqw, 40px) * var(--cc-scale, 1));
+  font-size: calc(clamp(14px, 3cqw, 40px) * var(--cc-scale, 1));
   line-height: 1.5;
   text-shadow: 0 1px 4px rgba(0,0,0,0.9);
   pointer-events: none;
