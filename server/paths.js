@@ -23,17 +23,6 @@ function getVideoDirs(workDir, taskId) {
   };
 }
 
-function getArticleDirs(workDir, slug) {
-  if (!slug || typeof slug !== 'string') throw new Error('slug required');
-  if (/[/\\]/.test(slug) || slug.includes('..')) throw new Error(`Invalid article slug: ${slug}`);
-  const base = path.join(workDir, `article-${slug}`);
-  return {
-    base,
-    notes:      path.join(base, 'notes.json'),
-    highlights: path.join(base, 'highlights.json'),
-  };
-}
-
 function getArticleAnnotationDirs(articleFilePath) {
   const { dir, name } = path.parse(articleFilePath);
   const base = path.join(dir, name);
@@ -44,4 +33,4 @@ function getArticleAnnotationDirs(articleFilePath) {
   };
 }
 
-module.exports = { expandPath, getVideoDirs, getArticleDirs, getArticleAnnotationDirs };
+module.exports = { expandPath, getVideoDirs, getArticleAnnotationDirs };

@@ -109,12 +109,6 @@ async function test(name, fn) {
     assert.equal(dirs.highlights, path.join(contentDir, '2024', 'tips', 'highlights.json'));
   });
 
-  await test('path traversal slug rejected by getArticleDirs', () => {
-    const { getArticleDirs } = require('../server/paths');
-    assert.throws(() => getArticleDirs('/some/dir', '../evil'), /Invalid article slug/);
-    assert.throws(() => getArticleDirs('/some/dir', 'foo/bar'), /Invalid article slug/);
-  });
-
   await test('resolveArticleFile resolves nested slug to its file path', async () => {
     const { resolveArticleFile } = require('../server/article-source');
     const filePath = await resolveArticleFile(contentDir, '2024-tips');
