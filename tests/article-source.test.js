@@ -101,6 +101,41 @@ async function test(name, fn) {
     assert.equal(md, null);
   });
 
+  await test('getArticleTask returns arbitrary frontmatter fields as meta.frontmatter', async () => {
+    fs.writeFileSync(path.join(contentDir, 'rich.md'),
+      '---\ntitle: Rich Doc\nauthor: Jane\nsource: arxiv.org\ntags:\n  - ai\n  - ml\n---\n\n# Rich');
+    const t = await getArticleTask('article-rich', contentDir);
+    assert.ok(t);
+    assert.equal(t.meta.frontmatter.title, 'Rich Doc');
+    assert.equal(t.meta.frontmatter.author, 'Jane');
+    assert.equal(t.meta.frontmatter.source, 'arxiv.org');
+    assert.deepEqual(t.meta.frontmatter.tags, ['ai', 'ml']);
+    fs.rmSync(path.join(contentDir, 'rich.md'));
+  });
+
+  await test('getArticleTask returns empty frontmatter object when file has no frontmatter block', async () => {
+    const t = await getArticleTask('article-deep-dive', contentDir);
+    assert.ok(t);
+    assert.deepEqual(t.meta.frontmatter, {});
+  });
+
+  await test('getArticleTask falls back to empty frontmatter on malformed YAML', async () => {
+    fs.writeFileSync(path.join(contentDir, 'bad-yaml.md'),
+      '---\ntitle: Bad\ntags: [ai, ml\n---\n\n# Bad');
+    const t = await getArticleTask('article-bad-yaml', contentDir);
+    assert.ok(t);
+    assert.deepEqual(t.meta.frontmatter, {});
+    assert.equal(t.meta.title, 'Bad Yaml');
+    fs.rmSync(path.join(contentDir, 'bad-yaml.md'));
+  });
+
+  await test('getArticleContent strips the frontmatter block from the body', async () => {
+    const md = await getArticleContent('article-intro', contentDir);
+    assert.ok(!md.includes('---'));
+    assert.ok(!md.includes('title:'));
+    assert.ok(md.includes('# Hello'));
+  });
+
   await test('path traversal slug rejected by getArticleDirs', () => {
     const { getArticleDirs } = require('../server/paths');
     assert.throws(() => getArticleDirs('/some/dir', '../evil'), /Invalid article slug/);
