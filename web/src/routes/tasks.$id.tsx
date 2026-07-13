@@ -2,6 +2,7 @@ import { useParams, Link } from 'react-router';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTask, useContent, useReveal, useMediaInfo, useHighlights, useAddHighlight, useDeleteHighlight } from '@/hooks/use-tasks';
 import { Reader } from '@/components/reader';
+import { ArticleMetaBar } from '@/components/article-meta-bar';
 import { Toc, extractToc } from '@/components/toc';
 import { SubtitleList } from '@/components/subtitle-list';
 import { Player } from '@/components/player';
@@ -156,6 +157,8 @@ export default function TaskDetail() {
                           className="hover:text-[var(--text-secondary)] cursor-pointer">显示文件</button>
                 </div>
               </div>
+
+              {tab === 'article' && <ArticleMetaBar frontmatter={task.frontmatter} />}
 
               {/* Article + Notes row (B/C/E/F modes) */}
               <div className="flex-1 overflow-y-auto">
