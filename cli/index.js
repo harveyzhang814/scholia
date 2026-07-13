@@ -42,6 +42,11 @@ if (!cmd || cmd === 'serve') {
     throw err;
   });
   server.listen(port, '127.0.0.1', () => {
+    const existing = readRunningInfo();
+    if (existing && isProcessAlive(existing.pid)) {
+      console.error(`Scholia is already running (pid ${existing.pid}, port ${existing.port}). Run "scholia stop" first.`);
+      process.exit(1);
+    }
     writeRunningInfo({ pid: process.pid, port, startedAt: new Date().toISOString() });
     const url = `http://localhost:${port}?token=${token}`;
     console.log(`Scholia running at ${url}`);

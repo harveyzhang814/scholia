@@ -83,6 +83,29 @@ function waitForServer(url, timeout, resolve, reject, start = Date.now()) {
     }
   });
 
+  await test('scholia serve refuses to start when another instance is already running', async () => {
+    const srv1 = spawn(process.execPath, [CLI, 'serve', '--port', '17656'], {
+      env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+    });
+    try {
+      await new Promise((resolve, reject) =>
+        waitForServer('http://127.0.0.1:17656/healthz', 5000, resolve, reject)
+      );
+      const srv2 = spawn(process.execPath, [CLI, 'serve', '--port', '17657'], {
+        env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+      });
+      let stderr = '';
+      srv2.stderr.on('data', d => { stderr += d; });
+      const code2 = await new Promise(r => srv2.on('close', r));
+      assert.equal(code2, 1);
+      assert.match(stderr, /already running/);
+    } finally {
+      const exitPromise = new Promise(r => srv1.on('close', r));
+      srv1.kill();
+      await exitPromise;
+    }
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 })();
