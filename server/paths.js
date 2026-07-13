@@ -34,4 +34,14 @@ function getArticleDirs(workDir, slug) {
   };
 }
 
-module.exports = { expandPath, getVideoDirs, getArticleDirs };
+function getArticleAnnotationDirs(articleFilePath) {
+  const { dir, name } = path.parse(articleFilePath);
+  const base = path.join(dir, name);
+  return {
+    base,
+    notes:      path.join(base, 'notes.json'),
+    highlights: path.join(base, 'highlights.json'),
+  };
+}
+
+module.exports = { expandPath, getVideoDirs, getArticleDirs, getArticleAnnotationDirs };

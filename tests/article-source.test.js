@@ -101,6 +101,14 @@ async function test(name, fn) {
     assert.equal(md, null);
   });
 
+  await test('getArticleAnnotationDirs computes sibling directory next to the article file', () => {
+    const { getArticleAnnotationDirs } = require('../server/paths');
+    const dirs = getArticleAnnotationDirs(path.join(contentDir, '2024', 'tips.md'));
+    assert.equal(dirs.base, path.join(contentDir, '2024', 'tips'));
+    assert.equal(dirs.notes, path.join(contentDir, '2024', 'tips', 'notes.json'));
+    assert.equal(dirs.highlights, path.join(contentDir, '2024', 'tips', 'highlights.json'));
+  });
+
   await test('path traversal slug rejected by getArticleDirs', () => {
     const { getArticleDirs } = require('../server/paths');
     assert.throws(() => getArticleDirs('/some/dir', '../evil'), /Invalid article slug/);
