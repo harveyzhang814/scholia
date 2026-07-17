@@ -18,9 +18,12 @@ cd web && npm run build      # runs tsc + vite build → web/dist/
 # Frontend tests
 cd web && npm test
 
-# Run the CLI locally
+# Run the CLI locally (dev — symlinked, tracks repo live)
 npm link                     # first time only
 scholia serve --open
+
+# Install a standalone copy (detached from this repo dir)
+npm run release:local        # npm pack + global install + cleanup
 scholia config set work-dir ~/vdl-work
 scholia config get work-dir
 ```
