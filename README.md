@@ -4,16 +4,22 @@
 
 ## 安装
 
-```bash
-npm install -g scholia
-```
-
-本地开发：
+未发布到 npm registry，从源码仓库打包安装（安装后是独立副本，仓库目录可以删除/移动，不影响运行）：
 
 ```bash
 cd ~/Projects/scholia
 npm install
-npm link   # 将 scholia 命令链接到 $PATH
+npm run release:local   # npm pack + 全局安装 tarball，装完自动清理 .tgz
+```
+
+之后改了代码想更新全局安装，重新执行 `npm run release:local` 即可。
+
+本地开发（不打包，直接跑仓库里的代码，改代码后端立即生效）：
+
+```bash
+cd ~/Projects/scholia
+npm install
+npm link   # 将 scholia 命令软链接到 $PATH，指向本仓库
 ```
 
 ## 快速开始
