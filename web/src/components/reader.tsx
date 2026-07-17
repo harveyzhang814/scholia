@@ -3,10 +3,12 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { MermaidChart } from './mermaid-chart';
+import { ArticleMetaBar } from './article-meta-bar';
 import type { Highlight } from '@/lib/api';
 
 interface ReaderProps {
   content: string;
+  frontmatter?: Record<string, unknown>;
   highlights?: Highlight[];
   onAnchorSelect?: (anchor: string) => void;
   onAddHighlight?: (anchor: string, color: 'yellow' | 'green' | 'red' | 'blue') => void;
@@ -30,7 +32,7 @@ const mdComponents: Components = {
   },
 };
 
-export function Reader({ content, highlights, onAnchorSelect, onAddHighlight, onDeleteHighlight }: ReaderProps) {
+export function Reader({ content, frontmatter, highlights, onAnchorSelect, onAddHighlight, onDeleteHighlight }: ReaderProps) {
   const md = useMemo(() => content ?? '', [content]);
   const articleRef = useRef<HTMLElement>(null);
 
@@ -143,6 +145,7 @@ export function Reader({ content, highlights, onAnchorSelect, onAddHighlight, on
   return (
     <>
       <article ref={articleRef} className="prose-cn" onMouseUp={handleMouseUp} onContextMenu={handleContextMenu}>
+        <ArticleMetaBar frontmatter={frontmatter} />
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeHighlight]}

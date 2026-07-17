@@ -56,6 +56,40 @@ async function test(name, fn) {
     assert.equal(cfg.workDir, path.join(os.homedir(), 'myvdl'));
   });
 
+  await test('writeRunningInfo creates file and readRunningInfo reads it back', () => {
+    const { readRunningInfo, writeRunningInfo } = require('../cli/config');
+    const runningPath = path.join(tmp, 'running.json');
+    writeRunningInfo({ pid: 123, port: 7654, startedAt: '2026-01-01T00:00:00.000Z' }, runningPath);
+    assert.deepEqual(readRunningInfo(runningPath), { pid: 123, port: 7654, startedAt: '2026-01-01T00:00:00.000Z' });
+  });
+
+  await test('clearRunningInfo removes file, readRunningInfo then returns null', () => {
+    const { readRunningInfo, writeRunningInfo, clearRunningInfo } = require('../cli/config');
+    const runningPath = path.join(tmp, 'running2.json');
+    writeRunningInfo({ pid: 456, port: 7655, startedAt: '2026-01-01T00:00:00.000Z' }, runningPath);
+    clearRunningInfo(runningPath);
+    assert.equal(readRunningInfo(runningPath), null);
+  });
+
+  await test('readRunningInfo returns null when file missing', () => {
+    const { readRunningInfo } = require('../cli/config');
+    assert.equal(readRunningInfo(path.join(tmp, 'absent-running.json')), null);
+  });
+
+  await test('readRunningInfo returns null for corrupted JSON', () => {
+    const { readRunningInfo } = require('../cli/config');
+    const runningPath = path.join(tmp, 'corrupt-running.json');
+    fs.writeFileSync(runningPath, '{not valid json');
+    assert.equal(readRunningInfo(runningPath), null);
+  });
+
+  await test('getRunningFilePath derives from config path directory', () => {
+    process.env.SCHOLIA_CONFIG_FILE = cfgPath;
+    const { getRunningFilePath } = require('../cli/config');
+    assert.equal(getRunningFilePath(), path.join(path.dirname(cfgPath), 'running.json'));
+    delete process.env.SCHOLIA_CONFIG_FILE;
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 })();

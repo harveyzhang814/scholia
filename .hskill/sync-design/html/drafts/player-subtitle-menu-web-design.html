@@ -1,0 +1,498 @@
+<title>字幕按钮 + 弹出菜单 — 设计稿</title>
+<style>
+  :root {
+    --bg-canvas:     #F9F8F4;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #F1EFE9;
+    --border-subtle: #E5E2DA;
+    --border-strong: #CFCBC0;
+    --text-primary:   #2C2A24;
+    --text-secondary: #67645E;
+    --text-tertiary:  #9C9890;
+    --accent-3:  #EBF1E8;
+    --accent-9:  #5A8A5A;
+    --accent-10: #466F46;
+    --accent-11: #3D5E3D;
+    --accent-12: #243B24;
+    --status-ok:   #4A8A5A;
+    --status-err:  #B05050;
+    --status-busy: #C28A3D;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-canvas:     #1A1A18;
+      --bg-surface:    #232322;
+      --bg-elevated:   #2A2A28;
+      --border-subtle: #2E2E2B;
+      --border-strong: #3D3E3B;
+      --text-primary:   #E8E8E6;
+      --text-secondary: #9A9B98;
+      --text-tertiary:  #6B6C69;
+      --accent-3:  #2A3A2A;
+      --accent-9:  #7DAE7D;
+      --accent-10: #6FA06F;
+      --accent-11: #9BC79B;
+      --accent-12: #C8E0C8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 32px;
+    line-height: 1.6;
+  }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+  .legend span.dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-9);
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  /* ── 播放器外壳 ── */
+  .player-mock {
+    position: relative;
+    width: 640px;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .video-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 40%, #2a2a2a, #0a0a0a 70%);
+    color: rgba(255,255,255,0.25);
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── 悬浮字幕（CC overlay，随比例缩放，此处用固定值示意） ── */
+  .cc-overlay-text {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 80%;
+    text-align: center;
+    color: #fff;
+    font-size: 26px;
+    line-height: 1.5;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+    pointer-events: none;
+    padding: 3px 10px;
+    background: rgba(0,0,0,0.45);
+    border-radius: 3px;
+  }
+
+  /* ── 底部控制栏 ── */
+  .control-bar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 32px 12px 12px;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+  }
+
+  .seek-row {
+    width: 100%;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .seek-track {
+    position: relative;
+    width: 100%;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.25);
+  }
+  .seek-fill {
+    position: relative;
+    height: 100%;
+    width: 42%;
+    border-radius: 999px;
+    background: var(--accent-9);
+  }
+  .seek-thumb {
+    position: absolute;
+    right: 0; top: 50%;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    transform: translate(50%, -50%);
+  }
+
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #fff;
+  }
+
+  .play-btn {
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 120ms;
+  }
+  .play-btn:hover { background: rgba(255,255,255,0.15); }
+
+  .time-text {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: rgba(255,255,255,0.7);
+  }
+  .time-text .sep { color: rgba(255,255,255,0.35); }
+
+  /* ── 字幕按钮（替代原有语言切换 + CC 两个按钮） ── */
+  .subtitle-menu {
+    position: relative;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .cc-btn {
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 3px;
+    padding: 3px 7px;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    transition: background 120ms;
+    font-family: inherit;
+  }
+  .cc-btn:hover { background: rgba(255,255,255,0.12); }
+  .cc-btn.on { background: rgba(255,255,255,0.18); color: #fff; }
+  .cc-btn.on::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent-9);
+    display: inline-block;
+  }
+
+  /* ── 弹出菜单 ── */
+  .menu-popover {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 4px);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px var(--border-strong);
+    min-width: 172px;
+    padding: 6px 0;
+    display: none;
+    font-family: var(--font-sans);
+  }
+  .menu-popover.open { display: block; }
+
+  .menu-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--text-primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+  }
+  .menu-row:hover { background: var(--bg-elevated); }
+
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 32px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--border-subtle);
+    transition: background 150ms ease;
+    flex-shrink: 0;
+  }
+  .switch.on { background: var(--accent-9); }
+  .switch-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    transition: transform 150ms ease;
+  }
+  .switch.on .switch-knob { transform: translateX(14px); }
+
+  .menu-lang-segment {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 12px;
+  }
+  .lang-seg-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 120ms, color 120ms;
+  }
+  .lang-seg-btn:hover { background: var(--bg-elevated); }
+  .lang-seg-btn.active {
+    background: var(--accent-3);
+    color: var(--accent-9);
+    font-weight: 500;
+  }
+
+  .menu-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 4px 0;
+  }
+
+  .menu-size-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 12px;
+  }
+  .size-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    min-width: 34px;
+    text-align: center;
+  }
+  .size-btn {
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: none;
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 120ms;
+  }
+  .size-btn:hover:not(:disabled) { background: var(--bg-elevated); }
+  .size-btn:disabled {
+    color: var(--text-tertiary);
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  .caption {
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.7;
+  }
+  .caption code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+</style>
+
+<div class="page">
+  <h1 class="page-title">视频播放器 · 字幕按钮 + 弹出菜单</h1>
+  <p class="page-sub">
+    对应实现：<code>web/src/components/subtitle-menu.tsx</code>（替换 <code>player.tsx</code> 控制栏里原来的语言切换按钮和 CC 按钮）。
+    下方是可交互的静态设计稿 —— 点击"字幕"按钮可真实展开/收起菜单，点击语言项、A−/A+ 均有实际交互反馈。
+  </p>
+
+  <div class="legend">
+    <div><span class="dot"></span>状态 1 — 菜单关闭（默认）：页面加载时的样子</div>
+    <div><span class="dot"></span>状态 2 — 菜单展开·多语言：点击"字幕"按钮后</div>
+  </div>
+
+  <div class="player-mock" id="player">
+    <div class="video-placeholder">视频画面（占位）</div>
+    <div class="cc-overlay-text">这是一段示例字幕文本</div>
+
+    <div class="control-bar">
+      <div class="seek-row">
+        <div class="seek-track">
+          <div class="seek-fill">
+            <div class="seek-thumb"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <button class="play-btn">▶</button>
+        <span class="time-text">03:42<span class="sep"> / 15:20</span></span>
+
+        <div class="subtitle-menu">
+          <button class="cc-btn on" id="subtitle-btn" title="字幕设置">字幕</button>
+
+          <div class="menu-popover" id="subtitle-popover">
+            <button class="menu-row" id="cc-toggle-row">
+              <span>显示字幕</span>
+              <span class="switch on" id="cc-switch">
+                <span class="switch-knob"></span>
+              </span>
+            </button>
+
+            <div class="menu-divider"></div>
+
+            <div class="menu-lang-segment">
+              <button class="lang-seg-btn active" data-lang="zh-CN">中文</button>
+              <button class="lang-seg-btn" data-lang="en">EN</button>
+            </div>
+
+            <div class="menu-divider"></div>
+
+            <div class="menu-size-row">
+              <button class="size-btn" id="size-minus">A−</button>
+              <span class="size-label" id="size-label">100%</span>
+              <button class="size-btn" id="size-plus">A+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">
+    字号范围 70%–160%，步进 10%，越界时对应 <code>A−</code> / <code>A+</code> 按钮置灰不可点击（可在此设计稿里把百分比手动改到边界体验）。
+    偏好全局持久化（<code>localStorage</code>），语言列表仅在 2 条及以上轨道时显示。
+  </p>
+</div>
+
+<script>
+  var btn = document.getElementById('subtitle-btn');
+  var popover = document.getElementById('subtitle-popover');
+  var ccToggleRow = document.getElementById('cc-toggle-row');
+  var ccSwitch = document.getElementById('cc-switch');
+  var sizeLabel = document.getElementById('size-label');
+  var sizeMinus = document.getElementById('size-minus');
+  var sizePlus = document.getElementById('size-plus');
+  var overlay = document.querySelector('.cc-overlay-text');
+
+  var SCALE_MIN = 70, SCALE_MAX = 160, scale = 100;
+  var ccEnabled = true;
+
+  function renderSize() {
+    sizeLabel.textContent = scale + '%';
+    sizeMinus.disabled = scale <= SCALE_MIN;
+    sizePlus.disabled = scale >= SCALE_MAX;
+    overlay.style.fontSize = (26 * (scale / 100)) + 'px';
+  }
+
+  function renderCc() {
+    ccSwitch.classList.toggle('on', ccEnabled);
+    btn.classList.toggle('on', ccEnabled);
+    overlay.style.visibility = ccEnabled ? 'visible' : 'hidden';
+  }
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    popover.classList.toggle('open');
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!popover.contains(e.target) && e.target !== btn) {
+      popover.classList.remove('open');
+    }
+  });
+
+  ccToggleRow.addEventListener('click', function () {
+    ccEnabled = !ccEnabled;
+    renderCc();
+  });
+
+  document.querySelectorAll('.lang-seg-btn').forEach(function (seg) {
+    seg.addEventListener('click', function () {
+      document.querySelectorAll('.lang-seg-btn').forEach(function (r) { r.classList.remove('active'); });
+      seg.classList.add('active');
+    });
+  });
+
+  sizeMinus.addEventListener('click', function () {
+    scale = Math.max(SCALE_MIN, scale - 10);
+    renderSize();
+  });
+  sizePlus.addEventListener('click', function () {
+    scale = Math.min(SCALE_MAX, scale + 10);
+    renderSize();
+  });
+
+  renderSize();
+  renderCc();
+</script>

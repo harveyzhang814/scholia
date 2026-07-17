@@ -1,0 +1,41 @@
+{
+  "version": 4,
+  "baseBranch": "staging",
+  "config": {
+    "outputDir": ".hskill/sync-design/html",
+    "designSpec": "DESIGN.md",
+    "platforms": {
+      "web": {
+        "label": "Web",
+        "stackRef": "references/stack-react.md",
+        "uiFilePatterns": [
+          "web/src/routes/**/*.tsx",
+          "web/src/components/**/*.tsx"
+        ],
+        "designSystemFile": "web/src/styles/globals.css",
+        "styleStrategy": "tailwind",
+        "notes": null
+      }
+    }
+  },
+  "entries": [],
+  "drafts": [
+    {
+      "id": "player-subtitle-menu-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/drafts/player-subtitle-menu-web-design.html",
+      "uiStates": ["菜单关闭（默认）", "菜单展开-多语言"],
+      "description": "视频播放器控制栏上的字幕按钮，点击展开弹出菜单，可切换字幕开关、选择语言轨道、调节字幕字号",
+      "linkedEntryId": null
+    },
+    {
+      "id": "article-meta-bar-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/drafts/article-meta-bar-web-design.html",
+      "uiStates": ["顶部-信息栏与正文标题同屏", "向下滚动-信息栏随正文滚出视口"],
+      "description": "文章展示页信息栏，嵌入完整详情页布局（header/tab bar/正文列+TOC+笔记栏三栏）：信息栏是正文模块(prose-cn)的一部分，宽度与正文列一致、随正文滚动，长值（如 URL）自动换行，数组字段渲染为 chips",
+      "linkedEntryId": null
+    }
+  ],
+  "ignoredFiles": []
+}

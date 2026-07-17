@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const yaml = require('js-yaml');
 
 function slugFromFilePath(filePath, contentDir) {
   return path.relative(contentDir, filePath).replace(/\.md$/i, '').replace(/[/\\]/g, '-');
@@ -11,14 +12,14 @@ function titleFromSlug(slug) {
 }
 
 function parseFrontmatter(content) {
-  const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!m) return { title: null, date: null, fetchDate: null };
-  const fm = m[1];
-  return {
-    title: fm.match(/^title:\s*(.+)$/m)?.[1]?.trim() ?? null,
-    date:  fm.match(/^date:\s*(.+)$/m)?.[1]?.trim() ?? null,
-    fetchDate: fm.match(/^fetch_date:\s*(.+)$/m)?.[1]?.trim() ?? null,
-  };
+  const m = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  if (!m) return { frontmatter: {}, body: content };
+  let frontmatter = {};
+  try {
+    const parsed = yaml.load(m[1]);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) frontmatter = parsed;
+  } catch { /* 解析失败按无 frontmatter 处理 */ }
+  return { frontmatter, body: content.slice(m[0].length) };
 }
 
 async function findMdFiles(dir) {
@@ -56,8 +57,11 @@ async function listArticles(contentDir) {
   const articles = await Promise.all(files.map(async (f) => {
     const slug = slugFromFilePath(f, contentDir);
     const stat = await fs.promises.stat(f).catch(() => null);
-    let title = null, date = null, fetchDate = null;
-    try { const raw = await fs.promises.readFile(f, 'utf8'); ({ title, date, fetchDate } = parseFrontmatter(raw)); } catch {}
+    let frontmatter = {};
+    try { const raw = await fs.promises.readFile(f, 'utf8'); ({ frontmatter } = parseFrontmatter(raw)); } catch {}
+    const title = frontmatter.title;
+    const date = frontmatter.date;
+    const fetchDate = frontmatter.fetch_date;
     const fallbackMs = stat ? stat.mtimeMs : Date.now();
     const parsedFetchDate = fetchDate ? Date.parse(fetchDate) : NaN;
     const sortKey = Number.isNaN(parsedFetchDate) ? fallbackMs : parsedFetchDate;
@@ -71,17 +75,20 @@ async function getArticleTask(taskId, contentDir) {
   const filePath = await resolveArticleFile(contentDir, slug);
   if (!filePath) return null;
   const stat = await fs.promises.stat(filePath).catch(() => null);
-  let title = null, date = null;
-  try { const raw = await fs.promises.readFile(filePath, 'utf8'); ({ title, date } = parseFrontmatter(raw)); } catch {}
+  let frontmatter = {};
+  try { const raw = await fs.promises.readFile(filePath, 'utf8'); ({ frontmatter } = parseFrontmatter(raw)); } catch {}
   const ts = stat ? stat.mtime.toISOString() : new Date().toISOString();
-  return { task_id: taskId, status: 'completed', meta: { title: title || titleFromSlug(slug), url: '', mode: 'media', ts, created_at: ts } };
+  return { task_id: taskId, status: 'completed', meta: { title: frontmatter.title || titleFromSlug(slug), url: '', mode: 'media', ts, created_at: ts, frontmatter } };
 }
 
 async function getArticleContent(taskId, contentDir) {
   const slug = slugFromId(taskId);
   const filePath = await resolveArticleFile(contentDir, slug);
   if (!filePath) return null;
-  try { return await fs.promises.readFile(filePath, 'utf8'); } catch { return null; }
+  try {
+    const raw = await fs.promises.readFile(filePath, 'utf8');
+    return parseFrontmatter(raw).body;
+  } catch { return null; }
 }
 
-module.exports = { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent };
+module.exports = { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent, resolveArticleFile };

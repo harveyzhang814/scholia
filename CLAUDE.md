@@ -18,9 +18,12 @@ cd web && npm run build      # runs tsc + vite build → web/dist/
 # Frontend tests
 cd web && npm test
 
-# Run the CLI locally
+# Run the CLI locally (dev — symlinked, tracks repo live)
 npm link                     # first time only
 scholia serve --open
+
+# Install a standalone copy (detached from this repo dir)
+npm run release:local        # npm pack + global install + cleanup
 scholia config set work-dir ~/vdl-work
 scholia config get work-dir
 ```
@@ -33,7 +36,7 @@ This is a **local-first annotation tool** with three layers:
 
 ### Backend (`server/`, `cli/`, CommonJS)
 - `server/index.js` — `createApp(options)` factory; returns `{ app, token }`. The Koa app + router are assembled here; all API routes live in this file. Bearer token is generated per-process and required on all routes except media streaming (which accepts `?token=` query param for `<video>` src compatibility).
-- `server/paths.js` — pure path helpers. Videos: `<workDir>/<taskId>/` (highlights/notes co-located). Articles: `~/.config/scholia/data/article-<slug>/` (annotations separated from the vault).
+- `server/paths.js` — pure path helpers. Videos: `<workDir>/<taskId>/` (highlights/notes co-located). Articles: annotations live inside `contentDir`, in a sibling directory named after the article file (`2024/react-tips.md` → `2024/react-tips/{notes.json,highlights.json}`) — the article file itself is never moved, renamed, or modified.
 - `server/video-source.js` / `server/article-source.js` — read-only adapters over the two content formats.
 - `cli/index.js` — thin CLI; reads config, calls `createApp`, starts `http.createServer`. No framework.
 
@@ -45,7 +48,7 @@ This is a **local-first annotation tool** with three layers:
 
 ### Content formats
 - **Videos** — VDL format: `<workDir>/<taskId>/{meta.json, article.md, subtitles.json, media/video.mp4}`. Scholia writes `highlights.json` and `notes.json` alongside.
-- **Articles** — Any Markdown directory. Slugs derived from relative path (`2024/react-tips.md` → `article-2024-react-tips`). Annotations stored in `~/.config/scholia/data/`.
+- **Articles** — Any Markdown directory (`contentDir`). Slugs derived from relative path (`2024/react-tips.md` → `article-2024-react-tips`). Annotations are co-located with the source file: a same-named sibling directory inside `contentDir` (`2024/react-tips/{highlights.json,notes.json}`). Scholia only ever creates/reads/writes those two file names inside that directory — everything else there (e.g. an existing Obsidian attachment folder of the same name) is left untouched.
 
 ### Key invariants
 - Article task IDs are prefixed `article-` (`isArticleId` in `server/article-source.js` is the discriminator used everywhere).

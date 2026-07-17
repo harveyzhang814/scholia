@@ -14,12 +14,13 @@ import { usePlayerStore } from '@/stores/player-store';
 
 export default function TaskDetail() {
   const { id = '' } = useParams();
+  const isArticleTask = id.startsWith('article-');
   const { data: task, isLoading } = useTask(id);
   const { data: mediaInfo } = useMediaInfo(id);
   const mediaKind: 'video' | 'audio' | null =
     mediaInfo?.video?.exists ? 'video' :
     mediaInfo?.audio?.exists ? 'audio' : null;
-  const [tab, setTab] = useState<'summary' | 'article'>('summary');
+  const [tab, setTab] = useState<'summary' | 'article'>(isArticleTask ? 'article' : 'summary');
   const { data: content = '' } = useContent(id, tab);
   const toc = useMemo(() => extractToc(content), [content]);
   const reveal = useReveal();
@@ -75,15 +76,17 @@ export default function TaskDetail() {
         </div>
         <div className="flex items-center gap-3">
           <ProseThemePicker />
-          <ModeSwitcher />
-          <Link
-            to={`/tasks/${id}/gantt`}
-            title="执行甘特图"
-            className="text-sm px-2 py-1 rounded hover:opacity-70 transition-opacity"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            ▦
-          </Link>
+          {mediaKind && <ModeSwitcher />}
+          {mediaKind && (
+            <Link
+              to={`/tasks/${id}/gantt`}
+              title="执行甘特图"
+              className="text-sm px-2 py-1 rounded hover:opacity-70 transition-opacity"
+              style={{ color: 'var(--text-tertiary)' }}
+            >
+              ▦
+            </Link>
+          )}
           <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
             <kbd className="px-1 py-0.5 rounded border" style={{ borderColor: 'var(--border-subtle)' }}>⌘K</kbd>
           </div>
@@ -137,7 +140,7 @@ export default function TaskDetail() {
               <div className="px-12 border-b flex items-center justify-between flex-shrink-0"
                    style={{ borderColor: 'var(--border-subtle)' }}>
                 <div className="flex">
-                  {(['summary', 'article'] as const).map((t) => (
+                  {!isArticleTask && (['summary', 'article'] as const).map((t) => (
                     <button key={t} onClick={() => setTab(t)}
                             className="py-2.5 mr-6 text-sm border-b-2 transition-colors cursor-pointer"
                             style={{
@@ -163,6 +166,7 @@ export default function TaskDetail() {
                   <div className="article-col" ref={articleRef}>
                     <Reader
                       content={content}
+                      frontmatter={tab === 'article' ? task.frontmatter : undefined}
                       highlights={highlights}
                       onAnchorSelect={(anchor) => setPendingAnchor(anchor)}
                       onAddHighlight={(anchor, color) => addHighlight.mutate({ anchor, color })}
