@@ -9,8 +9,10 @@ master (生产，受保护，禁止直接提交)
   ← staging (集成/预发布，受保护，禁止直接提交)
 ```
 
-发版**不单独切 release/x.y.z 分支**，直接在 `staging` 上完成版本号改动，然后合并 `staging → master` 并在 `master` 上打 tag。
+发版**不单独切 release/x.y.z 分支**，版本号改动通过 `chore/release-x.y.z` 分支提交后合并进 `staging`，然后合并 `staging → master` 并在 `master` 上打 tag。
 
+> `staging` 也受 pre-commit hook 保护，**不能在 staging 上直接提交**，即使是发版这种改动也必须走 `chore/*` 分支再合并。这是 Init 阶段最初遗漏的一点，Execute 时被 hook 拦截才发现。
+>
 > workflow-config.yml 中 `master.merge_from` 同时允许 `release/*`，为可选的热修复通道（见 docs/reference/git-workflow.md 的「紧急热修复」FAQ），日常发版不使用。
 
 标准流程：
@@ -18,7 +20,10 @@ master (生产，受保护，禁止直接提交)
 ```bash
 git checkout staging
 git pull
-# ...更新版本文件、CHANGELOG，提交到 staging...
+git checkout -b chore/release-X.Y.Z
+# ...更新版本文件、CHANGELOG，提交到 chore/release-X.Y.Z...
+git checkout staging
+git merge --no-ff chore/release-X.Y.Z -m "chore: merge chore/release-X.Y.Z into staging"
 git push origin staging
 
 git checkout master
