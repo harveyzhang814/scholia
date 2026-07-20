@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTasks } from '@/hooks/use-tasks';
 import { TaskCard } from '@/components/task-card';
 import { api, type Article } from '@/lib/api';
+import { useUiStore } from '@/stores/ui-store';
 
 function useArticles() {
   return useQuery({
@@ -14,7 +15,8 @@ function useArticles() {
 }
 
 export default function Home() {
-  const [tab, setTab] = useState<'video' | 'article'>('video');
+  const tab = useUiStore((s) => s.homeTab);
+  const setTab = useUiStore((s) => s.setHomeTab);
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { data: articles = [], isLoading: articlesLoading } = useArticles();
   const [searchQuery, setSearchQuery] = useState('');
