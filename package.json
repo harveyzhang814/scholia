@@ -1,6 +1,6 @@
 {
   "name": "scholia",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local-first knowledge annotation tool",
   "type": "commonjs",
   "main": "server/index.js",
