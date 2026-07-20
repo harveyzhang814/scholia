@@ -53,6 +53,24 @@ async function test(name, fn) {
     assert.equal(videos[1].url, 'https://yt.com/1');
   });
 
+  await test('listVideos sorts by occurrence date, not file mtime', async () => {
+    // task3 written last (newest mtime) but has the oldest upload_date-derived date
+    const task3 = 'old000video999';
+    fs.mkdirSync(path.join(workDir, task3, 'writing'), { recursive: true });
+    fs.mkdirSync(path.join(workDir, task3, 'media'), { recursive: true });
+    fs.mkdirSync(path.join(workDir, task3, 'transcript'), { recursive: true });
+    fs.writeFileSync(path.join(workDir, task3, 'meta.json'), JSON.stringify({
+      id: task3, url: 'https://yt.com/3', title: 'Oldest Video', uploader: 'Chan C',
+      upload_date: '20200101', duration: '100', mode: 'media',
+    }));
+    const videos = await listVideos(workDir);
+    assert.equal(videos.length, 3);
+    assert.equal(videos[0].id, task2); // ts 2024-02-01
+    assert.equal(videos[1].id, task1); // ts 2024-01-01
+    assert.equal(videos[2].id, task3); // upload_date 2020-01-01, despite newest mtime
+    fs.rmSync(path.join(workDir, task3), { recursive: true, force: true });
+  });
+
   await test('listVideos returns empty array for missing workDir', async () => {
     const videos = await listVideos('/nonexistent/path');
     assert.deepEqual(videos, []);

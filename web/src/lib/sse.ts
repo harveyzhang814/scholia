@@ -19,8 +19,14 @@ export function openEventStream(onEvent: (e: SSEEvent) => void): () => void {
       console.warn('[sse] parse error', err);
     }
   };
-  es.onerror = (err) => {
-    console.warn('[sse] error', err);
+  es.onerror = () => {
+    // No backend event source exists today (server/index.js has no /api/events
+    // route) — EventSource retries indefinitely on error by default, which
+    // just hammers a 404 forever. Give up after the first failure instead of
+    // looping; live task updates degrade to the existing polling/staleTime
+    // refetch behavior in use-tasks.ts.
+    console.warn('[sse] no event stream available — live updates disabled for this session');
+    es.close();
   };
   return () => es.close();
 }

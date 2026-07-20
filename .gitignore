@@ -1,3 +1,7 @@
 node_modules/
 *.DS_Store
 web/dist/
+.worktrees/
+.gstack/
+*.tgz
+.claude/

@@ -51,4 +51,25 @@ function readConfig(cfgPath = getConfigPath()) {
   };
 }
 
-module.exports = { readValue, writeValue, readConfig, getConfigPath, DEFAULT_CONFIG_PATH };
+function getRunningFilePath() {
+  return path.join(path.dirname(getConfigPath()), 'running.json');
+}
+
+function readRunningInfo(runningPath = getRunningFilePath()) {
+  try {
+    return JSON.parse(fs.readFileSync(runningPath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeRunningInfo(info, runningPath = getRunningFilePath()) {
+  fs.mkdirSync(path.dirname(runningPath), { recursive: true });
+  fs.writeFileSync(runningPath, JSON.stringify(info), 'utf8');
+}
+
+function clearRunningInfo(runningPath = getRunningFilePath()) {
+  try { fs.unlinkSync(runningPath); } catch {}
+}
+
+module.exports = { readValue, writeValue, readConfig, getConfigPath, DEFAULT_CONFIG_PATH, getRunningFilePath, readRunningInfo, writeRunningInfo, clearRunningInfo };

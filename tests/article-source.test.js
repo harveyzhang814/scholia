@@ -55,6 +55,16 @@ async function test(name, fn) {
     assert.equal(dive.title, 'Deep Dive');
   });
 
+  await test('listArticles sorts by fetch_date, falling back to mtime', async () => {
+    // Written last (newest mtime) but has the oldest fetch_date
+    fs.writeFileSync(path.join(contentDir, 'old-fetch.md'),
+      '---\ntitle: Old Fetch\nfetch_date: 2020-01-01\n---\n\n# Old');
+    const articles = await listArticles(contentDir);
+    assert.equal(articles.length, 4);
+    assert.equal(articles[articles.length - 1].slug, 'old-fetch');
+    fs.rmSync(path.join(contentDir, 'old-fetch.md'));
+  });
+
   await test('listArticles returns [] for missing dir', async () => {
     const r = await listArticles('/nonexistent');
     assert.deepEqual(r, []);
@@ -91,10 +101,112 @@ async function test(name, fn) {
     assert.equal(md, null);
   });
 
-  await test('path traversal slug rejected by getArticleDirs', () => {
-    const { getArticleDirs } = require('../server/paths');
-    assert.throws(() => getArticleDirs('/some/dir', '../evil'), /Invalid article slug/);
-    assert.throws(() => getArticleDirs('/some/dir', 'foo/bar'), /Invalid article slug/);
+  await test('getArticleAnnotationDirs computes sibling directory next to the article file', () => {
+    const { getArticleAnnotationDirs } = require('../server/paths');
+    const dirs = getArticleAnnotationDirs(path.join(contentDir, '2024', 'tips.md'));
+    assert.equal(dirs.base, path.join(contentDir, '2024', 'tips'));
+    assert.equal(dirs.notes, path.join(contentDir, '2024', 'tips', 'notes.json'));
+    assert.equal(dirs.highlights, path.join(contentDir, '2024', 'tips', 'highlights.json'));
+  });
+
+  await test('resolveArticleFile resolves nested slug to its file path', async () => {
+    const { resolveArticleFile } = require('../server/article-source');
+    const filePath = await resolveArticleFile(contentDir, '2024-tips');
+    assert.equal(filePath, path.join(contentDir, '2024', 'tips.md'));
+  });
+
+  await test('resolveArticleFile returns null for unmatched or path-traversal-like slugs', async () => {
+    const { resolveArticleFile } = require('../server/article-source');
+    assert.equal(await resolveArticleFile(contentDir, 'nonexistent'), null);
+    assert.equal(await resolveArticleFile(contentDir, '../evil'), null);
+    assert.equal(await resolveArticleFile(contentDir, 'foo/bar'), null);
+  });
+
+  await test('getArticleTask returns arbitrary frontmatter fields as meta.frontmatter', async () => {
+    fs.writeFileSync(path.join(contentDir, 'rich.md'),
+      '---\ntitle: Rich Doc\nauthor: Jane\nsource: arxiv.org\ntags:\n  - ai\n  - ml\n---\n\n# Rich');
+    const t = await getArticleTask('article-rich', contentDir);
+    assert.ok(t);
+    assert.equal(t.meta.frontmatter.title, 'Rich Doc');
+    assert.equal(t.meta.frontmatter.author, 'Jane');
+    assert.equal(t.meta.frontmatter.source, 'arxiv.org');
+    assert.deepEqual(t.meta.frontmatter.tags, ['ai', 'ml']);
+    fs.rmSync(path.join(contentDir, 'rich.md'));
+  });
+
+  await test('getArticleTask returns empty frontmatter object when file has no frontmatter block', async () => {
+    const t = await getArticleTask('article-deep-dive', contentDir);
+    assert.ok(t);
+    assert.deepEqual(t.meta.frontmatter, {});
+  });
+
+  await test('getArticleTask falls back to empty frontmatter on malformed YAML', async () => {
+    fs.writeFileSync(path.join(contentDir, 'bad-yaml.md'),
+      '---\ntitle: Bad\ntags: [ai, ml\n---\n\n# Bad');
+    const t = await getArticleTask('article-bad-yaml', contentDir);
+    assert.ok(t);
+    assert.deepEqual(t.meta.frontmatter, {});
+    assert.equal(t.meta.title, 'Bad Yaml');
+    fs.rmSync(path.join(contentDir, 'bad-yaml.md'));
+  });
+
+  await test('getArticleContent strips the frontmatter block from the body', async () => {
+    const md = await getArticleContent('article-intro', contentDir);
+    assert.ok(!md.includes('---'));
+    assert.ok(!md.includes('title:'));
+    assert.ok(md.includes('# Hello'));
+  });
+
+  // Bilingual reading entries (extract-url style): {meta.json, Origin/*.md, Translation/*.md}
+  fs.mkdirSync(path.join(contentDir, 'abc123', 'Origin'), { recursive: true });
+  fs.mkdirSync(path.join(contentDir, 'abc123', 'Translation'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, 'abc123', 'meta.json'),
+    JSON.stringify({ title: 'Meta Title', source_url: 'https://example.com', fetched_at: '2024-05-01' }));
+  fs.writeFileSync(path.join(contentDir, 'abc123', 'Origin', 'Some Title.md'), '# Original text');
+  fs.writeFileSync(path.join(contentDir, 'abc123', 'Translation', 'Some Title.md'),
+    '---\nfetch_date: 2024-06-01\n---\n\n# 译文正文');
+
+  fs.mkdirSync(path.join(contentDir, 'def456', 'Origin'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, 'def456', 'meta.json'),
+    JSON.stringify({ title: 'Origin Only', fetched_at: '2024-03-01' }));
+  fs.writeFileSync(path.join(contentDir, 'def456', 'Origin', 'Untranslated.md'), '# Not translated yet');
+
+  await test('listArticles exposes one entry per bilingual dir, using its hash as the slug', async () => {
+    const articles = await listArticles(contentDir);
+    assert.ok(articles.some(a => a.slug === 'abc123'));
+    assert.ok(!articles.some(a => a.slug.includes('Translation')));
+    assert.ok(!articles.some(a => a.slug.includes('Origin')));
+  });
+
+  await test('listArticles prefers Translation content and falls back to meta.json title/date', async () => {
+    const articles = await listArticles(contentDir);
+    const entry = articles.find(a => a.slug === 'abc123');
+    assert.ok(entry);
+    assert.equal(entry.title, 'Meta Title');
+    const md = await getArticleContent('article-abc123', contentDir);
+    assert.ok(md.includes('译文正文'));
+  });
+
+  await test('listArticles falls back to Origin when no Translation exists yet', async () => {
+    const articles = await listArticles(contentDir);
+    const entry = articles.find(a => a.slug === 'def456');
+    assert.ok(entry);
+    assert.equal(entry.title, 'Origin Only');
+    const md = await getArticleContent('article-def456', contentDir);
+    assert.ok(md.includes('Not translated yet'));
+  });
+
+  // Vault internals (.obsidian, .trash, .git, ...) must never surface as articles
+  fs.mkdirSync(path.join(contentDir, '.trash'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, '.trash', 'deleted-note.md'), '# Deleted note');
+  fs.mkdirSync(path.join(contentDir, '.obsidian'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, '.obsidian', 'workspace.md'), '# Not a real article');
+
+  await test('listArticles skips dotfolders like .trash and .obsidian', async () => {
+    const articles = await listArticles(contentDir);
+    assert.ok(!articles.some(a => a.slug.includes('trash')));
+    assert.ok(!articles.some(a => a.slug.includes('obsidian')));
+    assert.equal(await articleFileExists(contentDir, '.trash-deleted-note'), false);
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);

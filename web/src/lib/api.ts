@@ -43,6 +43,7 @@ export interface Task {
   height?: number;
   file_size?: number;
   bit_rate?: number;
+  frontmatter?: Record<string, unknown>;
 }
 
 export interface Step {
@@ -72,6 +73,7 @@ interface BackendTask {
     ts?: string; created_at?: string;
     transcript_done?: boolean; article_done?: boolean; summary_done?: boolean;
     download_status?: string;
+    frontmatter?: Record<string, unknown>;
   };
 }
 
@@ -131,6 +133,7 @@ function normalizeTask(raw: BackendTask): Task {
     status: mapStatus(raw.status),
     created_at: parseDateStr(m.ts ?? m.created_at),
     updated_at: parseDateStr(m.ts ?? m.created_at),
+    frontmatter: m.frontmatter,
   };
 }
 

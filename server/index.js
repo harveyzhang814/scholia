@@ -6,10 +6,16 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-const { getVideoDirs, getArticleDirs } = require('./paths');
+const { getVideoDirs, getArticleAnnotationDirs } = require('./paths');
 const { listVideos, getVideoTask, getVideoMediaInfo, getVideoSubtitles, getVideoContent } = require('./video-source');
-const { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent } = require('./article-source');
+const { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent, resolveArticleFile } = require('./article-source');
 const { createStaticServe } = require('./static-serve');
+
+const ASSET_MIME = {
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+  '.avif': 'image/avif', '.bmp': 'image/bmp',
+};
 
 async function readJson(filePath, defaultVal) {
   try { return JSON.parse(await fs.promises.readFile(filePath, 'utf8')); }
@@ -33,8 +39,13 @@ async function assertItemExists(taskId, workDir, contentDir) {
   return fs.promises.access(metaPath).then(() => true).catch(() => false);
 }
 
-function getPaths(taskId, workDir) {
-  if (isArticleId(taskId)) return getArticleDirs(workDir, slugFromId(taskId));
+async function getPaths(taskId, workDir, contentDir) {
+  if (isArticleId(taskId)) {
+    const filePath = await resolveArticleFile(contentDir, slugFromId(taskId));
+    if (!filePath) return null;
+    return getArticleAnnotationDirs(filePath);
+  }
+  if (!await assertItemExists(taskId, workDir, contentDir)) return null;
   return getVideoDirs(workDir, taskId);
 }
 
@@ -53,6 +64,7 @@ function createApp(options = {}) {
   // Auth
   router.use(async (ctx, next) => {
     if (/\/tasks\/[^/]+\/media\//.test(ctx.path)) return next();
+    if (/\/tasks\/[^/]+\/content\/asset$/.test(ctx.path)) return next();
     const bearer = (ctx.get('Authorization') || '').replace(/^Bearer /, '');
     if (!bearer || bearer !== token) { ctx.status = 401; ctx.body = { error: 'UNAUTHORIZED' }; return; }
     return next();
@@ -132,6 +144,15 @@ function createApp(options = {}) {
     }
   });
 
+  // Step timing (gantt chart). No per-step timestamp data is recorded in
+  // meta.json today, so this always returns an empty list rather than
+  // fabricating timing — the frontend already renders a clean empty state.
+  router.get('/tasks/:taskId/steps', async (ctx) => {
+    const { taskId } = ctx.params;
+    if (!await assertItemExists(taskId, WORK_DIR, CONTENT_DIR)) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    ctx.body = [];
+  });
+
   // Subtitles
   router.get('/tasks/:taskId/subtitles', async (ctx) => {
     const { taskId } = ctx.params;
@@ -159,12 +180,35 @@ function createApp(options = {}) {
     ctx.status = 200; ctx.set('Content-Type', 'text/markdown; charset=utf-8'); ctx.body = md;
   });
 
+  // Article asset (e.g. images under a Translation/Origin dir's sibling
+  // Image/ folder, referenced via relative paths like ../Image/img_1.jpg).
+  // Resolved relative to the article file's own directory, not CONTENT_DIR
+  // root, and must not escape CONTENT_DIR.
+  router.get('/tasks/:taskId/content/asset', async (ctx) => {
+    const { taskId } = ctx.params;
+    const bearer = (ctx.get('Authorization') || '').replace(/^Bearer /, '');
+    const qToken = String((ctx.query && ctx.query.token) || '');
+    if (bearer !== token && qToken !== token) { ctx.status = 401; return; }
+    if (!isArticleId(taskId) || !CONTENT_DIR) { ctx.status = 404; return; }
+    const relPath = String((ctx.query && ctx.query.path) || '');
+    const ext = path.extname(relPath).toLowerCase();
+    if (!relPath || !ASSET_MIME[ext]) { ctx.status = 400; return; }
+    const filePath = await resolveArticleFile(CONTENT_DIR, slugFromId(taskId));
+    if (!filePath) { ctx.status = 404; return; }
+    const contentDirResolved = path.resolve(CONTENT_DIR);
+    const target = path.resolve(path.dirname(filePath), relPath);
+    if (!target.startsWith(contentDirResolved + path.sep)) { ctx.status = 400; return; }
+    if (!fs.existsSync(target)) { ctx.status = 404; return; }
+    ctx.type = ASSET_MIME[ext];
+    ctx.body = fs.createReadStream(target);
+  });
+
   // Highlights
   router.get('/tasks/:taskId/highlights', async (ctx) => {
     const { taskId } = ctx.params;
-    if (!await assertItemExists(taskId, WORK_DIR, CONTENT_DIR)) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
-    const { highlights } = getPaths(taskId, WORK_DIR);
-    ctx.body = await readJson(highlights, []);
+    const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
+    if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    ctx.body = await readJson(paths.highlights, []);
   });
 
   router.post('/tasks/:taskId/highlights', async (ctx) => {
@@ -172,47 +216,47 @@ function createApp(options = {}) {
     const { anchor = '', color = 'yellow' } = ctx.request.body || {};
     if (!anchor || typeof anchor !== 'string' || !anchor.trim()) { ctx.status = 400; ctx.body = { error: 'anchor required' }; return; }
     if (!['yellow', 'green', 'red', 'blue'].includes(color)) { ctx.status = 400; ctx.body = { error: 'invalid color' }; return; }
-    if (!await assertItemExists(taskId, WORK_DIR, CONTENT_DIR)) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
-    const { base, highlights } = getPaths(taskId, WORK_DIR);
-    await fs.promises.mkdir(base, { recursive: true });
-    const hls = await readJson(highlights, []);
+    const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
+    if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    await fs.promises.mkdir(paths.base, { recursive: true });
+    const hls = await readJson(paths.highlights, []);
     const hl = { id: crypto.randomUUID(), anchor: anchor.trim(), color, createdAt: Date.now() };
     hls.unshift(hl);
-    await writeJson(highlights, hls);
+    await writeJson(paths.highlights, hls);
     ctx.status = 201; ctx.body = hl;
   });
 
   router.delete('/tasks/:taskId/highlights/:hlId', async (ctx) => {
     const { taskId, hlId } = ctx.params;
-    if (!await assertItemExists(taskId, WORK_DIR, CONTENT_DIR)) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
-    const { highlights } = getPaths(taskId, WORK_DIR);
-    const hls = await readJson(highlights, []);
+    const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
+    if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    const hls = await readJson(paths.highlights, []);
     const filtered = hls.filter((h) => h.id !== hlId);
     if (filtered.length === hls.length) { ctx.status = 404; ctx.body = { error: 'highlight not found' }; return; }
-    await writeJson(highlights, filtered);
+    await writeJson(paths.highlights, filtered);
     ctx.status = 204;
   });
 
   // Notes
   router.get('/tasks/:taskId/notes', async (ctx) => {
     const { taskId } = ctx.params;
-    if (!await assertItemExists(taskId, WORK_DIR, CONTENT_DIR)) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
-    const { notes } = getPaths(taskId, WORK_DIR);
-    ctx.body = await readJson(notes, []);
+    const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
+    if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    ctx.body = await readJson(paths.notes, []);
   });
 
   router.post('/tasks/:taskId/notes', async (ctx) => {
     const { taskId } = ctx.params;
     const { anchor = '', mediaTimestamp, body } = ctx.request.body || {};
     if (!body || typeof body !== 'string' || !body.trim()) { ctx.status = 400; ctx.body = { error: 'body required' }; return; }
-    if (!await assertItemExists(taskId, WORK_DIR, CONTENT_DIR)) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
-    const { base, notes } = getPaths(taskId, WORK_DIR);
-    await fs.promises.mkdir(base, { recursive: true });
-    const ns = await readJson(notes, []);
+    const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
+    if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    await fs.promises.mkdir(paths.base, { recursive: true });
+    const ns = await readJson(paths.notes, []);
     const now = Date.now();
     const note = { id: crypto.randomUUID(), anchor: anchor || '', ...(mediaTimestamp != null ? { mediaTimestamp: Number(mediaTimestamp) } : {}), body: body.trim(), createdAt: now, updatedAt: now };
     ns.unshift(note);
-    await writeJson(notes, ns);
+    await writeJson(paths.notes, ns);
     ctx.status = 201; ctx.body = note;
   });
 
@@ -220,24 +264,24 @@ function createApp(options = {}) {
     const { taskId, noteId } = ctx.params;
     const { body } = ctx.request.body || {};
     if (!body || typeof body !== 'string' || !body.trim()) { ctx.status = 400; ctx.body = { error: 'body required' }; return; }
-    if (!await assertItemExists(taskId, WORK_DIR, CONTENT_DIR)) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
-    const { notes } = getPaths(taskId, WORK_DIR);
-    const ns = await readJson(notes, []);
+    const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
+    if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    const ns = await readJson(paths.notes, []);
     const idx = ns.findIndex((n) => n.id === noteId);
     if (idx === -1) { ctx.status = 404; ctx.body = { error: 'note not found' }; return; }
     ns[idx] = { ...ns[idx], body: body.trim(), updatedAt: Date.now() };
-    await writeJson(notes, ns);
+    await writeJson(paths.notes, ns);
     ctx.body = ns[idx];
   });
 
   router.delete('/tasks/:taskId/notes/:noteId', async (ctx) => {
     const { taskId, noteId } = ctx.params;
-    if (!await assertItemExists(taskId, WORK_DIR, CONTENT_DIR)) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
-    const { notes } = getPaths(taskId, WORK_DIR);
-    const ns = await readJson(notes, []);
+    const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
+    if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    const ns = await readJson(paths.notes, []);
     const filtered = ns.filter((n) => n.id !== noteId);
     if (filtered.length === ns.length) { ctx.status = 404; ctx.body = { error: 'note not found' }; return; }
-    await writeJson(notes, filtered);
+    await writeJson(paths.notes, filtered);
     ctx.status = 204;
   });
 

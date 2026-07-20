@@ -72,12 +72,12 @@ export default function Home() {
       </header>
 
       {/* Tab bar */}
-      <div className="flex border-b mb-8" style={{ borderColor: 'var(--border-subtle)' }}>
+      <div className="flex border-b mb-8 -ml-3" style={{ borderColor: 'var(--border-subtle)' }}>
         {(['video', 'article'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className="py-2 mr-6 text-sm border-b-2 transition-colors cursor-pointer"
+            className="px-3 py-2.5 text-sm border-b-2 transition-colors cursor-pointer"
             style={{
               borderColor: tab === t ? 'var(--accent-9)' : 'transparent',
               color: tab === t ? 'var(--text-primary)' : 'var(--text-tertiary)',
@@ -130,13 +130,13 @@ function ArticleCard({ article }: { article: Article }) {
       className="block rounded-xl border p-4 hover:opacity-80 transition-opacity"
       style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}
     >
-      <div className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
+      <div className="text-sm font-medium mb-1 line-clamp-2" style={{ color: 'var(--text-primary)' }}>
         {article.title}
       </div>
       {article.date && (
         <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{article.date}</div>
       )}
-      <div className="text-xs mt-1" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
+      <div className="text-xs mt-1 truncate" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
         {article.slug}
       </div>
     </Link>

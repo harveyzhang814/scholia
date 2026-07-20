@@ -41,6 +41,16 @@ async function req(port, method, urlPath, body) {
   fs.writeFileSync(path.join(workDir, taskId, 'writing', 'article.md'), '# Article\n\nContent');
 
   fs.writeFileSync(path.join(contentDir, 'intro.md'), '---\ntitle: Intro\n---\n\n# Hello');
+  fs.mkdirSync(path.join(contentDir, '2024'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, '2024', 'tips.md'), '---\ntitle: Tips\n---\n\n# Tips');
+
+  // Bilingual reading entry with a sibling Image/ folder
+  fs.mkdirSync(path.join(contentDir, 'hash1', 'Translation'), { recursive: true });
+  fs.mkdirSync(path.join(contentDir, 'hash1', 'Image'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, 'hash1', 'meta.json'), JSON.stringify({ title: 'Bilingual' }));
+  fs.writeFileSync(path.join(contentDir, 'hash1', 'Translation', 'doc.md'), '# 译文\n\n![](../Image/pic.png)');
+  fs.writeFileSync(path.join(contentDir, 'hash1', 'Image', 'pic.png'), 'fake-png-bytes');
+  fs.writeFileSync(path.join(tmp, 'outside.png'), 'outside-bytes');
 
   const { createApp } = require('../server');
   const { app, token: _t } = createApp({ workDir, contentDir, token: TOKEN });
@@ -66,9 +76,8 @@ async function req(port, method, urlPath, body) {
   await test('GET /api/articles returns article list', async () => {
     const r = await req(port, 'GET', '/api/articles');
     assert.equal(r.status, 200);
-    assert.equal(r.body.length, 1);
-    assert.equal(r.body[0].slug, 'intro');
-    assert.equal(r.body[0].title, 'Intro');
+    assert.equal(r.body.length, 3);
+    assert.ok(r.body.some((a) => a.slug === 'intro' && a.title === 'Intro'));
   });
 
   await test('GET /api/tasks/:id returns video task', async () => {
@@ -84,6 +93,12 @@ async function req(port, method, urlPath, body) {
     assert.equal(r.status, 200);
     assert.equal(r.body.task_id, 'article-intro');
     assert.equal(r.body.meta.title, 'Intro');
+  });
+
+  await test('GET /api/tasks/article-intro includes parsed frontmatter', async () => {
+    const r = await req(port, 'GET', '/api/tasks/article-intro');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.meta.frontmatter, { title: 'Intro' });
   });
 
   await test('GET /api/tasks/:id returns 404 for unknown id', async () => {
@@ -177,14 +192,83 @@ async function req(port, method, urlPath, body) {
   });
 
   // Article highlights
-  await test('article highlights CRUD', async () => {
+  await test('article highlights CRUD, co-located with the article file', async () => {
     const r = await req(port, 'POST', '/api/tasks/article-intro/highlights', { anchor: 'h-1', color: 'green' });
     assert.equal(r.status, 201);
+    assert.ok(fs.existsSync(path.join(contentDir, 'intro', 'highlights.json')));
+    assert.ok(!fs.existsSync(path.join(workDir, 'article-intro', 'highlights.json')));
     const r2 = await req(port, 'GET', '/api/tasks/article-intro/highlights');
     assert.equal(r2.body.length, 1);
     await req(port, 'DELETE', `/api/tasks/article-intro/highlights/${r.body.id}`);
     const r3 = await req(port, 'GET', '/api/tasks/article-intro/highlights');
     assert.deepEqual(r3.body, []);
+  });
+
+  // Article notes
+  let articleNoteId;
+  await test('article notes: POST creates note co-located with the article file', async () => {
+    const r = await req(port, 'POST', '/api/tasks/article-intro/notes', { anchor: 'p-1', body: 'Article note' });
+    assert.equal(r.status, 201);
+    assert.ok(r.body.id);
+    articleNoteId = r.body.id;
+    assert.ok(fs.existsSync(path.join(contentDir, 'intro', 'notes.json')));
+    assert.ok(!fs.existsSync(path.join(workDir, 'article-intro', 'notes.json')));
+  });
+
+  await test('article notes: PATCH updates note', async () => {
+    const r = await req(port, 'PATCH', `/api/tasks/article-intro/notes/${articleNoteId}`, { body: 'Updated article note' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.body, 'Updated article note');
+  });
+
+  await test('article notes: DELETE removes note', async () => {
+    const r = await req(port, 'DELETE', `/api/tasks/article-intro/notes/${articleNoteId}`);
+    assert.equal(r.status, 204);
+    const r2 = await req(port, 'GET', '/api/tasks/article-intro/notes');
+    assert.deepEqual(r2.body, []);
+  });
+
+  await test('article notes: nested article gets its own sibling dir, not the root one', async () => {
+    const r = await req(port, 'POST', '/api/tasks/article-2024-tips/notes', { anchor: 'p-1', body: 'Nested note' });
+    assert.equal(r.status, 201);
+    assert.ok(fs.existsSync(path.join(contentDir, '2024', 'tips', 'notes.json')));
+    assert.ok(!fs.existsSync(path.join(contentDir, 'tips', 'notes.json')));
+  });
+
+  await test('article notes: the article .md file itself is untouched', async () => {
+    const content = fs.readFileSync(path.join(contentDir, 'intro.md'), 'utf8');
+    assert.ok(content.includes('# Hello'));
+  });
+
+  await test('article notes: 404 for a nonexistent article', async () => {
+    const r = await req(port, 'GET', '/api/tasks/article-nonexistent/notes');
+    assert.equal(r.status, 404);
+  });
+
+  // Article content asset (images relative to the article's own directory)
+  await test('content/asset serves an image resolved relative to the article file, not contentDir root', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/tasks/article-hash1/content/asset?path=${encodeURIComponent('../Image/pic.png')}&token=${TOKEN}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'image/png');
+    assert.equal(await res.text(), 'fake-png-bytes');
+  });
+
+  await test('content/asset rejects paths that escape contentDir', async () => {
+    const escapeAttempts = ['../../../outside.png', '../../../../../../../../etc/outside.png'];
+    for (const p of escapeAttempts) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/tasks/article-hash1/content/asset?path=${encodeURIComponent(p)}&token=${TOKEN}`);
+      assert.equal(res.status, 400, `expected 400 for ${p}`);
+    }
+  });
+
+  await test('content/asset rejects non-image extensions', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/tasks/article-hash1/content/asset?path=${encodeURIComponent('../meta.json')}&token=${TOKEN}`);
+    assert.equal(res.status, 400);
+  });
+
+  await test('content/asset requires a token (bearer or query)', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/tasks/article-hash1/content/asset?path=${encodeURIComponent('../Image/pic.png')}`);
+    assert.equal(res.status, 401);
   });
 
   await test('401 without token', async () => {
