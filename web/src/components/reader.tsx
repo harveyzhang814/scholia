@@ -4,15 +4,27 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { MermaidChart } from './mermaid-chart';
 import { ArticleMetaBar } from './article-meta-bar';
-import type { Highlight } from '@/lib/api';
+import { api, type Highlight } from '@/lib/api';
 
 interface ReaderProps {
+  taskId?: string;
   content: string;
   frontmatter?: Record<string, unknown>;
   highlights?: Highlight[];
   onAnchorSelect?: (anchor: string) => void;
   onAddHighlight?: (anchor: string, color: 'yellow' | 'green' | 'red' | 'blue') => void;
   onDeleteHighlight?: (id: string) => void;
+}
+
+// Article images are often referenced via paths relative to the source .md
+// file (e.g. ../Image/img_1.jpg), which the browser can't resolve on its
+// own. Route them through the content-asset endpoint, which resolves the
+// path relative to the article file's own directory.
+function resolveArticleImageSrc(taskId: string, src: string): string {
+  if (/^(https?:)?\/\//.test(src) || src.startsWith('data:')) return src;
+  const token = api.token();
+  const params = new URLSearchParams({ path: src, ...(token ? { token } : {}) });
+  return `/api/tasks/${taskId}/content/asset?${params.toString()}`;
 }
 
 const COLORS: { key: 'yellow' | 'green' | 'red' | 'blue'; bg?: string; underline?: string }[] = [
@@ -22,19 +34,27 @@ const COLORS: { key: 'yellow' | 'green' | 'red' | 'blue'; bg?: string; underline
   { key: 'blue',   underline: 'rgba(59, 130, 246, 0.9)' },
 ];
 
-const mdComponents: Components = {
-  code({ className, children, ...props }) {
-    const lang = /language-(\w+)/.exec(className ?? '')?.[1];
-    if (lang === 'mermaid') {
-      return <MermaidChart code={String(children).trim()} />;
-    }
-    return <code className={className} {...props}>{children}</code>;
-  },
-};
-
-export function Reader({ content, frontmatter, highlights, onAnchorSelect, onAddHighlight, onDeleteHighlight }: ReaderProps) {
+export function Reader({ taskId, content, frontmatter, highlights, onAnchorSelect, onAddHighlight, onDeleteHighlight }: ReaderProps) {
   const md = useMemo(() => content ?? '', [content]);
   const articleRef = useRef<HTMLElement>(null);
+  const isArticleTask = taskId?.startsWith('article-') ?? false;
+
+  const mdComponents: Components = useMemo(() => ({
+    code({ className, children, ...props }) {
+      const lang = /language-(\w+)/.exec(className ?? '')?.[1];
+      if (lang === 'mermaid') {
+        return <MermaidChart code={String(children).trim()} />;
+      }
+      return <code className={className} {...props}>{children}</code>;
+    },
+    ...(isArticleTask ? {
+      img({ src, ...props }) {
+        const resolved = typeof src === 'string' ? resolveArticleImageSrc(taskId!, src) : src;
+        // eslint-disable-next-line jsx-a11y/alt-text
+        return <img src={resolved} {...props} />;
+      },
+    } : {}),
+  }), [isArticleTask, taskId]);
 
   // ── Selection bubble ────────────────────────────────────────
   const [bubble, setBubble] = useState<{ x: number; y: number; anchor: string } | null>(null);

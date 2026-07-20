@@ -157,6 +157,58 @@ async function test(name, fn) {
     assert.ok(md.includes('# Hello'));
   });
 
+  // Bilingual reading entries (extract-url style): {meta.json, Origin/*.md, Translation/*.md}
+  fs.mkdirSync(path.join(contentDir, 'abc123', 'Origin'), { recursive: true });
+  fs.mkdirSync(path.join(contentDir, 'abc123', 'Translation'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, 'abc123', 'meta.json'),
+    JSON.stringify({ title: 'Meta Title', source_url: 'https://example.com', fetched_at: '2024-05-01' }));
+  fs.writeFileSync(path.join(contentDir, 'abc123', 'Origin', 'Some Title.md'), '# Original text');
+  fs.writeFileSync(path.join(contentDir, 'abc123', 'Translation', 'Some Title.md'),
+    '---\nfetch_date: 2024-06-01\n---\n\n# 译文正文');
+
+  fs.mkdirSync(path.join(contentDir, 'def456', 'Origin'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, 'def456', 'meta.json'),
+    JSON.stringify({ title: 'Origin Only', fetched_at: '2024-03-01' }));
+  fs.writeFileSync(path.join(contentDir, 'def456', 'Origin', 'Untranslated.md'), '# Not translated yet');
+
+  await test('listArticles exposes one entry per bilingual dir, using its hash as the slug', async () => {
+    const articles = await listArticles(contentDir);
+    assert.ok(articles.some(a => a.slug === 'abc123'));
+    assert.ok(!articles.some(a => a.slug.includes('Translation')));
+    assert.ok(!articles.some(a => a.slug.includes('Origin')));
+  });
+
+  await test('listArticles prefers Translation content and falls back to meta.json title/date', async () => {
+    const articles = await listArticles(contentDir);
+    const entry = articles.find(a => a.slug === 'abc123');
+    assert.ok(entry);
+    assert.equal(entry.title, 'Meta Title');
+    const md = await getArticleContent('article-abc123', contentDir);
+    assert.ok(md.includes('译文正文'));
+  });
+
+  await test('listArticles falls back to Origin when no Translation exists yet', async () => {
+    const articles = await listArticles(contentDir);
+    const entry = articles.find(a => a.slug === 'def456');
+    assert.ok(entry);
+    assert.equal(entry.title, 'Origin Only');
+    const md = await getArticleContent('article-def456', contentDir);
+    assert.ok(md.includes('Not translated yet'));
+  });
+
+  // Vault internals (.obsidian, .trash, .git, ...) must never surface as articles
+  fs.mkdirSync(path.join(contentDir, '.trash'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, '.trash', 'deleted-note.md'), '# Deleted note');
+  fs.mkdirSync(path.join(contentDir, '.obsidian'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, '.obsidian', 'workspace.md'), '# Not a real article');
+
+  await test('listArticles skips dotfolders like .trash and .obsidian', async () => {
+    const articles = await listArticles(contentDir);
+    assert.ok(!articles.some(a => a.slug.includes('trash')));
+    assert.ok(!articles.some(a => a.slug.includes('obsidian')));
+    assert.equal(await articleFileExists(contentDir, '.trash-deleted-note'), false);
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 })();

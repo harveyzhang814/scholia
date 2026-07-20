@@ -44,6 +44,14 @@ async function req(port, method, urlPath, body) {
   fs.mkdirSync(path.join(contentDir, '2024'), { recursive: true });
   fs.writeFileSync(path.join(contentDir, '2024', 'tips.md'), '---\ntitle: Tips\n---\n\n# Tips');
 
+  // Bilingual reading entry with a sibling Image/ folder
+  fs.mkdirSync(path.join(contentDir, 'hash1', 'Translation'), { recursive: true });
+  fs.mkdirSync(path.join(contentDir, 'hash1', 'Image'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, 'hash1', 'meta.json'), JSON.stringify({ title: 'Bilingual' }));
+  fs.writeFileSync(path.join(contentDir, 'hash1', 'Translation', 'doc.md'), '# 译文\n\n![](../Image/pic.png)');
+  fs.writeFileSync(path.join(contentDir, 'hash1', 'Image', 'pic.png'), 'fake-png-bytes');
+  fs.writeFileSync(path.join(tmp, 'outside.png'), 'outside-bytes');
+
   const { createApp } = require('../server');
   const { app, token: _t } = createApp({ workDir, contentDir, token: TOKEN });
   const server = http.createServer(app.callback());
@@ -68,7 +76,7 @@ async function req(port, method, urlPath, body) {
   await test('GET /api/articles returns article list', async () => {
     const r = await req(port, 'GET', '/api/articles');
     assert.equal(r.status, 200);
-    assert.equal(r.body.length, 2);
+    assert.equal(r.body.length, 3);
     assert.ok(r.body.some((a) => a.slug === 'intro' && a.title === 'Intro'));
   });
 
@@ -235,6 +243,32 @@ async function req(port, method, urlPath, body) {
   await test('article notes: 404 for a nonexistent article', async () => {
     const r = await req(port, 'GET', '/api/tasks/article-nonexistent/notes');
     assert.equal(r.status, 404);
+  });
+
+  // Article content asset (images relative to the article's own directory)
+  await test('content/asset serves an image resolved relative to the article file, not contentDir root', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/tasks/article-hash1/content/asset?path=${encodeURIComponent('../Image/pic.png')}&token=${TOKEN}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'image/png');
+    assert.equal(await res.text(), 'fake-png-bytes');
+  });
+
+  await test('content/asset rejects paths that escape contentDir', async () => {
+    const escapeAttempts = ['../../../outside.png', '../../../../../../../../etc/outside.png'];
+    for (const p of escapeAttempts) {
+      const res = await fetch(`http://127.0.0.1:${port}/api/tasks/article-hash1/content/asset?path=${encodeURIComponent(p)}&token=${TOKEN}`);
+      assert.equal(res.status, 400, `expected 400 for ${p}`);
+    }
+  });
+
+  await test('content/asset rejects non-image extensions', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/tasks/article-hash1/content/asset?path=${encodeURIComponent('../meta.json')}&token=${TOKEN}`);
+    assert.equal(res.status, 400);
+  });
+
+  await test('content/asset requires a token (bearer or query)', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/tasks/article-hash1/content/asset?path=${encodeURIComponent('../Image/pic.png')}`);
+    assert.equal(res.status, 401);
   });
 
   await test('401 without token', async () => {

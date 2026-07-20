@@ -11,6 +11,12 @@ const { listVideos, getVideoTask, getVideoMediaInfo, getVideoSubtitles, getVideo
 const { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent, resolveArticleFile } = require('./article-source');
 const { createStaticServe } = require('./static-serve');
 
+const ASSET_MIME = {
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+  '.avif': 'image/avif', '.bmp': 'image/bmp',
+};
+
 async function readJson(filePath, defaultVal) {
   try { return JSON.parse(await fs.promises.readFile(filePath, 'utf8')); }
   catch (e) { if (e.code === 'ENOENT') return defaultVal; throw e; }
@@ -58,6 +64,7 @@ function createApp(options = {}) {
   // Auth
   router.use(async (ctx, next) => {
     if (/\/tasks\/[^/]+\/media\//.test(ctx.path)) return next();
+    if (/\/tasks\/[^/]+\/content\/asset$/.test(ctx.path)) return next();
     const bearer = (ctx.get('Authorization') || '').replace(/^Bearer /, '');
     if (!bearer || bearer !== token) { ctx.status = 401; ctx.body = { error: 'UNAUTHORIZED' }; return; }
     return next();
@@ -171,6 +178,29 @@ function createApp(options = {}) {
     const md = await getVideoContent(taskId, WORK_DIR, type);
     if (md === null) { ctx.status = 404; ctx.body = { error: 'file not found' }; return; }
     ctx.status = 200; ctx.set('Content-Type', 'text/markdown; charset=utf-8'); ctx.body = md;
+  });
+
+  // Article asset (e.g. images under a Translation/Origin dir's sibling
+  // Image/ folder, referenced via relative paths like ../Image/img_1.jpg).
+  // Resolved relative to the article file's own directory, not CONTENT_DIR
+  // root, and must not escape CONTENT_DIR.
+  router.get('/tasks/:taskId/content/asset', async (ctx) => {
+    const { taskId } = ctx.params;
+    const bearer = (ctx.get('Authorization') || '').replace(/^Bearer /, '');
+    const qToken = String((ctx.query && ctx.query.token) || '');
+    if (bearer !== token && qToken !== token) { ctx.status = 401; return; }
+    if (!isArticleId(taskId) || !CONTENT_DIR) { ctx.status = 404; return; }
+    const relPath = String((ctx.query && ctx.query.path) || '');
+    const ext = path.extname(relPath).toLowerCase();
+    if (!relPath || !ASSET_MIME[ext]) { ctx.status = 400; return; }
+    const filePath = await resolveArticleFile(CONTENT_DIR, slugFromId(taskId));
+    if (!filePath) { ctx.status = 404; return; }
+    const contentDirResolved = path.resolve(CONTENT_DIR);
+    const target = path.resolve(path.dirname(filePath), relPath);
+    if (!target.startsWith(contentDirResolved + path.sep)) { ctx.status = 400; return; }
+    if (!fs.existsSync(target)) { ctx.status = 404; return; }
+    ctx.type = ASSET_MIME[ext];
+    ctx.body = fs.createReadStream(target);
   });
 
   // Highlights

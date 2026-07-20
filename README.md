@@ -133,14 +133,36 @@ date: 2024-03-15
 ---
 ```
 
-注解存储在 Scholia 自管目录，不污染 vault：
+注解与文章文件同级存放，不污染 vault 其他内容：
 
 ```
-~/.config/scholia/data/
-  article-<slug>/
-    highlights.json
-    notes.json
+<content-dir>/
+  2024/
+    react-tips.md
+    react-tips/            # Scholia 自动创建的同名目录
+      highlights.json
+      notes.json
 ```
+
+Scholia 只在这个目录里创建/读写 `highlights.json`、`notes.json` 这两个文件名，目录里已有的其他内容（比如 Obsidian 附件文件夹）一律不动。
+
+#### 双语抓取目录（如 extract-url 生成的内容）
+
+`content-dir` 下若某个目录包含 `meta.json`，会被当作一整篇文章，不按普通 Markdown 递归展开：
+
+```
+<content-dir>/
+  <hash>/
+    meta.json             # title、source_url、fetched_at 等
+    Origin/<标题>.md       # 原文
+    Translation/<标题>.md  # 译文
+    Image/*.png
+```
+
+- 只暴露 `Translation/*.md`；还没翻译完成时回退用 `Origin/*.md`，`Origin` 不会和 `Translation` 同时列出。
+- slug 直接用 `<hash>` 目录名，不拼接文件路径。
+- 文章正文 frontmatter 缺 `title`/日期时，回退读 `meta.json` 的 `title`/`fetched_at`。
+- 注解按上面同样的规则，落在实际被选中的那个 `.md` 文件同级（例如 `<hash>/Translation/<标题>/{highlights.json,notes.json}`）。
 
 ## 架构
 
