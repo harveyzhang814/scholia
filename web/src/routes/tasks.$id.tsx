@@ -165,6 +165,7 @@ export default function TaskDetail() {
                 <div className="article-notes-row">
                   <div className="article-col" ref={articleRef}>
                     <Reader
+                      taskId={id}
                       content={content}
                       frontmatter={tab === 'article' ? task.frontmatter : undefined}
                       highlights={highlights}

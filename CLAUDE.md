@@ -49,6 +49,7 @@ This is a **local-first annotation tool** with three layers:
 ### Content formats
 - **Videos** — VDL format: `<workDir>/<taskId>/{meta.json, article.md, subtitles.json, media/video.mp4}`. Scholia writes `highlights.json` and `notes.json` alongside.
 - **Articles** — Any Markdown directory (`contentDir`). Slugs derived from relative path (`2024/react-tips.md` → `article-2024-react-tips`). Annotations are co-located with the source file: a same-named sibling directory inside `contentDir` (`2024/react-tips/{highlights.json,notes.json}`). Scholia only ever creates/reads/writes those two file names inside that directory — everything else there (e.g. an existing Obsidian attachment folder of the same name) is left untouched.
+- **Bilingual reading entries** — a `contentDir` subdirectory containing `meta.json` (e.g. written by the `extract-url` skill) is treated as one article, not walked as plain markdown: `<hash>/{meta.json, Origin/*.md, Translation/*.md, Image/}`. Only `Translation/*.md` is exposed, falling back to `Origin/*.md` if no translation exists yet — `Origin` is never listed alongside it. The slug is the hash dirname itself (not the nested file path). Title/date fall back to `meta.json`'s `title`/`fetched_at` when the article's own frontmatter omits them. See `findArticleEntries` / `resolveTitleAndDate` in `server/article-source.js`.
 
 ### Key invariants
 - Article task IDs are prefixed `article-` (`isArticleId` in `server/article-source.js` is the discriminator used everywhere).
