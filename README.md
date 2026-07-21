@@ -80,6 +80,16 @@ Scholia started (pid <pid>, port <port>). Logs: ~/.config/scholia/scholia.log
 
 用 `scholia stop` 停止。
 
+### `scholia web`
+
+打开已在运行的 scholia 实例的浏览器页面（不带 `--open` 启动、或过后想再打开一次都可以用）。
+
+```
+scholia web
+```
+
+未运行时打印 `Scholia is not running. Run "scholia start" first.` 并 exit 1。
+
 ### `scholia stop`
 
 停止正在运行的 scholia 实例。
