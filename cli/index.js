@@ -3,7 +3,9 @@
 'use strict';
 const http = require('http');
 const path = require('path');
-const { readConfig, writeValue, readValue, readRunningInfo, writeRunningInfo, clearRunningInfo } = require('./config');
+const fs = require('fs');
+const { spawn } = require('child_process');
+const { readConfig, writeValue, readValue, readRunningInfo, writeRunningInfo, clearRunningInfo, getConfigPath } = require('./config');
 const { createApp } = require('../server');
 
 function openBrowser(url) {
@@ -34,24 +36,33 @@ if (!cmd || cmd === 'serve') {
   });
 
   const server = http.createServer(app.callback());
+  let triedFallback = false;
   server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE' && !triedFallback) {
+      triedFallback = true;
+      server.listen(0, '127.0.0.1');
+      return;
+    }
     if (err.code === 'EADDRINUSE') {
-      console.error(`Port ${port} already in use.`);
+      console.error(`Port ${port} already in use and no fallback port is available.`);
       process.exit(1);
     }
     throw err;
   });
-  server.listen(port, '127.0.0.1', () => {
+  server.on('listening', () => {
+    const actualPort = server.address().port;
     const existing = readRunningInfo();
     if (existing && isProcessAlive(existing.pid)) {
       console.error(`Scholia is already running (pid ${existing.pid}, port ${existing.port}). Run "scholia stop" first.`);
       process.exit(1);
     }
-    writeRunningInfo({ pid: process.pid, port, startedAt: new Date().toISOString() });
-    const url = `http://localhost:${port}?token=${token}`;
+    writeRunningInfo({ pid: process.pid, port: actualPort, startedAt: new Date().toISOString() });
+    const url = `http://localhost:${actualPort}?token=${token}`;
+    if (actualPort !== port) console.log(`Port ${port} was in use; using ${actualPort} instead.`);
     console.log(`Scholia running at ${url}`);
     if (shouldOpen) openBrowser(url);
   });
+  server.listen(port, '127.0.0.1');
 
   function shutdown() {
     clearRunningInfo();
@@ -59,6 +70,41 @@ if (!cmd || cmd === 'serve') {
   }
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+
+} else if (cmd === 'start') {
+  const existing = readRunningInfo();
+  if (existing && isProcessAlive(existing.pid)) {
+    console.error(`Scholia is already running (pid ${existing.pid}, port ${existing.port}). Run "scholia stop" first.`);
+    process.exit(1);
+  }
+
+  const logPath = path.join(path.dirname(getConfigPath()), 'scholia.log');
+  fs.mkdirSync(path.dirname(logPath), { recursive: true });
+  const logFd = fs.openSync(logPath, 'a');
+
+  const child = spawn(process.execPath, [__filename, 'serve', ...rest], {
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+  });
+  child.unref();
+
+  const deadline = Date.now() + 5000;
+  (function check() {
+    const info = readRunningInfo();
+    if (info && info.pid === child.pid) {
+      console.log(`Scholia started (pid ${info.pid}, port ${info.port}). Logs: ${logPath}`);
+      process.exit(0);
+    }
+    if (!isProcessAlive(child.pid)) {
+      console.error(`Scholia failed to start. Check logs: ${logPath}`);
+      process.exit(1);
+    }
+    if (Date.now() > deadline) {
+      console.error(`Timed out waiting for scholia to start. Check logs: ${logPath}`);
+      process.exit(1);
+    }
+    setTimeout(check, 100);
+  })();
 
 } else if (cmd === 'config') {
   const KEY_MAP = { 'work-dir': 'WORK_DIR', 'content-dir': 'CONTENT_DIR' };
@@ -98,6 +144,6 @@ if (!cmd || cmd === 'serve') {
   process.exit(0);
 
 } else {
-  console.error(`Unknown command: ${cmd}\nUsage:\n  scholia serve [--port N] [--open]\n  scholia stop\n  scholia config set <key> <value>\n  scholia config get <key>`);
+  console.error(`Unknown command: ${cmd}\nUsage:\n  scholia serve [--port N] [--open]\n  scholia start [--port N] [--open]\n  scholia stop\n  scholia config set <key> <value>\n  scholia config get <key>`);
   process.exit(1);
 }
