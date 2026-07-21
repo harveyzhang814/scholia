@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-21
+
+### Added
+
+- `scholia start` — run the server detached from the terminal, logging to `~/.config/scholia/scholia.log`; closing the terminal no longer stops it.
+- `scholia web` — open the browser page for whichever instance is currently running, without needing `--open` at start time.
+
+### Changed
+
+- `scholia serve`/`scholia start` no longer exit with an `EADDRINUSE` error when the requested port is taken — they fall back to an OS-assigned free port instead.
+
+### Fixed
+
+- Article detail page now preserves the originating list tab when navigating back.
+
 ## [0.2.0] - 2026-07-20
 
 ### Added
