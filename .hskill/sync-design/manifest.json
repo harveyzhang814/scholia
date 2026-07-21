@@ -70,6 +70,14 @@
   ],
   "drafts": [
     {
+      "id": "home-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/drafts/home-web-design.html",
+      "uiStates": ["视频 Tab（默认）", "文章 Tab", "空状态（无数据）"],
+      "description": "首页任务列表卡片重设计：卡片顶部新增作者/标签胶囊行（视频卡仅作者；文章卡作者+标签，超 3 个标签折叠为 +N），底部 meta 行新增标注计数（N 处高亮 · M 条笔记，各自独立按 0 值隐藏）；无作者/无标签/无标注时对应部分整体不渲染；不含处理中状态（已从需求范围移除）",
+      "linkedEntryId": "home-web"
+    },
+    {
       "id": "player-subtitle-menu-web",
       "platform": "web",
       "htmlFile": ".hskill/sync-design/html/drafts/player-subtitle-menu-web-design.html",
@@ -83,6 +91,14 @@
       "htmlFile": ".hskill/sync-design/html/drafts/article-meta-bar-web-design.html",
       "uiStates": ["顶部-信息栏与正文标题同屏", "向下滚动-信息栏随正文滚出视口"],
       "description": "文章展示页信息栏，嵌入完整详情页布局（header/tab bar/正文列+TOC+笔记栏三栏）：信息栏是正文模块(prose-cn)的一部分，宽度与正文列一致、随正文滚动，长值（如 URL）自动换行，数组字段渲染为 chips",
+      "linkedEntryId": null
+    },
+    {
+      "id": "highlight-context-menu-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/drafts/highlight-context-menu-web-design.html",
+      "uiStates": ["默认（仅删除）", "含撤销（删除+撤销）", "无可撤销操作（撤销置灰）", "刚撤销完的短暂反馈态"],
+      "description": "文章与视频总结阅读页中，点击已有高亮弹出的右键菜单，新增撤销入口以恢复最近一次高亮操作（创建/编辑/删除）",
       "linkedEntryId": null
     }
   ],
