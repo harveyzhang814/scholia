@@ -3,8 +3,21 @@ import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTasks } from '@/hooks/use-tasks';
 import { TaskCard } from '@/components/task-card';
+import { SortSelect } from '@/components/sort-select';
 import { api, type Article } from '@/lib/api';
+import { sortTasks, sortArticles, type SortField } from '@/lib/sort';
 import { useUiStore } from '@/stores/ui-store';
+
+const VIDEO_SORT_FIELDS: { value: SortField; label: string }[] = [
+  { value: 'date', label: '日期' },
+  { value: 'title', label: '标题' },
+  { value: 'author', label: '作者' },
+];
+
+const ARTICLE_SORT_FIELDS: { value: SortField; label: string }[] = [
+  { value: 'date', label: '日期' },
+  { value: 'title', label: '标题' },
+];
 
 function useArticles() {
   return useQuery({
@@ -34,6 +47,14 @@ export default function Home() {
     return a.title.toLowerCase().includes(q) || a.slug.includes(q);
   });
 
+  const videoSort = useUiStore((s) => s.videoSort);
+  const setVideoSort = useUiStore((s) => s.setVideoSort);
+  const articleSort = useUiStore((s) => s.articleSort);
+  const setArticleSort = useUiStore((s) => s.setArticleSort);
+
+  const sortedTasks = sortTasks(filteredTasks, videoSort);
+  const sortedArticles = sortArticles(filteredArticles, articleSort);
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
@@ -53,23 +74,30 @@ export default function Home() {
       {/* Header */}
       <header className="flex items-center justify-between mb-6">
         <h1 className="text-lg font-semibold tracking-tight">Scholia</h1>
-        <div className="flex items-center gap-2 rounded-lg border px-3 py-1.5"
-             style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}>
-          <input
-            ref={inputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Escape') { setSearchQuery(''); inputRef.current?.blur(); } }}
-            placeholder="搜索…"
-            className="text-sm bg-transparent outline-none w-40"
-            style={{ color: 'var(--text-primary)' }}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 rounded-lg border px-3 py-1.5"
+               style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}>
+            <input
+              ref={inputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') { setSearchQuery(''); inputRef.current?.blur(); } }}
+              placeholder="搜索…"
+              className="text-sm bg-transparent outline-none w-40"
+              style={{ color: 'var(--text-primary)' }}
+            />
+            <kbd className="text-[11px] px-1.5 py-0.5 rounded border flex-shrink-0"
+                 style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-elevated)',
+                          color: 'var(--text-tertiary)' }}>
+              ⌘K
+            </kbd>
+          </div>
+          <SortSelect
+            value={tab === 'video' ? videoSort : articleSort}
+            onChange={tab === 'video' ? setVideoSort : setArticleSort}
+            fields={tab === 'video' ? VIDEO_SORT_FIELDS : ARTICLE_SORT_FIELDS}
           />
-          <kbd className="text-[11px] px-1.5 py-0.5 rounded border flex-shrink-0"
-               style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-elevated)',
-                        color: 'var(--text-tertiary)' }}>
-            ⌘K
-          </kbd>
         </div>
       </header>
 
@@ -104,7 +132,7 @@ export default function Home() {
           <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>无匹配结果</div>
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 480px))' }}>
-            {filteredTasks.map((t) => <TaskCard key={t.id} task={t} />)}
+            {sortedTasks.map((t) => <TaskCard key={t.id} task={t} />)}
           </div>
         )
       ) : (
@@ -117,7 +145,7 @@ export default function Home() {
           <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>无匹配结果</div>
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 480px))' }}>
-            {filteredArticles.map((a) => <ArticleCard key={a.id} article={a} />)}
+            {sortedArticles.map((a) => <ArticleCard key={a.id} article={a} />)}
           </div>
         )
       )}

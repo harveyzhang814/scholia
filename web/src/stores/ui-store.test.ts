@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useUiStore } from './ui-store';
+import { useUiStore, readSortState } from './ui-store';
 import type { ThemeId } from '@/lib/themes';
 
 beforeEach(() => {
@@ -73,5 +73,81 @@ describe('ui-store subtitleScale', () => {
       subtitleScale: Math.min(1.6, Math.max(0.7, parseFloat(localStorage.getItem('subtitle-scale') ?? '') || 1)),
     });
     expect(useUiStore.getState().subtitleScale).toBe(1);
+  });
+});
+
+describe('readSortState', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('returns the default sort when nothing is stored', () => {
+    expect(readSortState('home-sort-video')).toEqual({ field: 'date', direction: 'desc' });
+  });
+
+  it('reads a valid stored value', () => {
+    localStorage.setItem('home-sort-video', JSON.stringify({ field: 'author', direction: 'asc' }));
+    expect(readSortState('home-sort-video')).toEqual({ field: 'author', direction: 'asc' });
+  });
+
+  it('falls back to the default when the stored value is malformed JSON', () => {
+    localStorage.setItem('home-sort-video', 'not-json');
+    expect(readSortState('home-sort-video')).toEqual({ field: 'date', direction: 'desc' });
+  });
+
+  it('falls back to the default when the stored field is invalid', () => {
+    localStorage.setItem('home-sort-video', JSON.stringify({ field: 'bogus', direction: 'asc' }));
+    expect(readSortState('home-sort-video')).toEqual({ field: 'date', direction: 'desc' });
+  });
+
+  it('falls back to the default when the stored direction is invalid', () => {
+    localStorage.setItem('home-sort-video', JSON.stringify({ field: 'title', direction: 'sideways' }));
+    expect(readSortState('home-sort-video')).toEqual({ field: 'date', direction: 'desc' });
+  });
+
+  it('falls back to the default when field=author is not in the allowed list', () => {
+    localStorage.setItem('home-sort-article', JSON.stringify({ field: 'author', direction: 'asc' }));
+    expect(readSortState('home-sort-article', ['date', 'title'])).toEqual({ field: 'date', direction: 'desc' });
+  });
+
+  it('still accepts author when no allowedFields restriction is given (video key)', () => {
+    localStorage.setItem('home-sort-video', JSON.stringify({ field: 'author', direction: 'asc' }));
+    expect(readSortState('home-sort-video')).toEqual({ field: 'author', direction: 'asc' });
+  });
+});
+
+describe('ui-store videoSort', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useUiStore.setState({ videoSort: { field: 'date', direction: 'desc' } });
+  });
+
+  it('defaults to date descending', () => {
+    expect(useUiStore.getState().videoSort).toEqual({ field: 'date', direction: 'desc' });
+  });
+
+  it('setVideoSort updates state and persists to localStorage', () => {
+    useUiStore.getState().setVideoSort({ field: 'author', direction: 'asc' });
+    expect(useUiStore.getState().videoSort).toEqual({ field: 'author', direction: 'asc' });
+    expect(localStorage.getItem('home-sort-video')).toBe(JSON.stringify({ field: 'author', direction: 'asc' }));
+  });
+});
+
+describe('ui-store articleSort', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useUiStore.setState({
+      videoSort: { field: 'date', direction: 'desc' },
+      articleSort: { field: 'date', direction: 'desc' }
+    });
+  });
+
+  it('defaults to date descending', () => {
+    expect(useUiStore.getState().articleSort).toEqual({ field: 'date', direction: 'desc' });
+  });
+
+  it('setArticleSort updates state and persists independently of videoSort', () => {
+    useUiStore.getState().setArticleSort({ field: 'title', direction: 'asc' });
+    expect(useUiStore.getState().articleSort).toEqual({ field: 'title', direction: 'asc' });
+    expect(localStorage.getItem('home-sort-article')).toBe(JSON.stringify({ field: 'title', direction: 'asc' }));
+    expect(useUiStore.getState().videoSort).toEqual({ field: 'date', direction: 'desc' });
   });
 });
