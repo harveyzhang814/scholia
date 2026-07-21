@@ -93,8 +93,8 @@ export default function Home() {
       </header>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-end gap-3 mb-8">
-        <div className="flex items-center gap-2 rounded-lg border px-3 py-1.5"
+      <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-2.5 rounded-lg border px-3.5 py-2"
              style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}>
           <input
             ref={inputRef}
@@ -103,7 +103,7 @@ export default function Home() {
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Escape') { setSearchQuery(''); inputRef.current?.blur(); } }}
             placeholder="搜索…"
-            className="text-sm bg-transparent outline-none w-40"
+            className="text-sm bg-transparent outline-none w-[260px]"
             style={{ color: 'var(--text-primary)' }}
           />
           <kbd className="text-[11px] px-1.5 py-0.5 rounded border flex-shrink-0"

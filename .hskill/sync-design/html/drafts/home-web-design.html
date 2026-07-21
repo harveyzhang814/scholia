@@ -117,7 +117,7 @@
   .home-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 24px;
     margin-bottom: 24px;
   }
   .home-h1 {
@@ -126,19 +126,47 @@
     letter-spacing: -0.01em;
     margin: 0;
   }
+
+  /* ── 顶部导航（原下划线 tab bar 已并入 header，随路由 /videos ↔ /articles 切换） ── */
+  .home-nav {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .nav-link {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--text-tertiary);
+    cursor: default;
+    transition: background 120ms, color 120ms;
+  }
+  .nav-link.active {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    font-weight: 500;
+  }
+
+  /* ── 独立工具栏（本次重设计对象：从 header 右侧移出，改为列表上方单独一行、左对齐） ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
   .search-box {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     border-radius: 8px;
     border: 1px solid var(--border-subtle);
     background: var(--bg-surface);
-    padding: 6px 12px;
+    padding: 9px 14px;
   }
   .search-input {
-    font-size: 13px;
+    font-size: 14px;
     color: var(--text-tertiary);
-    width: 160px;
+    width: 260px;
   }
   .kbd {
     font-size: 11px;
@@ -149,25 +177,28 @@
     color: var(--text-tertiary);
     flex-shrink: 0;
   }
-
-  /* ── Tab bar ── */
-  .tab-bar {
+  .sort-select {
     display: flex;
-    border-bottom: 1px solid var(--border-subtle);
-    margin-bottom: 32px;
-    margin-left: -12px;
+    align-items: center;
+    gap: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 9px 14px;
   }
-  .tab {
-    padding: 10px 12px;
+  .sort-field {
     font-size: 14px;
-    border-bottom: 2px solid transparent;
-    color: var(--text-tertiary);
-    cursor: default;
-  }
-  .tab.active {
     color: var(--text-primary);
-    font-weight: 500;
-    border-bottom-color: var(--accent-9);
+  }
+  .sort-caret {
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
+  .sort-dir {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    padding-left: 6px;
+    border-left: 1px solid var(--border-subtle);
   }
 
   /* ── 卡片网格（视频 / 文章 共用布局，字段不同） ── */
@@ -326,12 +357,13 @@
 </style>
 
 <div class="page">
-  <h1 class="page-title">首页 · 任务列表卡片重设计（设计稿）</h1>
+  <h1 class="page-title">首页 · 独立工具栏重设计（设计稿）</h1>
   <p class="page-sub">
-    对应实现：<code>web/src/routes/_index.tsx</code> + <code>web/src/components/task-card.tsx</code>。
-    在完成稿基础上新增：卡片顶部作者/标签胶囊行、底部 meta 行标注计数（高亮数 · 笔记数）。
-    对应设计文档：<code>docs/superpowers/specs/2026-07-21-list-card-redesign-design.md</code>。
-    胶囊沿用 kbd 芯片的 4px 圆角与 elevated 背景色，标签额外用 accent-3/accent-11 做浅色区分，不引入新色板、不使用 emoji（遵循 DESIGN.md 的 AI-slop 规避原则）。
+    对应实现：<code>web/src/routes/_index.tsx</code> + <code>web/src/components/sort-select.tsx</code>。
+    本次改动范围：搜索框 + 排序控件从原本挤在 header 右侧（<code>justify-end</code>、随 header 高度收窄）改为列表上方独立一行、<strong>左对齐</strong>，并按"独立一行"重新设计尺寸——
+    内边距从 <code>6px 12px</code> 放大到 <code>9px 14px</code>，搜索框宽度从 <code>160px</code> 放大到 <code>260px</code>，字号从 13px 提到 14px，圆角维持 8px（与原实现一致，未引入新半径 token）。
+    同时同步还原了此前已上线的 header 改动：视频/文章切换已从下划线 tab bar 改为并入 header 的路由导航（<code>/videos</code> ↔ <code>/articles</code>），本稿在此基础上继续做工具栏重设计，不改动导航部分。
+    卡片区块（顶部作者/标签胶囊、底部标注计数）为此前已上线内容，本次未改动，保留仅供整页预览完整性参考。
   </p>
 
   <div class="state-switch">
@@ -344,16 +376,24 @@
     <div class="home-inner">
       <div class="home-header">
         <h1 class="home-h1">Scholia</h1>
+        <!-- 状态 1 / 2 共用导航，随状态切换 active 项；状态 3（空状态）沿用视频态 -->
+        <nav class="home-nav" id="home-nav">
+          <span class="nav-link active" id="nav-video">视频</span>
+          <span class="nav-link" id="nav-article">文章</span>
+        </nav>
+      </div>
+
+      <!-- 独立工具栏：三个状态共用，不随 Tab/空状态切换隐藏（对应实现中 Toolbar 在 Content 区块之外恒定渲染） -->
+      <div class="toolbar">
         <div class="search-box">
           <span class="search-input">搜索…</span>
           <span class="kbd">⌘K</span>
         </div>
-      </div>
-
-      <!-- 状态 1 / 2 共用 Tab bar，随状态切换 active 项 -->
-      <div class="tab-bar" id="tab-bar">
-        <div class="tab active" id="tab-video">视频</div>
-        <div class="tab" id="tab-article">文章</div>
+        <div class="sort-select">
+          <span class="sort-field">日期</span>
+          <span class="sort-caret">⌄</span>
+          <span class="sort-dir">↓</span>
+        </div>
       </div>
 
       <!-- 状态 1：视频 Tab -->
@@ -451,6 +491,10 @@
   </div>
 
   <p class="caption">
+    工具栏左对齐、不再跟随卡片网格右边界收窄——三个状态（视频/文章/空状态）均恒定展示在导航下方，切换 Tab 或触发空状态都不影响其位置和尺寸。
+    排序控件从原生 <code>&lt;select&gt;</code> + 独立方向按钮的组合抽象为一个整体点击区，字段文字与升/降序箭头用竖线分隔，保持与搜索框一致的高度和圆角，视觉上成对出现。
+  </p>
+  <p class="caption">
     新增顶部胶囊行：无作者/无标签时整行不渲染（见"分布式系统中的一致性模型速查"，纯手写笔记无 frontmatter 扩展字段的退化态）；
     标签超过 3 个折叠为 <code>+N</code>，鼠标悬停 <code>title</code> 属性显示完整列表（见"深度学习中的注意力机制综述"）。
     标注计数追加在原有 meta 行末尾（视频卡）或单独一行（文章卡），高亮数和笔记数都为 0 时该段整体不显示（不展示"0 处高亮"这类噪音信息）。
@@ -466,8 +510,8 @@
     article: document.getElementById('panel-article'),
     empty: document.getElementById('panel-empty'),
   };
-  var tabVideo = document.getElementById('tab-video');
-  var tabArticle = document.getElementById('tab-article');
+  var navVideo = document.getElementById('nav-video');
+  var navArticle = document.getElementById('nav-article');
 
   stateBtns.forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -477,8 +521,8 @@
       Object.keys(panels).forEach(function (key) {
         panels[key].style.display = key === target ? 'block' : 'none';
       });
-      tabVideo.classList.toggle('active', target !== 'article');
-      tabArticle.classList.toggle('active', target === 'article');
+      navVideo.classList.toggle('active', target !== 'article');
+      navArticle.classList.toggle('active', target === 'article');
     });
   });
 </script>
