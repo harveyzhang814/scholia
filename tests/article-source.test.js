@@ -209,6 +209,36 @@ async function test(name, fn) {
     assert.equal(await articleFileExists(contentDir, '.trash-deleted-note'), false);
   });
 
+  await test('listArticles includes author/tags/sourceUrl from frontmatter', async () => {
+    fs.writeFileSync(path.join(contentDir, 'meta-rich.md'),
+      '---\ntitle: Meta Rich\nauthor: Jane Doe\ntags:\n  - ai\n  - ml\nsource_url: https://example.com/meta-rich\n---\n\n# Body');
+    const articles = await listArticles(contentDir);
+    const entry = articles.find(a => a.slug === 'meta-rich');
+    assert.ok(entry);
+    assert.equal(entry.author, 'Jane Doe');
+    assert.deepEqual(entry.tags, ['ai', 'ml']);
+    assert.equal(entry.sourceUrl, 'https://example.com/meta-rich');
+    fs.rmSync(path.join(contentDir, 'meta-rich.md'));
+  });
+
+  await test('listArticles leaves author/tags/sourceUrl undefined when frontmatter lacks them', async () => {
+    const articles = await listArticles(contentDir);
+    const dive = articles.find(a => a.slug === 'deep-dive');
+    assert.ok(dive);
+    assert.equal(dive.author, undefined);
+    assert.equal(dive.tags, undefined);
+    assert.equal(dive.sourceUrl, undefined);
+  });
+
+  await test('listArticles falls back to meta.json source_url when frontmatter omits it', async () => {
+    // abc123's Translation file frontmatter only sets fetch_date — no source_url.
+    // Its meta.json (written earlier in this file) has source_url: 'https://example.com'.
+    const articles = await listArticles(contentDir);
+    const entry = articles.find(a => a.slug === 'abc123');
+    assert.ok(entry);
+    assert.equal(entry.sourceUrl, 'https://example.com');
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 })();
