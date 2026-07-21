@@ -57,16 +57,18 @@ async function readMetaJson(metaPath) {
 
 // meta.json (written by the fetching tool) is the fallback source for
 // title/date when the article's own frontmatter doesn't carry them.
+// Date priority: frontmatter.date (plain articles) > frontmatter.publish_date
+// (extract-url's "页面显示日期") > frontmatter.fetch_date (extract-url's scrape
+// time) > meta.json's fetched_at.
 async function resolveTitleAndDate(frontmatter, metaPath) {
   let title = frontmatter.title;
-  let date = frontmatter.date;
-  let fetchDate = frontmatter.fetch_date;
-  if (metaPath && (!title || (!date && !fetchDate))) {
+  let date = frontmatter.date || frontmatter.publish_date || frontmatter.fetch_date;
+  if (metaPath && (!title || !date)) {
     const meta = await readMetaJson(metaPath);
     if (!title) title = meta.title;
-    if (!date && !fetchDate) fetchDate = meta.fetched_at;
+    if (!date) date = meta.fetched_at;
   }
-  return { title, date, fetchDate };
+  return { title, date };
 }
 
 // source_url: frontmatter 优先，缺失时回退读 meta.json（与 resolveTitleAndDate 的
@@ -109,13 +111,13 @@ async function listArticles(contentDir) {
     const stat = await fs.promises.stat(entry.file).catch(() => null);
     let frontmatter = {};
     try { const raw = await fs.promises.readFile(entry.file, 'utf8'); ({ frontmatter } = parseFrontmatter(raw)); } catch {}
-    const { title, date, fetchDate } = await resolveTitleAndDate(frontmatter, entry.metaPath);
+    const { title, date } = await resolveTitleAndDate(frontmatter, entry.metaPath);
     const author = frontmatter.author;
     const tags = Array.isArray(frontmatter.tags) ? frontmatter.tags : undefined;
     const sourceUrl = await resolveSourceUrl(frontmatter, entry.metaPath);
     const fallbackMs = stat ? stat.mtimeMs : Date.now();
-    const parsedFetchDate = fetchDate ? Date.parse(fetchDate) : NaN;
-    const sortKey = Number.isNaN(parsedFetchDate) ? fallbackMs : parsedFetchDate;
+    const parsedDate = date ? Date.parse(date) : NaN;
+    const sortKey = Number.isNaN(parsedDate) ? fallbackMs : parsedDate;
     return {
       slug, id: `article-${slug}`, title: title || titleFromSlug(slug), date: date || undefined,
       author, tags, sourceUrl, updatedAt: fallbackMs, sortKey,
