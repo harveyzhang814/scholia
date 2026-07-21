@@ -171,6 +171,20 @@ async function test(name, fn) {
     JSON.stringify({ title: 'Origin Only', fetched_at: '2024-03-01' }));
   fs.writeFileSync(path.join(contentDir, 'def456', 'Origin', 'Untranslated.md'), '# Not translated yet');
 
+  // extract-url's real frontmatter convention: publish_date (page display date)
+  // + fetch_date (scrape time) — never a plain `date` field.
+  fs.mkdirSync(path.join(contentDir, 'pub789', 'Translation'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, 'pub789', 'meta.json'),
+    JSON.stringify({ title: 'Pub Title', fetched_at: '2020-01-01' }));
+  fs.writeFileSync(path.join(contentDir, 'pub789', 'Translation', 'Article.md'),
+    '---\npublish_date: 2026-03-22\nfetch_date: 2026-03-25\n---\n\n# Body');
+
+  fs.mkdirSync(path.join(contentDir, 'empty999', 'Translation'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, 'empty999', 'meta.json'),
+    JSON.stringify({ title: 'Empty Publish Date', fetched_at: '2020-01-01' }));
+  fs.writeFileSync(path.join(contentDir, 'empty999', 'Translation', 'Article.md'),
+    '---\npublish_date:\nfetch_date: 2026-04-01\n---\n\n# Body');
+
   await test('listArticles exposes one entry per bilingual dir, using its hash as the slug', async () => {
     const articles = await listArticles(contentDir);
     assert.ok(articles.some(a => a.slug === 'abc123'));
@@ -194,6 +208,24 @@ async function test(name, fn) {
     assert.equal(entry.title, 'Origin Only');
     const md = await getArticleContent('article-def456', contentDir);
     assert.ok(md.includes('Not translated yet'));
+  });
+
+  await test('listArticles surfaces fetch_date/fetched_at as date when frontmatter lacks date', async () => {
+    const articles = await listArticles(contentDir);
+    // abc123: Translation frontmatter has fetch_date but no date
+    assert.equal(articles.find(a => a.slug === 'abc123').date, '2024-06-01');
+    // def456: no frontmatter at all — falls back to meta.json's fetched_at
+    assert.equal(articles.find(a => a.slug === 'def456').date, '2024-03-01');
+  });
+
+  await test('listArticles prefers frontmatter publish_date over fetch_date and meta.json', async () => {
+    const articles = await listArticles(contentDir);
+    assert.equal(articles.find(a => a.slug === 'pub789').date, '2026-03-22');
+  });
+
+  await test('listArticles falls back to fetch_date when publish_date is blank', async () => {
+    const articles = await listArticles(contentDir);
+    assert.equal(articles.find(a => a.slug === 'empty999').date, '2026-04-01');
   });
 
   // Vault internals (.obsidian, .trash, .git, ...) must never surface as articles
