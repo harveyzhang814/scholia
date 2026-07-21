@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import type { Task } from '@/lib/api';
 import { formatDuration, formatRelativeTime } from '@/lib/time';
+import { Pill } from './pill';
 
 function formatResolution(width?: number, height?: number): string | null {
   if (!height) return null;
@@ -16,7 +17,9 @@ export function TaskCard({ task }: { task: Task }) {
   const isFailed   = task.status === 'failed';
   const duration   = task.duration_seconds ? formatDuration(task.duration_seconds) : null;
   const resolution = formatResolution(task.width, task.height);
-  const meta = [task.mode, resolution, duration].filter(Boolean).join(' · ');
+  const highlightLabel = task.highlightCount ? `${task.highlightCount} 处高亮` : null;
+  const noteLabel = task.noteCount ? `${task.noteCount} 条笔记` : null;
+  const meta = [task.mode, resolution, duration, highlightLabel, noteLabel].filter(Boolean).join(' · ');
 
   return (
     <Link
@@ -29,6 +32,13 @@ export function TaskCard({ task }: { task: Task }) {
       onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-elevated)')}
       onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-surface)')}
     >
+      {/* Author pill */}
+      {task.uploader && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          <Pill>{task.uploader}</Pill>
+        </div>
+      )}
+
       {/* Title */}
       <h2
         className="chinese text-[15px] font-medium mb-2 line-clamp-2"

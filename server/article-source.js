@@ -69,6 +69,15 @@ async function resolveTitleAndDate(frontmatter, metaPath) {
   return { title, date, fetchDate };
 }
 
+// source_url: frontmatter 优先，缺失时回退读 meta.json（与 resolveTitleAndDate 的
+// "frontmatter 优先、meta.json 兜底"模式一致，但字段不同，单独一个小函数更清楚）。
+async function resolveSourceUrl(frontmatter, metaPath) {
+  if (frontmatter.source_url) return frontmatter.source_url;
+  if (!metaPath) return undefined;
+  const meta = await readMetaJson(metaPath);
+  return meta.source_url;
+}
+
 function isArticleId(id) {
   return typeof id === 'string' && id.startsWith('article-');
 }
@@ -101,10 +110,16 @@ async function listArticles(contentDir) {
     let frontmatter = {};
     try { const raw = await fs.promises.readFile(entry.file, 'utf8'); ({ frontmatter } = parseFrontmatter(raw)); } catch {}
     const { title, date, fetchDate } = await resolveTitleAndDate(frontmatter, entry.metaPath);
+    const author = frontmatter.author;
+    const tags = Array.isArray(frontmatter.tags) ? frontmatter.tags : undefined;
+    const sourceUrl = await resolveSourceUrl(frontmatter, entry.metaPath);
     const fallbackMs = stat ? stat.mtimeMs : Date.now();
     const parsedFetchDate = fetchDate ? Date.parse(fetchDate) : NaN;
     const sortKey = Number.isNaN(parsedFetchDate) ? fallbackMs : parsedFetchDate;
-    return { slug, id: `article-${slug}`, title: title || titleFromSlug(slug), date: date || undefined, updatedAt: fallbackMs, sortKey };
+    return {
+      slug, id: `article-${slug}`, title: title || titleFromSlug(slug), date: date || undefined,
+      author, tags, sourceUrl, updatedAt: fallbackMs, sortKey,
+    };
   }));
   return articles.sort((a, b) => b.sortKey - a.sortKey).map(({ sortKey, ...rest }) => rest);
 }
