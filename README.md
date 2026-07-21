@@ -58,6 +58,38 @@ scholia serve [--port <N>] [--open]
 Scholia running at http://localhost:7654?token=<token>
 ```
 
+指定端口已被占用时不会报错退出，会自动改用 OS 分配的空闲端口，并打印提示：
+
+```
+Port 7654 was in use; using 65243 instead.
+```
+
+### `scholia start`
+
+在后台启动，不占用当前终端 —— 关闭终端窗口不会停止服务。参数、端口占用后的自动改端口行为都和 `scholia serve` 一致。
+
+```
+scholia start [--port <N>] [--open]
+```
+
+标准输出/错误重定向到 `~/.config/scholia/scholia.log`，启动确认后打印：
+
+```
+Scholia started (pid <pid>, port <port>). Logs: ~/.config/scholia/scholia.log
+```
+
+用 `scholia stop` 停止。
+
+### `scholia web`
+
+打开已在运行的 scholia 实例的浏览器页面（不带 `--open` 启动、或过后想再打开一次都可以用）。
+
+```
+scholia web
+```
+
+未运行时打印 `Scholia is not running. Run "scholia start" first.` 并 exit 1。
+
 ### `scholia stop`
 
 停止正在运行的 scholia 实例。

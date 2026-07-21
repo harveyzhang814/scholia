@@ -44,6 +44,8 @@ export interface Task {
   file_size?: number;
   bit_rate?: number;
   frontmatter?: Record<string, unknown>;
+  highlightCount?: number;
+  noteCount?: number;
 }
 
 export interface Step {
@@ -62,6 +64,7 @@ interface BackendListTask {
   duration?: string; mode?: string; output_lang?: string; focus?: string;
   created_at?: string; updated_at?: string;
   width?: number; height?: number; file_size?: number; bit_rate?: number;
+  highlightCount?: number; noteCount?: number;
 }
 
 interface BackendTask {
@@ -115,6 +118,8 @@ function normalizeListTask(t: BackendListTask): Task {
     height: t.height,
     file_size: t.file_size,
     bit_rate: t.bit_rate,
+    highlightCount: t.highlightCount,
+    noteCount: t.noteCount,
   };
 }
 
@@ -161,6 +166,11 @@ export interface Article {
   title: string;
   date?: string;
   updatedAt: number;
+  author?: string;
+  tags?: string[];
+  sourceUrl?: string;
+  highlightCount?: number;
+  noteCount?: number;
 }
 
 export interface MediaInfo {

@@ -144,20 +144,41 @@ export function Reader({ taskId, content, frontmatter, highlights, onAnchorSelec
     const sorted = [...highlights].sort((a, b) => a.createdAt - b.createdAt);
 
     for (const hl of sorted) {
+      // Search across the full concatenated text so an anchor that spans
+      // multiple text nodes (e.g. selection crossing into/out of a <strong>
+      // or <a>) can still be found — a single node's textContent won't
+      // contain it even though the anchor exists in the rendered text.
       const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+      const textNodes: Text[] = [];
+      let fullText = '';
       let node: Text | null;
       while ((node = walker.nextNode() as Text | null)) {
-        const idx = node.textContent?.indexOf(hl.anchor) ?? -1;
-        if (idx === -1) continue;
-        const mid = node.splitText(idx);
-        mid.splitText(hl.anchor.length);
+        textNodes.push(node);
+        fullText += node.textContent ?? '';
+      }
+      const idx = fullText.indexOf(hl.anchor);
+      if (idx === -1) continue;
+      const end = idx + hl.anchor.length;
+
+      let pos = 0;
+      for (const tn of textNodes) {
+        const nodeStart = pos;
+        const nodeEnd = pos + (tn.textContent?.length ?? 0);
+        pos = nodeEnd;
+        if (nodeEnd <= idx || nodeStart >= end) continue;
+
+        let target = tn;
+        const sliceStart = Math.max(0, idx - nodeStart);
+        const sliceEnd = Math.min(nodeEnd, end) - nodeStart;
+        if (sliceStart > 0) target = target.splitText(sliceStart);
+        if (sliceEnd - sliceStart < (target.textContent?.length ?? 0)) target.splitText(sliceEnd - sliceStart);
+
         const mark = document.createElement('mark');
         mark.className = 'vdl-hl';
         mark.dataset.hlId = hl.id;
         mark.dataset.color = hl.color;
-        mid.parentNode?.insertBefore(mark, mid);
-        mark.appendChild(mid);
-        break;
+        target.parentNode?.insertBefore(mark, target);
+        mark.appendChild(target);
       }
     }
   }, [highlights, md]);

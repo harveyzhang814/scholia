@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>文章展示页 · YAML 头部信息栏 — 设计稿</title>
+<title>文章任务详情页（纯读模式）— 设计稿</title>
 <style>
   :root {
     --bg-canvas:     #F9F8F4;
@@ -101,7 +101,7 @@
     font-weight: 500;
   }
 
-  /* ── 文章详情页外壳（完整还原：header + tab bar + 正文列/TOC/笔记栏三栏） ── */
+  /* ── 文章任务详情页外壳（无媒体：ModeSwitcher / 甘特图入口隐藏，Tab 栏无总结/文章切换） ── */
   .detail-frame {
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
@@ -139,8 +139,12 @@
     font-size: 13px;
     color: var(--text-tertiary);
   }
-  .mode-item { padding: 2px 4px; }
-  .mode-item.active { color: var(--accent-10); font-weight: 500; }
+  .theme-picker-btn {
+    font-size: 13px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--text-tertiary);
+  }
   .kbd {
     padding: 2px 4px;
     border-radius: 4px;
@@ -148,7 +152,7 @@
     font-size: 12px;
   }
 
-  /* ── Tab bar ── */
+  /* ── Tab bar（无媒体文章任务：左侧无 总结/文章 切换项，仅保留右侧 复制/显示文件） ── */
   .tab-bar {
     padding: 0 48px;
     border-bottom: 1px solid var(--border-subtle);
@@ -156,20 +160,7 @@
     align-items: center;
     justify-content: space-between;
   }
-  .tabs { display: flex; }
-  .tab {
-    padding: 10px 0;
-    margin-right: 24px;
-    font-size: 14px;
-    border-bottom: 2px solid transparent;
-    color: var(--text-tertiary);
-    cursor: default;
-  }
-  .tab.active {
-    color: var(--text-primary);
-    font-weight: 500;
-    border-bottom-color: var(--accent-9);
-  }
+  .tabs { display: flex; min-height: 1px; }
   .tab-actions {
     display: flex;
     align-items: center;
@@ -197,10 +188,8 @@
   }
 
   /* ── ArticleMetaBar — 信息栏
-     关键修复：不再是 tab bar 和正文之间的独立整行，而是嵌在 Reader 的
-     <article class="prose-cn"> 内部、正文标题之上 —— 因此它的宽度天然
-     等于正文列宽度（而不是 tab bar 那种跨满 panel-right 整行，一路顶到
-     TOC/笔记栏下面），并且会随正文一起滚动（不再钉在顶部不动）。 ── */
+     嵌在 Reader 的 <article class="prose-cn"> 内部、正文标题之上 —— 因此它的宽度
+     天然等于正文列宽度，并随正文一起滚动。 ── */
   .meta-bar {
     padding-bottom: 16px;
     margin-bottom: 8px;
@@ -221,7 +210,7 @@
   }
   .meta-value {
     color: var(--text-secondary);
-    overflow-wrap: anywhere; /* 修复点：长值（如 URL）自动换行，不再溢出到相邻网格列 */
+    overflow-wrap: anywhere; /* 长值（如 URL）自动换行，不溢出到相邻网格列 */
   }
   .meta-array-row { margin-top: 8px; }
   .meta-chips {
@@ -270,26 +259,49 @@
   }
   .toc-item.active { color: var(--text-primary); font-weight: 500; }
 
-  /* 笔记栏 — 对应 .notes-col，固定 260px，独立于正文滚动 */
+  /* 笔记栏 — 对应 .notes-col + NotesPanel，固定 260px，独立于正文滚动 */
   .notes-col-mock {
     width: 260px;
     flex-shrink: 0;
     border-left: 1px solid var(--border-subtle);
     padding: 0;
+    display: flex;
+    flex-direction: column;
   }
   .notes-header {
-    padding: 12px 16px;
-    font-size: 13px;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .notes-input-block {
+    padding: 12px;
     border-bottom: 1px solid var(--border-subtle);
   }
   .notes-textarea {
-    margin: 12px 16px;
-    padding: 10px;
+    padding: 8px;
     border-radius: 6px;
     background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
     color: var(--text-tertiary);
     font-size: 12.5px;
-    min-height: 60px;
+    min-height: 52px;
+    line-height: 1.6;
+  }
+  .notes-input-actions {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .notes-save-btn {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--text-tertiary);
+    border: 1px solid var(--border-subtle);
   }
   .notes-empty {
     text-align: center;
@@ -314,11 +326,12 @@
 </style>
 
 <div class="page">
-  <h1 class="page-title">文章展示页 · YAML 头部信息栏（嵌入正文列 · 布局修复后）</h1>
+  <h1 class="page-title">文章任务详情页（纯读模式 E · 无媒体）</h1>
   <p class="page-sub">
-    对应实现：<code>web/src/components/article-meta-bar.tsx</code>（渲染逻辑）+ <code>web/src/components/reader.tsx</code>（挂载点，嵌在 <code>&lt;article class="prose-cn"&gt;</code> 内、正文标题之上）。
-    此前的版本把信息栏放在 tab bar 和正文行之间、独立占满 panel-right 整行，结果它既不随正文滚动，宽度也跨到了 TOC/笔记栏底下。
-    修复后信息栏是正文模块自身的一部分：宽度等于正文列宽度（图中虚线框标出的边界，明显窄于右侧 TOC + 笔记栏区域），并随正文一起滚动。
+    对应实现：<code>web/src/routes/tasks.$id.tsx</code>（<code>isArticleTask=true</code>、<code>mediaKind=null</code> 时的渲染分支）。
+    无媒体的纯文章任务：header 右侧仅保留文章主题选择（✦）与 <code>⌘K</code>，<code>ModeSwitcher</code> 与甘特图入口因 <code>{'{mediaKind && ...}'}</code> 判空而不渲染；
+    Tab 栏左侧的"总结/文章"切换因 <code>{'{!isArticleTask && ...}'}</code> 判断同样不渲染，仅保留右侧"复制/显示文件"操作。
+    正文列内嵌 YAML 头部信息栏（Date/Author/Source Url + Tags chips），随正文一起滚动；右侧为 sticky TOC 与固定宽度笔记栏。
   </p>
 
   <div class="state-switch">
@@ -333,19 +346,13 @@
         <span class="frame-title">深度学习中的注意力机制综述</span>
       </div>
       <div class="right">
-        <span class="mode-item">阅读</span>
-        <span class="mode-item">音频</span>
-        <span class="mode-item active">纯读</span>
-        <span class="mode-item">剧场</span>
+        <span class="theme-picker-btn" title="文章主题">✦</span>
         <span class="kbd">⌘K</span>
       </div>
     </div>
 
     <div class="tab-bar">
-      <div class="tabs">
-        <div class="tab">总结</div>
-        <div class="tab active">文章</div>
-      </div>
+      <div class="tabs"><!-- 无媒体文章任务：isArticleTask=true，总结/文章 切换不渲染 --></div>
       <div class="tab-actions">
         <span>复制</span>
         <span>显示文件</span>
@@ -405,18 +412,22 @@
 
       <aside class="notes-col-mock">
         <div class="notes-header">笔记</div>
-        <div class="notes-textarea">写下笔记…</div>
+        <div class="notes-input-block">
+          <div class="notes-textarea">写下笔记…</div>
+          <div class="notes-input-actions">
+            <span class="notes-save-btn">保存</span>
+          </div>
+        </div>
         <div class="notes-empty">暂无笔记</div>
       </aside>
     </div>
   </div>
 
   <p class="caption">
-    虚线未画出，但可以直接目测：信息栏（Date/Author/Source Url 网格 + Tags chips）左右边界与下方正文标题、段落完全对齐，
-    到 TOC 开始的位置为止 —— 不再跨到 TOC 或笔记栏下面。<code>Source Url</code> 是特意选的长且不含空格的值，用来展示
-    <code>overflow-wrap: anywhere</code> 的修复：换行到第二行，而不是溢出到右边 <code>Tags</code> 或下一列。
-    点击上方"向下滚动"按钮：信息栏和标题一起离开视口，只剩正文段落 —— 因为它现在是 <code>&lt;article class="prose-cn"&gt;</code>
-    内部的第一个元素，和正文共享同一个滚动容器；TOC 因为自身 <code>position: sticky</code> 保持可见，笔记栏固定宽度不受影响。
+    信息栏（Date/Author/Source Url 网格 + Tags chips）左右边界与下方正文标题、段落对齐，到 TOC 开始的位置为止 —— 不跨到 TOC 或笔记栏下面。
+    <code>Source Url</code> 是特意选的长且不含空格的值，用来展示 <code>overflow-wrap: anywhere</code>：换行到第二行，而不是溢出到右边 <code>Tags</code> 或下一列。
+    点击上方"向下滚动"按钮：信息栏和标题一起离开视口，只剩正文段落 —— 因为它是 <code>&lt;article class="prose-cn"&gt;</code> 内部的第一个元素，
+    和正文共享同一个滚动容器；TOC 因自身 <code>position: sticky</code> 保持可见，笔记栏固定宽度不受影响。
   </p>
 </div>
 

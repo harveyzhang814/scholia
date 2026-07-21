@@ -1,10 +1,24 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
+import { Link, useLocation } from 'react-router';
 import { useTasks } from '@/hooks/use-tasks';
 import { TaskCard } from '@/components/task-card';
-import { api, type Article } from '@/lib/api';
+import { ArticleCard } from '@/components/article-card';
+import { SortSelect } from '@/components/sort-select';
+import { api } from '@/lib/api';
+import { sortTasks, sortArticles, type SortField } from '@/lib/sort';
 import { useUiStore } from '@/stores/ui-store';
+
+const VIDEO_SORT_FIELDS: { value: SortField; label: string }[] = [
+  { value: 'date', label: '日期' },
+  { value: 'title', label: '标题' },
+  { value: 'author', label: '作者' },
+];
+
+const ARTICLE_SORT_FIELDS: { value: SortField; label: string }[] = [
+  { value: 'date', label: '日期' },
+  { value: 'title', label: '标题' },
+];
 
 function useArticles() {
   return useQuery({
@@ -15,8 +29,7 @@ function useArticles() {
 }
 
 export default function Home() {
-  const tab = useUiStore((s) => s.homeTab);
-  const setTab = useUiStore((s) => s.setHomeTab);
+  const tab = useLocation().pathname === '/articles' ? 'article' : 'video';
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { data: articles = [], isLoading: articlesLoading } = useArticles();
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,6 +46,14 @@ export default function Home() {
     if (!q) return true;
     return a.title.toLowerCase().includes(q) || a.slug.includes(q);
   });
+
+  const videoSort = useUiStore((s) => s.videoSort);
+  const setVideoSort = useUiStore((s) => s.setVideoSort);
+  const articleSort = useUiStore((s) => s.articleSort);
+  const setArticleSort = useUiStore((s) => s.setArticleSort);
+
+  const sortedTasks = sortTasks(filteredTasks, videoSort);
+  const sortedArticles = sortArticles(filteredArticles, articleSort);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -51,9 +72,29 @@ export default function Home() {
   return (
     <div className="px-8 pt-16 pb-24">
       {/* Header */}
-      <header className="flex items-center justify-between mb-6">
+      <header className="flex items-center gap-6 mb-6">
         <h1 className="text-lg font-semibold tracking-tight">Scholia</h1>
-        <div className="flex items-center gap-2 rounded-lg border px-3 py-1.5"
+        <nav className="flex items-center gap-1">
+          {(['video', 'article'] as const).map((t) => (
+            <Link
+              key={t}
+              to={t === 'video' ? '/videos' : '/articles'}
+              className="px-2.5 py-1 rounded-md text-sm transition-colors"
+              style={{
+                color: tab === t ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                background: tab === t ? 'var(--bg-elevated)' : 'transparent',
+                fontWeight: tab === t ? 500 : 400,
+              }}
+            >
+              {t === 'video' ? '视频' : '文章'}
+            </Link>
+          ))}
+        </nav>
+      </header>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-2.5 rounded-lg border px-3.5 py-2"
              style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}>
           <input
             ref={inputRef}
@@ -62,7 +103,7 @@ export default function Home() {
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Escape') { setSearchQuery(''); inputRef.current?.blur(); } }}
             placeholder="搜索…"
-            className="text-sm bg-transparent outline-none w-40"
+            className="text-sm bg-transparent outline-none w-[260px]"
             style={{ color: 'var(--text-primary)' }}
           />
           <kbd className="text-[11px] px-1.5 py-0.5 rounded border flex-shrink-0"
@@ -71,24 +112,11 @@ export default function Home() {
             ⌘K
           </kbd>
         </div>
-      </header>
-
-      {/* Tab bar */}
-      <div className="flex border-b mb-8 -ml-3" style={{ borderColor: 'var(--border-subtle)' }}>
-        {(['video', 'article'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className="px-3 py-2.5 text-sm border-b-2 transition-colors cursor-pointer"
-            style={{
-              borderColor: tab === t ? 'var(--accent-9)' : 'transparent',
-              color: tab === t ? 'var(--text-primary)' : 'var(--text-tertiary)',
-              fontWeight: tab === t ? 500 : 400,
-            }}
-          >
-            {t === 'video' ? '视频' : '文章'}
-          </button>
-        ))}
+        <SortSelect
+          value={tab === 'video' ? videoSort : articleSort}
+          onChange={tab === 'video' ? setVideoSort : setArticleSort}
+          fields={tab === 'video' ? VIDEO_SORT_FIELDS : ARTICLE_SORT_FIELDS}
+        />
       </div>
 
       {/* Content */}
@@ -104,7 +132,7 @@ export default function Home() {
           <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>无匹配结果</div>
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 480px))' }}>
-            {filteredTasks.map((t) => <TaskCard key={t.id} task={t} />)}
+            {sortedTasks.map((t) => <TaskCard key={t.id} task={t} />)}
           </div>
         )
       ) : (
@@ -117,30 +145,10 @@ export default function Home() {
           <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>无匹配结果</div>
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 480px))' }}>
-            {filteredArticles.map((a) => <ArticleCard key={a.id} article={a} />)}
+            {sortedArticles.map((a) => <ArticleCard key={a.id} article={a} />)}
           </div>
         )
       )}
     </div>
-  );
-}
-
-function ArticleCard({ article }: { article: Article }) {
-  return (
-    <Link
-      to={`/tasks/${article.id}`}
-      className="block rounded-xl border p-4 hover:opacity-80 transition-opacity"
-      style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}
-    >
-      <div className="text-sm font-medium mb-1 line-clamp-2" style={{ color: 'var(--text-primary)' }}>
-        {article.title}
-      </div>
-      {article.date && (
-        <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{article.date}</div>
-      )}
-      <div className="text-xs mt-1 truncate" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-        {article.slug}
-      </div>
-    </Link>
   );
 }

@@ -1,0 +1,474 @@
+<meta charset="utf-8">
+<title>视频任务详情页 · 布局模式 — 设计稿</title>
+<style>
+  :root {
+    --bg-canvas:     #F9F8F4;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #F1EFE9;
+    --border-subtle: #E5E2DA;
+    --border-strong: #CFCBC0;
+    --text-primary:   #2C2A24;
+    --text-secondary: #67645E;
+    --text-tertiary:  #6E6961;
+    --accent-3:  #EBF1E8;
+    --accent-9:  #5A8A5A;
+    --accent-10: #466F46;
+    --accent-11: #3D5E3D;
+    --accent-12: #243B24;
+    --status-ok:   #4A8A5A;
+    --status-err:  #B05050;
+    --status-busy: #C28A3D;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-canvas:     #1A1A18;
+      --bg-surface:    #232322;
+      --bg-elevated:   #2A2A28;
+      --border-subtle: #2E2E2B;
+      --border-strong: #3D3E3B;
+      --text-primary:   #E8E8E6;
+      --text-secondary: #9A9B98;
+      --text-tertiary:  #868782;
+      --accent-3:  #2A3A2A;
+      --accent-9:  #7DAE7D;
+      --accent-10: #6FA06F;
+      --accent-11: #9BC79B;
+      --accent-12: #C8E0C8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 24px;
+    line-height: 1.6;
+    max-width: 900px;
+  }
+  .page-sub code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .state-switch { display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap; }
+  .state-btn {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, color 120ms;
+  }
+  .state-btn:hover { background: var(--bg-elevated); }
+  .state-btn.active {
+    border-color: var(--accent-9);
+    color: var(--accent-10);
+    background: var(--accent-3);
+    font-weight: 500;
+  }
+
+  /* ── 详情页外壳：header + mode-content ── */
+  .detail-frame {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-surface);
+  }
+
+  .frame-header {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .frame-header .left { display: flex; align-items: center; gap: 16px; min-width: 0; }
+  .back-arrow { color: var(--text-tertiary); font-size: 14px; }
+  .frame-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .frame-header .right { display: flex; align-items: center; gap: 14px; }
+  .theme-picker-btn {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    padding: 4px 6px;
+    border-radius: 4px;
+  }
+  .gantt-link { font-size: 14px; color: var(--text-tertiary); padding: 4px 6px; }
+  .kbd { padding: 2px 4px; border-radius: 4px; border: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-tertiary); }
+
+  /* ── ModeSwitcher — 5 图标+文字按钮 ── */
+  .mode-switcher { display: flex; align-items: center; gap: 2px; }
+  .mode-btn {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 8px; height: 28px; border-radius: 4px;
+    font-size: 12px; color: var(--text-tertiary);
+  }
+  .mode-btn.active { background: var(--accent-3); color: var(--accent-9); }
+  .mode-btn svg { width: 14px; height: 14px; }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    padding: 0 48px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .tabs { display: flex; }
+  .tab { padding: 10px 0; margin-right: 24px; font-size: 14px; border-bottom: 2px solid transparent; color: var(--text-tertiary); }
+  .tab.active { color: var(--text-primary); font-weight: 500; border-bottom-color: var(--accent-9); }
+  .tab-actions { display: flex; align-items: center; gap: 12px; padding: 12px 0; font-size: 12px; color: var(--text-tertiary); }
+
+  /* ── 视频播放器 ── */
+  .player-mock { position: relative; background: #000; flex-shrink: 0; }
+  .player-mock.ar-16-9 { aspect-ratio: 16/9; }
+  .player-video-surface {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.25); font-size: 12px; font-family: var(--font-mono);
+  }
+  .player-controls {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 24px 12px 12px;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+  }
+  .player-seek { height: 4px; border-radius: 999px; background: rgba(255,255,255,0.25); margin-bottom: 8px; position: relative; cursor: pointer; }
+  .player-seek-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--accent-9); }
+  .player-seek-thumb { position: absolute; right: -6px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; border-radius: 999px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+  .player-row { display: flex; align-items: center; gap: 12px; color: #fff; }
+  .player-play-btn {
+    width: 28px; height: 28px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; background: rgba(255,255,255,0.12);
+  }
+  .player-time { font-size: 12px; font-family: var(--font-mono); color: rgba(255,255,255,0.7); flex-shrink: 0; }
+  .player-time span { color: rgba(255,255,255,0.35); }
+  .cc-btn {
+    margin-left: auto;
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 3px; padding: 1px 5px; font-size: 10px; font-weight: 600;
+    color: rgba(255,255,255,0.7); display: flex; align-items: center; gap: 4px;
+  }
+  .cc-btn.on { background: rgba(255,255,255,0.18); color: #fff; }
+  .cc-btn.on::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: var(--accent-9); }
+
+  /* ── 笔记栏 ── */
+  .notes-mock { display: flex; flex-direction: column; font-size: 13px; }
+  .notes-header { padding: 10px 16px; font-size: 12px; font-weight: 500; color: var(--text-secondary); border-bottom: 1px solid var(--border-subtle); }
+  .notes-header span { color: var(--text-tertiary); font-weight: 400; }
+  .notes-input-wrap { padding: 12px; border-bottom: 1px solid var(--border-subtle); }
+  .notes-textarea {
+    width: 100%; min-height: 52px; padding: 8px; border-radius: 6px; resize: none;
+    background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+    color: var(--text-tertiary); font-size: 12px; font-family: var(--font-sans);
+  }
+  .notes-input-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+  .notes-save-btn { font-size: 12px; padding: 3px 12px; border-radius: 4px; background: var(--accent-9); color: #fff; }
+  .note-item { padding: 10px 16px; border-bottom: 1px solid var(--border-subtle); }
+  .note-ts { font-size: 11px; font-family: var(--font-mono); color: var(--accent-9); margin-bottom: 4px; }
+  .note-body { font-size: 12px; line-height: 1.6; color: var(--text-primary); }
+  .notes-empty { text-align: center; padding: 24px 12px; font-size: 12px; color: var(--text-tertiary); }
+
+  /* ── 字幕/转录侧栏 ── */
+  .subtitle-mock { display: flex; flex-direction: column; }
+  .subtitle-head { padding: 10px 16px; display: flex; align-items: center; gap: 16px; font-size: 12px; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0; }
+  .subtitle-lang { color: var(--text-tertiary); }
+  .subtitle-lang.active { color: var(--text-primary); font-weight: 500; }
+  .subtitle-count { margin-left: auto; color: var(--text-tertiary); font-family: var(--font-mono); font-size: 11.5px; }
+  .subtitle-items { overflow-y: auto; }
+  .subtitle-row { padding: 10px 16px; }
+  .subtitle-row.active { background: var(--accent-3); }
+  .subtitle-row-ts { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-tertiary); margin-bottom: 4px; }
+  .subtitle-row.active .subtitle-row-ts { color: var(--accent-11); }
+  .subtitle-row-text { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+  .subtitle-row.active .subtitle-row-text { color: var(--text-primary); }
+
+  /* ── 正文列 ── */
+  .article-scroll { padding: 40px 48px; overflow-y: auto; }
+  .article-h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 14px; }
+  .article-scroll p { font-size: 13.5px; line-height: 23.625px; color: var(--text-primary); margin: 0 0 14px; }
+
+  /* ═══════════════════ 模式A — 视频优先 (55/45) ═══════════════════ */
+  #state-A .modeA-body { display: flex; height: 620px; }
+  #state-A .modeA-left { width: 55%; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid var(--border-subtle); }
+  #state-A .modeA-left .player-mock { width: 100%; }
+  #state-A .modeA-left .notes-mock { flex: 1; overflow-y: auto; min-height: 0; }
+  #state-A .modeA-right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #state-A .modeA-right .article-scroll { flex: 1; }
+
+  /* ═══════════════════ 模式F — 剧场模式 ═══════════════════ */
+  #state-F .modeF-video { max-height: 58vh; }
+  #state-F .modeF-body { display: flex; height: 420px; overflow-y: auto; }
+  #state-F .modeF-article { flex: 1; min-width: 0; }
+  #state-F .modeF-notes { width: 260px; flex-shrink: 0; border-left: 1px solid var(--border-subtle); overflow-y: auto; }
+
+  /* ═══════════════════ 模式B — 阅读优先 ═══════════════════ */
+  #state-B .modeB-body { display: flex; height: 560px; }
+  #state-B .modeB-main { flex: 1; min-width: 0; overflow-y: auto; }
+  #state-B .modeB-sidebar { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border-subtle); }
+  #state-B .modeB-sidebar .player-mock { width: 100%; aspect-ratio: 16/9; }
+  #state-B .modeB-sidebar .subtitle-mock { flex: 1; min-height: 0; overflow-y: auto; }
+
+  .caption { margin-top: 20px; font-size: 12px; color: var(--text-tertiary); line-height: 1.7; max-width: 900px; }
+  .caption code { font-family: var(--font-mono); background: var(--bg-elevated); padding: 1px 4px; border-radius: 3px; }
+</style>
+
+<div class="page">
+  <h1 class="page-title">视频任务详情页 · 布局模式重设计</h1>
+  <p class="page-sub">
+    对应实现：<code>web/src/routes/tasks.$id.tsx</code> + <code>web/src/components/{player,subtitle-list,notes-panel,mode-switcher}.tsx</code>。
+    视频任务通过右上角 ModeSwitcher 在 5 种布局间切换（<code>data-mode</code> 驱动 <code>globals.css</code> 中的 MODE A/B/C/E/F 规则集）；本稿覆盖 3 种最具代表性的模式 — 默认的「视频优先」、专注观看的「剧场」、以正文为中心的「阅读优先」。C（音频+文章）与 E（纯读）两种模式的视觉语言已分别由 <code>task-detail-article-web</code> 草稿（纯读/E）覆盖，此处不重复还原。
+  </p>
+
+  <div class="state-switch">
+    <button class="state-btn active" data-state="A">模式A — 视频优先（默认）</button>
+    <button class="state-btn" data-state="F">模式F — 剧场模式</button>
+    <button class="state-btn" data-state="B">模式B — 阅读优先</button>
+  </div>
+
+  <!-- ── 模式A-视频优先（默认） ── -->
+  <div id="state-A" class="detail-frame">
+    <div class="frame-header">
+      <div class="left">
+        <span class="back-arrow">←</span>
+        <span class="frame-title">Transformer 注意力机制详解 · 视频精读</span>
+      </div>
+      <div class="right">
+        <span class="theme-picker-btn">✦</span>
+        <div class="mode-switcher">
+          <span class="mode-btn active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polygon points="10,8 10,14 16,11" fill="currentColor" stroke="none"/></svg>视频</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>阅读</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14C3 9.03 7.03 5 12 5s9 4.03 9 9"/><rect x="2" y="14" width="4" height="6" rx="1"/><rect x="18" y="14" width="4" height="6" rx="1"/></svg>音频</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>纯读</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 6l4-4h12l4 4"/><line x1="8" y1="2" x2="6" y2="6"/><line x1="14" y1="2" x2="12" y2="6"/></svg>剧场</span>
+        </div>
+        <span class="gantt-link">▦</span>
+        <span class="kbd">⌘K</span>
+      </div>
+    </div>
+    <div class="modeA-body">
+      <div class="modeA-left">
+        <div class="player-mock ar-16-9">
+          <div class="player-video-surface">video/mp4</div>
+          <div class="player-controls">
+            <div class="player-seek"><div class="player-seek-fill" style="width:38%"><div class="player-seek-thumb"></div></div></div>
+            <div class="player-row">
+              <span class="player-play-btn">▶</span>
+              <span class="player-time">12:04<span> / 31:47</span></span>
+              <span class="cc-btn on">CC</span>
+            </div>
+          </div>
+        </div>
+        <div class="notes-mock">
+          <div class="notes-header">笔记 <span>· 2</span></div>
+          <div class="notes-input-wrap">
+            <textarea class="notes-textarea" placeholder="写下笔记…" readonly>写下笔记…</textarea>
+            <div class="notes-input-foot">
+              <span class="note-ts" style="margin:0">@ 12:04</span>
+              <span class="notes-save-btn">保存</span>
+            </div>
+          </div>
+          <div class="note-item">
+            <div class="note-ts">@ 03:12</div>
+            <div class="note-body">这里解释了 Query/Key/Value 的几何直觉，值得反复看。</div>
+          </div>
+          <div class="note-item">
+            <div class="note-ts">@ 18:40</div>
+            <div class="note-body">多头注意力的并行计算方式和单头相比的优势。</div>
+          </div>
+        </div>
+      </div>
+      <div class="modeA-right">
+        <div class="tab-bar">
+          <div class="tabs">
+            <div class="tab active">总结</div>
+            <div class="tab">文章</div>
+          </div>
+          <div class="tab-actions"><span>复制</span><span>显示文件</span></div>
+        </div>
+        <div class="article-scroll">
+          <h1 class="article-h1">核心要点总结</h1>
+          <p>本视频系统讲解了 Transformer 中自注意力机制的计算过程，从 Query/Key/Value 的矩阵变换出发，逐步推导 Scaled Dot-Product Attention 的公式来源。</p>
+          <p>多头注意力通过并行的多组线性投影捕捉不同子空间的语义关系，相比单头机制显著提升了模型的表达能力，同时保持了可并行计算的效率优势。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 模式F-剧场模式 ── -->
+  <div id="state-F" class="detail-frame" style="display:none">
+    <div class="frame-header">
+      <div class="left">
+        <span class="back-arrow">←</span>
+        <span class="frame-title">Transformer 注意力机制详解 · 视频精读</span>
+      </div>
+      <div class="right">
+        <span class="theme-picker-btn">✦</span>
+        <div class="mode-switcher">
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polygon points="10,8 10,14 16,11" fill="currentColor" stroke="none"/></svg>视频</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>阅读</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14C3 9.03 7.03 5 12 5s9 4.03 9 9"/><rect x="2" y="14" width="4" height="6" rx="1"/><rect x="18" y="14" width="4" height="6" rx="1"/></svg>音频</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>纯读</span>
+          <span class="mode-btn active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 6l4-4h12l4 4"/><line x1="8" y1="2" x2="6" y2="6"/><line x1="14" y1="2" x2="12" y2="6"/></svg>剧场</span>
+        </div>
+        <span class="gantt-link">▦</span>
+        <span class="kbd">⌘K</span>
+      </div>
+    </div>
+    <div class="player-mock modeF-video ar-16-9">
+      <div class="player-video-surface">video/mp4 · 全宽</div>
+      <div class="player-controls">
+        <div class="player-seek"><div class="player-seek-fill" style="width:62%"><div class="player-seek-thumb"></div></div></div>
+        <div class="player-row">
+          <span class="player-play-btn">❚❚</span>
+          <span class="player-time">19:41<span> / 31:47</span></span>
+          <span class="cc-btn on">CC</span>
+        </div>
+      </div>
+    </div>
+    <div class="modeF-body">
+      <div class="modeF-article article-scroll">
+        <h1 class="article-h1">核心要点总结</h1>
+        <p>本视频系统讲解了 Transformer 中自注意力机制的计算过程，从 Query/Key/Value 的矩阵变换出发，逐步推导 Scaled Dot-Product Attention 的公式来源。</p>
+        <p>多头注意力通过并行的多组线性投影捕捉不同子空间的语义关系，相比单头机制显著提升了模型的表达能力。</p>
+      </div>
+      <div class="modeF-notes notes-mock">
+        <div class="notes-header">笔记 <span>· 2</span></div>
+        <div class="note-item">
+          <div class="note-ts">@ 03:12</div>
+          <div class="note-body">这里解释了 Query/Key/Value 的几何直觉，值得反复看。</div>
+        </div>
+        <div class="note-item">
+          <div class="note-ts">@ 18:40</div>
+          <div class="note-body">多头注意力的并行计算方式和单头相比的优势。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 模式B-阅读优先 ── -->
+  <div id="state-B" class="detail-frame" style="display:none">
+    <div class="frame-header">
+      <div class="left">
+        <span class="back-arrow">←</span>
+        <span class="frame-title">Transformer 注意力机制详解 · 视频精读</span>
+      </div>
+      <div class="right">
+        <span class="theme-picker-btn">✦</span>
+        <div class="mode-switcher">
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polygon points="10,8 10,14 16,11" fill="currentColor" stroke="none"/></svg>视频</span>
+          <span class="mode-btn active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>阅读</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14C3 9.03 7.03 5 12 5s9 4.03 9 9"/><rect x="2" y="14" width="4" height="6" rx="1"/><rect x="18" y="14" width="4" height="6" rx="1"/></svg>音频</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>纯读</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 6l4-4h12l4 4"/><line x1="8" y1="2" x2="6" y2="6"/><line x1="14" y1="2" x2="12" y2="6"/></svg>剧场</span>
+        </div>
+        <span class="gantt-link">▦</span>
+        <span class="kbd">⌘K</span>
+      </div>
+    </div>
+    <div class="tab-bar">
+      <div class="tabs">
+        <div class="tab active">总结</div>
+        <div class="tab">文章</div>
+      </div>
+      <div class="tab-actions"><span>复制</span><span>显示文件</span></div>
+    </div>
+    <div class="modeB-body">
+      <div class="modeB-main article-scroll">
+        <h1 class="article-h1">核心要点总结</h1>
+        <p>本视频系统讲解了 Transformer 中自注意力机制的计算过程，从 Query/Key/Value 的矩阵变换出发，逐步推导 Scaled Dot-Product Attention 的公式来源。</p>
+        <p>多头注意力通过并行的多组线性投影捕捉不同子空间的语义关系，相比单头机制显著提升了模型的表达能力，同时保持了可并行计算的效率优势。</p>
+        <p>此后作者进一步讨论了位置编码（Positional Encoding）如何为无序的自注意力机制注入序列顺序信息。</p>
+      </div>
+      <div class="modeB-sidebar">
+        <div class="player-mock">
+          <div class="player-video-surface">video/mp4</div>
+          <div class="player-controls">
+            <div class="player-seek"><div class="player-seek-fill" style="width:38%"><div class="player-seek-thumb"></div></div></div>
+            <div class="player-row">
+              <span class="player-play-btn">▶</span>
+              <span class="player-time">12:04<span> / 31:47</span></span>
+            </div>
+          </div>
+        </div>
+        <div class="subtitle-mock">
+          <div class="subtitle-head">
+            <span class="subtitle-lang active">中文</span>
+            <span class="subtitle-lang">EN</span>
+            <span class="subtitle-count">812 段</span>
+          </div>
+          <div class="subtitle-items">
+            <div class="subtitle-row">
+              <div class="subtitle-row-ts">11:48</div>
+              <div class="subtitle-row-text">接下来我们看一下 Query 和 Key 是如何计算相似度的。</div>
+            </div>
+            <div class="subtitle-row active">
+              <div class="subtitle-row-ts">12:04</div>
+              <div class="subtitle-row-text">这里用点积除以根号 d_k 做缩放，避免梯度消失。</div>
+            </div>
+            <div class="subtitle-row">
+              <div class="subtitle-row-ts">12:19</div>
+              <div class="subtitle-row-text">缩放之后再经过 softmax 得到注意力权重分布。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">
+    三种模式共享同一套 header 结构（返回箭头 + 标题 + 主题选择 <code>✦</code> + ModeSwitcher + 甘特图入口 <code>▦</code> + <code>⌘K</code>），仅 <code>data-mode</code> 驱动的内容区布局不同 —
+    模式A 是视频任务默认态（左 55% 播放器+笔记，右 45% 总结/文章正文）；模式F 剧场态把播放器提到顶部满宽展示，正文与笔记退居下方一行；
+    模式B 阅读优先态把正文列放大为主区域，播放器与转录字幕收进右侧 320px 固定侧栏。三态复用同一份播放器/笔记/字幕视觉语言，保持组件感一致。
+  </p>
+</div>
+
+<script>
+  var stateBtns = document.querySelectorAll('.state-btn');
+  var panels = {
+    A: document.getElementById('state-A'),
+    F: document.getElementById('state-F'),
+    B: document.getElementById('state-B'),
+  };
+  stateBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      stateBtns.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var target = btn.getAttribute('data-state');
+      Object.keys(panels).forEach(function (key) {
+        panels[key].style.display = key === target ? 'block' : 'none';
+      });
+    });
+  });
+</script>

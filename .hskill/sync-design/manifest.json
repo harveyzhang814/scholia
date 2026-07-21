@@ -18,8 +18,65 @@
       }
     }
   },
-  "entries": [],
+  "entries": [
+    {
+      "id": "home-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/home-web-design.html",
+      "sourceFiles": ["web/src/routes/_index.tsx", "web/src/components/task-card.tsx"],
+      "uiStates": ["视频 Tab（默认）", "文章 Tab", "空状态（无数据）"],
+      "lastSyncCommit": "175feca889cdea010a6435a80b43061b4c429615",
+      "description": "首页任务列表，视频/文章双 Tab 切换，卡片网格展示，支持 ⌘K 搜索"
+    },
+    {
+      "id": "task-detail-video-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/task-detail-video-web-design.html",
+      "sourceFiles": [
+        "web/src/routes/tasks.$id.tsx",
+        "web/src/components/player.tsx",
+        "web/src/components/subtitle-list.tsx",
+        "web/src/components/notes-panel.tsx",
+        "web/src/components/mode-switcher.tsx",
+        "web/src/components/prose-theme-picker.tsx"
+      ],
+      "uiStates": ["模式A-视频优先（默认）", "模式F-剧场模式", "模式B-阅读优先"],
+      "lastSyncCommit": "175feca889cdea010a6435a80b43061b4c429615",
+      "description": "视频任务详情页：播放器 + 字幕列表 + 文章/总结正文 + 笔记栏，支持 5 种布局模式切换（此稿覆盖 3 种代表性模式）"
+    },
+    {
+      "id": "task-detail-article-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/task-detail-article-web-design.html",
+      "sourceFiles": [
+        "web/src/routes/tasks.$id.tsx",
+        "web/src/components/reader.tsx",
+        "web/src/components/toc.tsx",
+        "web/src/components/notes-panel.tsx"
+      ],
+      "uiStates": ["顶部-信息栏与正文标题同屏", "向下滚动-信息栏随正文滚出视口"],
+      "lastSyncCommit": "175feca889cdea010a6435a80b43061b4c429615",
+      "description": "文章任务详情页（模式 E 纯读）：正文列 + TOC + 笔记栏三栏布局，在 article-meta-bar-web 草稿基础上修正了无媒体任务下 header/tab-bar 的差异"
+    },
+    {
+      "id": "task-gantt-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/task-gantt-web-design.html",
+      "sourceFiles": ["web/src/routes/tasks.$id.gantt.tsx", "web/src/components/gantt-chart.tsx"],
+      "uiStates": ["有数据-甘特图条形图", "空状态-暂无执行时间数据"],
+      "lastSyncCommit": "175feca889cdea010a6435a80b43061b4c429615",
+      "description": "任务执行时间线视图，展示各步骤（fetch/download/convert/ai）起止时间条形图"
+    }
+  ],
   "drafts": [
+    {
+      "id": "home-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/drafts/home-web-design.html",
+      "uiStates": ["视频 Tab（默认）", "文章 Tab", "空状态（无数据）"],
+      "description": "首页重设计，累计两轮：(1) 卡片顶部新增作者/标签胶囊行、底部 meta 行新增标注计数——已上线；(2) 独立工具栏（搜索框+排序）从 header 右侧移出，改为列表上方单独一行，左对齐，尺寸按独立一行重新放大（padding 9px 14px、搜索框宽度 260px、字号 14px）——本轮新增，草稿已同步反映此前已上线的 header 导航改动（视频/文章切换改为路由导航 /videos ↔ /articles，并入 header）",
+      "linkedEntryId": "home-web"
+    },
     {
       "id": "player-subtitle-menu-web",
       "platform": "web",

@@ -1,0 +1,493 @@
+<meta charset="utf-8">
+<title>任务执行时间线 · 甘特图视图 — 设计稿</title>
+<style>
+  :root {
+    --bg-canvas:     #F9F8F4;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #F1EFE9;
+    --border-subtle: #E5E2DA;
+    --border-strong: #CFCBC0;
+    --text-primary:   #2C2A24;
+    --text-secondary: #67645E;
+    --text-tertiary:  #6E6961;
+    --accent-3:  #EBF1E8;
+    --accent-9:  #5A8A5A;
+    --accent-10: #466F46;
+    --accent-11: #3D5E3D;
+    --accent-12: #243B24;
+    --status-ok:   #4A8A5A;
+    --status-err:  #B05050;
+    --status-busy: #C28A3D;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    /* Gantt step category colors — from web/src/components/gantt-chart.tsx CAT_COLOR */
+    --cat-fetch:    #60a5fa;
+    --cat-download: #f87171;
+    --cat-convert:  #4ade80;
+    --cat-ai:       #c084fc;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-canvas:     #1A1A18;
+      --bg-surface:    #232322;
+      --bg-elevated:   #2A2A28;
+      --border-subtle: #2E2E2B;
+      --border-strong: #3D3E3B;
+      --text-primary:   #E8E8E6;
+      --text-secondary: #9A9B98;
+      --text-tertiary:  #868782;
+      --accent-3:  #2A3A2A;
+      --accent-9:  #7DAE7D;
+      --accent-10: #6FA06F;
+      --accent-11: #9BC79B;
+      --accent-12: #C8E0C8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 24px;
+    line-height: 1.6;
+    max-width: 900px;
+  }
+
+  .page-sub code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .state-switch {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .state-btn {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, color 120ms;
+  }
+  .state-btn:hover { background: var(--bg-elevated); }
+  .state-btn.active {
+    border-color: var(--accent-9);
+    color: var(--accent-10);
+    background: var(--accent-3);
+    font-weight: 500;
+  }
+
+  /* ── 甘特图视图外壳（完整还原：header + 内容区） ── */
+  .detail-frame {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-surface);
+  }
+
+  .frame-header {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .frame-header .left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+  }
+  .back-arrow { color: var(--text-tertiary); font-size: 14px; }
+  .frame-title {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .frame-meta {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+  }
+
+  .content-body {
+    padding: 16px 24px;
+    min-height: 500px;
+  }
+
+  /* ── 状态 1: 有数据 — Stats 行 ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    margin-bottom: 24px;
+    background: var(--border-subtle);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .stat-cell {
+    background: var(--bg-surface);
+    padding: 12px 16px;
+    font-family: var(--font-mono);
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .stat-value.accent { color: var(--cat-convert); }
+
+  /* ── 图表区 ── */
+  .chart-area {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 24px 0 0;
+  }
+  .ruler {
+    display: flex;
+    margin-left: 120px;
+    margin-bottom: 4px;
+    position: relative;
+    height: 16px;
+  }
+  .ruler-tick {
+    position: absolute;
+    color: var(--text-tertiary);
+    font-size: 10px;
+    transform: translateX(-50%);
+  }
+  .chart-body {
+    position: relative;
+  }
+  .grid-lines {
+    position: absolute;
+    inset: 0;
+    left: 120px;
+    pointer-events: none;
+  }
+  .grid-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border-subtle);
+  }
+  .step-row {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    margin-bottom: 2px;
+    position: relative;
+  }
+  .step-label {
+    width: 120px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-right: 8px;
+  }
+  .step-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .step-name {
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .step-bar-area {
+    flex: 1;
+    position: relative;
+    height: 20px;
+  }
+  .step-bar {
+    position: absolute;
+    height: 100%;
+    opacity: 0.85;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    padding-left: 6px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .step-bar span {
+    color: #000;
+    font-size: 10px;
+    opacity: 0.75;
+  }
+
+  /* ── 图例 ── */
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-subtle);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .legend-item span:last-child { color: var(--text-tertiary); }
+
+  /* ── 状态 2: 空状态 ── */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 256px;
+    gap: 12px;
+    color: var(--text-tertiary);
+    text-align: center;
+  }
+  .empty-icon { font-size: 32px; }
+  .empty-heading {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+  .empty-sub {
+    font-size: 12px;
+    max-width: 320px;
+    line-height: 1.6;
+  }
+
+  .caption {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.7;
+    max-width: 900px;
+  }
+  .caption code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+</style>
+
+<div class="page">
+  <h1 class="page-title">任务执行时间线 · 甘特图视图（重新设计）</h1>
+  <p class="page-sub">
+    对应实现：<code>web/src/routes/tasks.$id.gantt.tsx</code>（外壳/空状态） + <code>web/src/components/gantt-chart.tsx</code>（图表本体）。
+    展示各执行步骤（fetch/download/convert/ai）的起止时间条形图，顶部统计行给出加速比（串行估计耗时 ÷ 实际耗时）、实际耗时、串行估计、节省时间、步骤数。
+  </p>
+
+  <div class="state-switch">
+    <button class="state-btn active" data-state="data">状态 1 — 有数据（甘特图条形图）</button>
+    <button class="state-btn" data-state="empty">状态 2 — 空状态（暂无执行时间数据）</button>
+  </div>
+
+  <div class="detail-frame">
+    <div class="frame-header">
+      <div class="left">
+        <span class="back-arrow">←</span>
+        <span class="frame-title">深度学习中的注意力机制综述</span>
+      </div>
+      <div class="frame-meta">article-2024-attention-survey · mode=full</div>
+    </div>
+
+    <div class="content-body">
+      <!-- 状态 1: 有数据 -->
+      <div id="panel-data">
+        <div class="stats-row">
+          <div class="stat-cell">
+            <div class="stat-label">加速比</div>
+            <div class="stat-value accent">3.2×</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">实际耗时</div>
+            <div class="stat-value">42.0s</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">串行估计</div>
+            <div class="stat-value">134.0s</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">节省时间</div>
+            <div class="stat-value accent">92.0s</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">步骤数</div>
+            <div class="stat-value">6</div>
+          </div>
+        </div>
+
+        <div class="chart-area">
+          <div class="ruler">
+            <div class="ruler-tick" style="left:0%">0ms</div>
+            <div class="ruler-tick" style="left:16.6%">7.0s</div>
+            <div class="ruler-tick" style="left:33.3%">14.0s</div>
+            <div class="ruler-tick" style="left:50%">21.0s</div>
+            <div class="ruler-tick" style="left:66.6%">28.0s</div>
+            <div class="ruler-tick" style="left:83.3%">35.0s</div>
+            <div class="ruler-tick" style="left:100%">42.0s</div>
+          </div>
+
+          <div class="chart-body">
+            <div class="grid-lines">
+              <div class="grid-line" style="left:16.6%"></div>
+              <div class="grid-line" style="left:33.3%"></div>
+              <div class="grid-line" style="left:50%"></div>
+              <div class="grid-line" style="left:66.6%"></div>
+              <div class="grid-line" style="left:83.3%"></div>
+              <div class="grid-line" style="left:100%"></div>
+            </div>
+
+            <div class="step-row">
+              <div class="step-label">
+                <span class="step-dot" style="background:var(--cat-fetch)"></span>
+                <span class="step-name">fetch</span>
+              </div>
+              <div class="step-bar-area">
+                <div class="step-bar" style="left:0%;width:6%;background:var(--cat-fetch)"><span>2.1s</span></div>
+              </div>
+            </div>
+            <div class="step-row">
+              <div class="step-label">
+                <span class="step-dot" style="background:var(--cat-download)"></span>
+                <span class="step-name">video</span>
+              </div>
+              <div class="step-bar-area">
+                <div class="step-bar" style="left:6%;width:22%;background:var(--cat-download)"><span>9.4s</span></div>
+              </div>
+            </div>
+            <div class="step-row">
+              <div class="step-label">
+                <span class="step-dot" style="background:var(--cat-download)"></span>
+                <span class="step-name">subs</span>
+              </div>
+              <div class="step-bar-area">
+                <div class="step-bar" style="left:6%;width:10%;background:var(--cat-download)"><span>4.2s</span></div>
+              </div>
+            </div>
+            <div class="step-row">
+              <div class="step-label">
+                <span class="step-dot" style="background:var(--cat-convert)"></span>
+                <span class="step-name">asr</span>
+              </div>
+              <div class="step-bar-area">
+                <div class="step-bar" style="left:28%;width:28%;background:var(--cat-convert)"><span>11.8s</span></div>
+              </div>
+            </div>
+            <div class="step-row">
+              <div class="step-label">
+                <span class="step-dot" style="background:var(--cat-convert)"></span>
+                <span class="step-name">vtt2md</span>
+              </div>
+              <div class="step-bar-area">
+                <div class="step-bar" style="left:56%;width:7%;background:var(--cat-convert)"><span>2.9s</span></div>
+              </div>
+            </div>
+            <div class="step-row">
+              <div class="step-label">
+                <span class="step-dot" style="background:var(--cat-ai)"></span>
+                <span class="step-name">summary</span>
+              </div>
+              <div class="step-bar-area">
+                <div class="step-bar" style="left:63%;width:37%;background:var(--cat-ai)"><span>15.6s</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--cat-fetch)"></span><span>元数据</span></div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--cat-download)"></span><span>下载</span></div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--cat-convert)"></span><span>转换</span></div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--cat-ai)"></span><span>AI 生成</span></div>
+        </div>
+      </div>
+
+      <!-- 状态 2: 空状态 -->
+      <div id="panel-empty" style="display:none;">
+        <div class="empty-state">
+          <span class="empty-icon">📊</span>
+          <p class="empty-heading">此任务暂无执行时间数据</p>
+          <p class="empty-sub">步骤时间戳仅在 2026-06-23 之后执行的任务中记录。重新触发任务执行后，甘特图将自动可用。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">
+    重新设计要点：统计行改为等分五宫格卡片（加速比/实际耗时/串行估计/节省时间/步骤数），用背景网格线分隔，弱化边框；
+    加速比与节省时间用 <code>--cat-convert</code> 强调色高亮，突出"这次任务省了多少时间"这一核心信息。
+    步骤条形图沿用原有的分类色点 + 标签 + 条形结构（元数据蓝 / 下载红 / 转换绿 / AI 生成紫），保持时间轴刻度线贯穿全表；
+    条形图下方新增图例行，避免用户需要记忆颜色含义。空状态严格遵循 DESIGN.md 的"温暖态"模式：图标 + 标题 + 一句话说明，不做多余修饰。
+  </p>
+</div>
+
+<script>
+  var stateBtns = document.querySelectorAll('.state-btn');
+  var panels = {
+    data: document.getElementById('panel-data'),
+    empty: document.getElementById('panel-empty'),
+  };
+
+  stateBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      stateBtns.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var target = btn.getAttribute('data-state');
+      Object.keys(panels).forEach(function (key) {
+        panels[key].style.display = key === target ? 'block' : 'none';
+      });
+    });
+  });
+</script>

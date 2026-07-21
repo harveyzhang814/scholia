@@ -138,9 +138,14 @@ scholia serve --open
 | 6.3 | `scholia config get content-dir`（未设置） | 打印 `(not set)` | ☐ |
 | 6.4 | `scholia config set unknown-key val` | 打印错误信息并 exit 1 | ☐ |
 | 6.5 | `scholia serve --port 8080` | 在 8080 端口启动，URL 正确 | ☐ |
-| 6.6 | 端口已占用时启动 | 打印 `Port 8080 already in use.` 并退出 | ☐ |
+| 6.6 | 端口已占用时启动 | 不报错退出，自动改用空闲端口，打印 `Port 8080 was in use; using <M> instead.` | ☐ |
 | 6.7 | `scholia serve --open` | 浏览器自动打开 | ☐ |
 | 6.8 | 未知命令 `scholia foo` | 打印 usage 并 exit 1 | ☐ |
+| 6.9 | `scholia start` | 后台启动，终端立即返回并打印 `Scholia started (pid ..., port ...)`；关闭终端服务不受影响 | ☐ |
+| 6.10 | 已有实例时 `scholia start` | 打印 `Scholia is already running (pid ..., port ...)` 并 exit 1 | ☐ |
+| 6.11 | `scholia stop`（停止 `start` 启动的实例） | 打印 `Stopped scholia (pid <pid>, port <port>).`，进程实际退出 | ☐ |
+| 6.12 | 未运行时 `scholia web` | 打印 `Scholia is not running. Run "scholia start" first.` 并 exit 1 | ☐ |
+| 6.13 | `scholia start` 后执行 `scholia web` | 浏览器打开对应实例的 URL（带正确 token） | ☐ |
 
 ---
 

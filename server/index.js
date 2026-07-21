@@ -1,6 +1,6 @@
 'use strict';
 const Koa = require('koa');
-const Router = require('koa-router');
+const Router = require('@koa/router');
 const bodyParser = require('koa-bodyparser');
 const path = require('path');
 const fs = require('fs');
@@ -49,6 +49,15 @@ async function getPaths(taskId, workDir, contentDir) {
   return getVideoDirs(workDir, taskId);
 }
 
+async function countAnnotations(paths) {
+  if (!paths) return { highlightCount: 0, noteCount: 0 };
+  const [highlights, notes] = await Promise.all([
+    readJson(paths.highlights, []),
+    readJson(paths.notes, []),
+  ]);
+  return { highlightCount: highlights.length, noteCount: notes.length };
+}
+
 function createApp(options = {}) {
   const WORK_DIR = options.workDir || null;
   const CONTENT_DIR = options.contentDir || null;
@@ -73,13 +82,23 @@ function createApp(options = {}) {
   // List videos (same shape as VDL's /api/tasks for frontend compatibility)
   router.get('/tasks', async (ctx) => {
     if (!WORK_DIR) { ctx.body = []; return; }
-    ctx.body = await listVideos(WORK_DIR);
+    const tasks = await listVideos(WORK_DIR);
+    ctx.body = await Promise.all(tasks.map(async (t) => {
+      const paths = await getPaths(t.id, WORK_DIR, CONTENT_DIR);
+      return { ...t, ...(await countAnnotations(paths)) };
+    }));
   });
 
   // List articles
   router.get('/articles', async (ctx) => {
     if (!CONTENT_DIR) { ctx.body = []; return; }
-    try { ctx.body = await listArticles(CONTENT_DIR); }
+    try {
+      const articles = await listArticles(CONTENT_DIR);
+      ctx.body = await Promise.all(articles.map(async (a) => {
+        const paths = await getPaths(a.id, WORK_DIR, CONTENT_DIR);
+        return { ...a, ...(await countAnnotations(paths)) };
+      }));
+    }
     catch (err) { ctx.status = 500; ctx.body = { error: err.message }; }
   });
 
