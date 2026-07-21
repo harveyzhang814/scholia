@@ -10,6 +10,10 @@ export interface SortState {
 
 export const DEFAULT_SORT: SortState = { field: 'date', direction: 'desc' };
 
+function isMissing(v: string | number | undefined): boolean {
+  return v === undefined || v === '';
+}
+
 export function compareBy<T>(
   a: T,
   b: T,
@@ -18,9 +22,11 @@ export function compareBy<T>(
 ): number {
   const av = getValue(a);
   const bv = getValue(b);
-  if (av === undefined && bv === undefined) return 0;
-  if (av === undefined) return 1;
-  if (bv === undefined) return -1;
+  const aMissing = isMissing(av);
+  const bMissing = isMissing(bv);
+  if (aMissing && bMissing) return 0;
+  if (aMissing) return 1;
+  if (bMissing) return -1;
 
   const cmp = typeof av === 'number' && typeof bv === 'number'
     ? av - bv

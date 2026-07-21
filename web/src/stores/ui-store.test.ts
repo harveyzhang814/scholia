@@ -102,6 +102,16 @@ describe('readSortState', () => {
     localStorage.setItem('home-sort-video', JSON.stringify({ field: 'title', direction: 'sideways' }));
     expect(readSortState('home-sort-video')).toEqual({ field: 'date', direction: 'desc' });
   });
+
+  it('falls back to the default when field=author is not in the allowed list', () => {
+    localStorage.setItem('home-sort-article', JSON.stringify({ field: 'author', direction: 'asc' }));
+    expect(readSortState('home-sort-article', ['date', 'title'])).toEqual({ field: 'date', direction: 'desc' });
+  });
+
+  it('still accepts author when no allowedFields restriction is given (video key)', () => {
+    localStorage.setItem('home-sort-video', JSON.stringify({ field: 'author', direction: 'asc' }));
+    expect(readSortState('home-sort-video')).toEqual({ field: 'author', direction: 'asc' });
+  });
 });
 
 describe('ui-store videoSort', () => {

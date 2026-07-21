@@ -25,6 +25,12 @@ describe('compareBy', () => {
   it('treats two undefined values as equal', () => {
     expect(compareBy<number | undefined>(undefined, undefined, (n) => n, 'asc')).toBe(0);
   });
+
+  it('treats an empty string as missing and sorts it to the end', () => {
+    expect(compareBy('', 'a', (s: string) => s, 'asc')).toBeGreaterThan(0);
+    expect(compareBy('a', '', (s: string) => s, 'asc')).toBeLessThan(0);
+    expect(compareBy('', 'a', (s: string) => s, 'desc')).toBeGreaterThan(0);
+  });
 });
 
 const baseTask: Task = {

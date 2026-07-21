@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ThemeId } from '@/lib/themes';
-import { DEFAULT_SORT, type SortState } from '@/lib/sort';
+import { DEFAULT_SORT, type SortState, type SortField } from '@/lib/sort';
 
 export type Theme = 'system' | 'light' | 'dark';
 export type StatusFilter = 'all' | 'running' | 'done' | 'failed';
@@ -15,12 +15,12 @@ function clampSubtitleScale(v: number): number {
   return Math.min(SUBTITLE_SCALE_MAX, Math.max(SUBTITLE_SCALE_MIN, rounded));
 }
 
-export function readSortState(key: string): SortState {
+export function readSortState(key: string, allowedFields: SortField[] = ['date', 'title', 'author']): SortState {
   const raw = localStorage.getItem(key);
   if (!raw) return DEFAULT_SORT;
   try {
     const parsed = JSON.parse(raw);
-    const validField = parsed?.field === 'date' || parsed?.field === 'title' || parsed?.field === 'author';
+    const validField = allowedFields.includes(parsed?.field);
     const validDirection = parsed?.direction === 'asc' || parsed?.direction === 'desc';
     if (validField && validDirection) {
       return { field: parsed.field, direction: parsed.direction };
@@ -79,7 +79,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     localStorage.setItem('home-sort-video', JSON.stringify(videoSort));
     set({ videoSort });
   },
-  articleSort: readSortState('home-sort-article'),
+  articleSort: readSortState('home-sort-article', ['date', 'title']),
   setArticleSort: (articleSort) => {
     localStorage.setItem('home-sort-article', JSON.stringify(articleSort));
     set({ articleSort });
