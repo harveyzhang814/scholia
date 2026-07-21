@@ -1,0 +1,450 @@
+<title>文章任务详情页（纯读模式）— 设计稿</title>
+<style>
+  :root {
+    --bg-canvas:     #F9F8F4;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #F1EFE9;
+    --border-subtle: #E5E2DA;
+    --border-strong: #CFCBC0;
+    --text-primary:   #2C2A24;
+    --text-secondary: #67645E;
+    --text-tertiary:  #6E6961;
+    --accent-3:  #EBF1E8;
+    --accent-9:  #5A8A5A;
+    --accent-10: #466F46;
+    --accent-11: #3D5E3D;
+    --accent-12: #243B24;
+    --status-ok:   #4A8A5A;
+    --status-err:  #B05050;
+    --status-busy: #C28A3D;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-canvas:     #1A1A18;
+      --bg-surface:    #232322;
+      --bg-elevated:   #2A2A28;
+      --border-subtle: #2E2E2B;
+      --border-strong: #3D3E3B;
+      --text-primary:   #E8E8E6;
+      --text-secondary: #9A9B98;
+      --text-tertiary:  #868782;
+      --accent-3:  #2A3A2A;
+      --accent-9:  #7DAE7D;
+      --accent-10: #6FA06F;
+      --accent-11: #9BC79B;
+      --accent-12: #C8E0C8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 24px;
+    line-height: 1.6;
+    max-width: 900px;
+  }
+
+  .page-sub code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .state-switch {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .state-btn {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, color 120ms;
+  }
+  .state-btn:hover { background: var(--bg-elevated); }
+  .state-btn.active {
+    border-color: var(--accent-9);
+    color: var(--accent-10);
+    background: var(--accent-3);
+    font-weight: 500;
+  }
+
+  /* ── 文章任务详情页外壳（无媒体：ModeSwitcher / 甘特图入口隐藏，Tab 栏无总结/文章切换） ── */
+  .detail-frame {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-surface);
+  }
+
+  .frame-header {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .frame-header .left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+  }
+  .back-arrow { color: var(--text-tertiary); font-size: 14px; }
+  .frame-title {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .frame-header .right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
+  .theme-picker-btn {
+    font-size: 13px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--text-tertiary);
+  }
+  .kbd {
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    font-size: 12px;
+  }
+
+  /* ── Tab bar（无媒体文章任务：左侧无 总结/文章 切换项，仅保留右侧 复制/显示文件） ── */
+  .tab-bar {
+    padding: 0 48px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .tabs { display: flex; min-height: 1px; }
+  .tab-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  /* ── 三栏内容行：正文列 | TOC | 笔记栏（对应 .article-notes-row） ── */
+  .content-row {
+    display: flex;
+    height: 560px;
+  }
+
+  /* 正文列 — 对应 .article-col，信息栏和正文都在这一列的滚动视口内 */
+  .article-col-mock {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    overflow: hidden; /* 这个 demo 用两个静态帧模拟滚动前后，不做真实滚动 */
+  }
+  .article-scroll {
+    padding: 40px 48px;
+  }
+
+  /* ── ArticleMetaBar — 信息栏
+     嵌在 Reader 的 <article class="prose-cn"> 内部、正文标题之上 —— 因此它的宽度
+     天然等于正文列宽度，并随正文一起滚动。 ── */
+  .meta-bar {
+    padding-bottom: 16px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 12px;
+  }
+  .meta-scalar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px 24px;
+  }
+  .meta-field { min-width: 0; }
+  .meta-label {
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+    opacity: 0.7;
+    margin-bottom: 2px;
+  }
+  .meta-value {
+    color: var(--text-secondary);
+    overflow-wrap: anywhere; /* 长值（如 URL）自动换行，不溢出到相邻网格列 */
+  }
+  .meta-array-row { margin-top: 8px; }
+  .meta-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .chip {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+
+  .article-h1 {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 16px;
+  }
+  .article-h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 12px;
+  }
+  .article-scroll p {
+    font-size: 13.5px;
+    line-height: 23.625px;
+    color: var(--text-primary);
+    margin: 0 0 14px;
+  }
+
+  /* TOC — 对应 web/src/components/toc.tsx（w-44 px-6 py-14, sticky） */
+  .toc-mock {
+    width: 224px;
+    flex-shrink: 0;
+    padding: 56px 24px;
+  }
+  .toc-item {
+    display: block;
+    padding: 4px 0;
+    font-size: 12.5px;
+    color: var(--text-tertiary);
+  }
+  .toc-item.active { color: var(--text-primary); font-weight: 500; }
+
+  /* 笔记栏 — 对应 .notes-col + NotesPanel，固定 260px，独立于正文滚动 */
+  .notes-col-mock {
+    width: 260px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border-subtle);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .notes-header {
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .notes-input-block {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .notes-textarea {
+    padding: 8px;
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-tertiary);
+    font-size: 12.5px;
+    min-height: 52px;
+    line-height: 1.6;
+  }
+  .notes-input-actions {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .notes-save-btn {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--text-tertiary);
+    border: 1px solid var(--border-subtle);
+  }
+  .notes-empty {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  .caption {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.7;
+    max-width: 900px;
+  }
+  .caption code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+</style>
+
+<div class="page">
+  <h1 class="page-title">文章任务详情页（纯读模式 E · 无媒体）</h1>
+  <p class="page-sub">
+    对应实现：<code>web/src/routes/tasks.$id.tsx</code>（<code>isArticleTask=true</code>、<code>mediaKind=null</code> 时的渲染分支）。
+    无媒体的纯文章任务：header 右侧仅保留文章主题选择（✦）与 <code>⌘K</code>，<code>ModeSwitcher</code> 与甘特图入口因 <code>{'{mediaKind && ...}'}</code> 判空而不渲染；
+    Tab 栏左侧的"总结/文章"切换因 <code>{'{!isArticleTask && ...}'}</code> 判断同样不渲染，仅保留右侧"复制/显示文件"操作。
+    正文列内嵌 YAML 头部信息栏（Date/Author/Source Url + Tags chips），随正文一起滚动；右侧为 sticky TOC 与固定宽度笔记栏。
+  </p>
+
+  <div class="state-switch">
+    <button class="state-btn active" data-state="top">状态 1 — 顶部（信息栏 + 正文标题同屏）</button>
+    <button class="state-btn" data-state="scrolled">状态 2 — 向下滚动（信息栏随正文滚出视口，TOC 仍 sticky 可见）</button>
+  </div>
+
+  <div class="detail-frame">
+    <div class="frame-header">
+      <div class="left">
+        <span class="back-arrow">←</span>
+        <span class="frame-title">深度学习中的注意力机制综述</span>
+      </div>
+      <div class="right">
+        <span class="theme-picker-btn" title="文章主题">✦</span>
+        <span class="kbd">⌘K</span>
+      </div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tabs"><!-- 无媒体文章任务：isArticleTask=true，总结/文章 切换不渲染 --></div>
+      <div class="tab-actions">
+        <span>复制</span>
+        <span>显示文件</span>
+      </div>
+    </div>
+
+    <div class="content-row">
+      <div class="article-col-mock">
+        <!-- 状态 1：滚动视口顶部 -->
+        <div class="article-scroll" id="scroll-top">
+          <div class="meta-bar">
+            <div class="meta-scalar-grid">
+              <div class="meta-field">
+                <div class="meta-label">Date</div>
+                <div class="meta-value">2024-01-01</div>
+              </div>
+              <div class="meta-field">
+                <div class="meta-label">Author</div>
+                <div class="meta-value">Jane Doe</div>
+              </div>
+              <div class="meta-field">
+                <div class="meta-label">Source Url</div>
+                <div class="meta-value">https://arxiv.org/abs/2024.03158v2-attention-survey-full-paper</div>
+              </div>
+            </div>
+            <div class="meta-array-row">
+              <div class="meta-label">Tags</div>
+              <div class="meta-chips">
+                <span class="chip">ai</span>
+                <span class="chip">machine-learning</span>
+                <span class="chip">nlp</span>
+              </div>
+            </div>
+          </div>
+          <h1 class="article-h1">深度学习中的注意力机制综述</h1>
+          <p>注意力机制自 2017 年 Transformer 架构提出以来，已成为现代深度学习模型的核心组件之一。本文从基础原理出发，系统梳理其在自然语言处理、计算机视觉等领域的演化路径……</p>
+          <p>与传统的循环神经网络相比，注意力机制能够并行处理序列数据，同时更好地捕捉长距离依赖关系。这一特性使其成为大规模预训练模型的首选架构……</p>
+        </div>
+
+        <!-- 状态 2：向下滚动后 —— 信息栏已滚出视口，只剩正文 -->
+        <div class="article-scroll" id="scroll-down" style="display:none;">
+          <h2 class="article-h2">经验教训</h2>
+          <p>不要把 LLM 包装在抽象层里。给它最大行动空间，然后做限制，而不是反过来。</p>
+          <p>我们仍然在包装它的工具。每一个 helper 都是一个约束，强化学习过的模型不得不绕着它走。</p>
+          <p>当我们构建 Browser Use 第一版时，我们交付了数千行 element extractors、DOM indexers、click wrappers。LLM 懂 CDP，它们在数百万 token 中训练过。</p>
+        </div>
+      </div>
+
+      <aside class="toc-mock">
+        <nav>
+          <a class="toc-item active">经验教训</a>
+          <a class="toc-item">为什么用原生 CDP</a>
+          <a class="toc-item">我们做错了什么</a>
+          <a class="toc-item">四个文件</a>
+        </nav>
+      </aside>
+
+      <aside class="notes-col-mock">
+        <div class="notes-header">笔记</div>
+        <div class="notes-input-block">
+          <div class="notes-textarea">写下笔记…</div>
+          <div class="notes-input-actions">
+            <span class="notes-save-btn">保存</span>
+          </div>
+        </div>
+        <div class="notes-empty">暂无笔记</div>
+      </aside>
+    </div>
+  </div>
+
+  <p class="caption">
+    信息栏（Date/Author/Source Url 网格 + Tags chips）左右边界与下方正文标题、段落对齐，到 TOC 开始的位置为止 —— 不跨到 TOC 或笔记栏下面。
+    <code>Source Url</code> 是特意选的长且不含空格的值，用来展示 <code>overflow-wrap: anywhere</code>：换行到第二行，而不是溢出到右边 <code>Tags</code> 或下一列。
+    点击上方"向下滚动"按钮：信息栏和标题一起离开视口，只剩正文段落 —— 因为它是 <code>&lt;article class="prose-cn"&gt;</code> 内部的第一个元素，
+    和正文共享同一个滚动容器；TOC 因自身 <code>position: sticky</code> 保持可见，笔记栏固定宽度不受影响。
+  </p>
+</div>
+
+<script>
+  var stateBtns = document.querySelectorAll('.state-btn');
+  var panels = {
+    top: document.getElementById('scroll-top'),
+    scrolled: document.getElementById('scroll-down'),
+  };
+
+  stateBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      stateBtns.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var target = btn.getAttribute('data-state');
+      Object.keys(panels).forEach(function (key) {
+        panels[key].style.display = key === target ? 'block' : 'none';
+      });
+    });
+  });
+</script>
