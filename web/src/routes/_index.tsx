@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link, useLocation } from 'react-router';
 import { useTasks } from '@/hooks/use-tasks';
 import { TaskCard } from '@/components/task-card';
 import { ArticleCard } from '@/components/article-card';
@@ -28,8 +29,7 @@ function useArticles() {
 }
 
 export default function Home() {
-  const tab = useUiStore((s) => s.homeTab);
-  const setTab = useUiStore((s) => s.setHomeTab);
+  const tab = useLocation().pathname === '/articles' ? 'article' : 'video';
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { data: articles = [], isLoading: articlesLoading } = useArticles();
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,51 +72,51 @@ export default function Home() {
   return (
     <div className="px-8 pt-16 pb-24">
       {/* Header */}
-      <header className="flex items-center justify-between mb-6">
+      <header className="flex items-center gap-6 mb-6">
         <h1 className="text-lg font-semibold tracking-tight">Scholia</h1>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 rounded-lg border px-3 py-1.5"
-               style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}>
-            <input
-              ref={inputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Escape') { setSearchQuery(''); inputRef.current?.blur(); } }}
-              placeholder="搜索…"
-              className="text-sm bg-transparent outline-none w-40"
-              style={{ color: 'var(--text-primary)' }}
-            />
-            <kbd className="text-[11px] px-1.5 py-0.5 rounded border flex-shrink-0"
-                 style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-elevated)',
-                          color: 'var(--text-tertiary)' }}>
-              ⌘K
-            </kbd>
-          </div>
-          <SortSelect
-            value={tab === 'video' ? videoSort : articleSort}
-            onChange={tab === 'video' ? setVideoSort : setArticleSort}
-            fields={tab === 'video' ? VIDEO_SORT_FIELDS : ARTICLE_SORT_FIELDS}
-          />
-        </div>
+        <nav className="flex items-center gap-1">
+          {(['video', 'article'] as const).map((t) => (
+            <Link
+              key={t}
+              to={t === 'video' ? '/videos' : '/articles'}
+              className="px-2.5 py-1 rounded-md text-sm transition-colors"
+              style={{
+                color: tab === t ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                background: tab === t ? 'var(--bg-elevated)' : 'transparent',
+                fontWeight: tab === t ? 500 : 400,
+              }}
+            >
+              {t === 'video' ? '视频' : '文章'}
+            </Link>
+          ))}
+        </nav>
       </header>
 
-      {/* Tab bar */}
-      <div className="flex border-b mb-8 -ml-3" style={{ borderColor: 'var(--border-subtle)' }}>
-        {(['video', 'article'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className="px-3 py-2.5 text-sm border-b-2 transition-colors cursor-pointer"
-            style={{
-              borderColor: tab === t ? 'var(--accent-9)' : 'transparent',
-              color: tab === t ? 'var(--text-primary)' : 'var(--text-tertiary)',
-              fontWeight: tab === t ? 500 : 400,
-            }}
-          >
-            {t === 'video' ? '视频' : '文章'}
-          </button>
-        ))}
+      {/* Toolbar */}
+      <div className="flex items-center justify-end gap-3 mb-8">
+        <div className="flex items-center gap-2 rounded-lg border px-3 py-1.5"
+             style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') { setSearchQuery(''); inputRef.current?.blur(); } }}
+            placeholder="搜索…"
+            className="text-sm bg-transparent outline-none w-40"
+            style={{ color: 'var(--text-primary)' }}
+          />
+          <kbd className="text-[11px] px-1.5 py-0.5 rounded border flex-shrink-0"
+               style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-elevated)',
+                        color: 'var(--text-tertiary)' }}>
+            ⌘K
+          </kbd>
+        </div>
+        <SortSelect
+          value={tab === 'video' ? videoSort : articleSort}
+          onChange={tab === 'video' ? setVideoSort : setArticleSort}
+          fields={tab === 'video' ? VIDEO_SORT_FIELDS : ARTICLE_SORT_FIELDS}
+        />
       </div>
 
       {/* Content */}
