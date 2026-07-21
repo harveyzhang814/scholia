@@ -5,7 +5,6 @@ import { DEFAULT_SORT, type SortState, type SortField } from '@/lib/sort';
 export type Theme = 'system' | 'light' | 'dark';
 export type StatusFilter = 'all' | 'running' | 'done' | 'failed';
 export type LayoutMode = 'A' | 'B' | 'C' | 'E' | 'F';
-export type HomeTab = 'video' | 'article';
 
 export const SUBTITLE_SCALE_MIN = 0.7;
 export const SUBTITLE_SCALE_MAX = 1.6;
@@ -40,8 +39,6 @@ interface UiState {
   setStatusFilter: (f: StatusFilter) => void;
   layoutMode: LayoutMode;
   setLayoutMode: (m: LayoutMode) => void;
-  homeTab: HomeTab;
-  setHomeTab: (t: HomeTab) => void;
   proseTheme: ThemeId;
   setProseTheme: (theme: ThemeId) => void;
   subtitleScale: number;
@@ -61,8 +58,6 @@ export const useUiStore = create<UiState>((set, get) => ({
   setStatusFilter: (statusFilter) => set({ statusFilter }),
   layoutMode: 'A',
   setLayoutMode: (layoutMode) => set({ layoutMode }),
-  homeTab: 'video',
-  setHomeTab: (homeTab) => set({ homeTab }),
   proseTheme: (localStorage.getItem('prose-theme') ?? 'default') as ThemeId,
   setProseTheme: (proseTheme) => {
     localStorage.setItem('prose-theme', proseTheme);
