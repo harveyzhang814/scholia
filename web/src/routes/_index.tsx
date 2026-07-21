@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTasks } from '@/hooks/use-tasks';
 import { TaskCard } from '@/components/task-card';
+import { ArticleCard } from '@/components/article-card';
 import { SortSelect } from '@/components/sort-select';
-import { api, type Article } from '@/lib/api';
+import { api } from '@/lib/api';
 import { sortTasks, sortArticles, type SortField } from '@/lib/sort';
 import { useUiStore } from '@/stores/ui-store';
 
@@ -150,25 +150,5 @@ export default function Home() {
         )
       )}
     </div>
-  );
-}
-
-function ArticleCard({ article }: { article: Article }) {
-  return (
-    <Link
-      to={`/tasks/${article.id}`}
-      className="block rounded-xl border p-4 hover:opacity-80 transition-opacity"
-      style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}
-    >
-      <div className="text-sm font-medium mb-1 line-clamp-2" style={{ color: 'var(--text-primary)' }}>
-        {article.title}
-      </div>
-      {article.date && (
-        <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{article.date}</div>
-      )}
-      <div className="text-xs mt-1 truncate" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-        {article.slug}
-      </div>
-    </Link>
   );
 }
