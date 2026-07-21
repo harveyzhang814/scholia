@@ -58,8 +58,8 @@
 
 ### 4. 前端组件：`task-card.tsx`
 
-- 顶部新增胶囊行：仅当 `task.uploader` 存在时渲染 `👤 {uploader}` 胶囊，视频卡没有标签概念，不涉及折叠逻辑。
-- 底部 meta 行：在现有 `meta = [mode, resolution, duration].filter(Boolean).join(' · ')` 之后，追加标注计数段——仅当 `highlightCount > 0 || noteCount > 0` 时拼接 `🔖{highlightCount} · 📝{noteCount}`（两者都为 0 时不显示这一段，不显示"🔖0 · 📝0"这种噪音信息）。
+- 顶部新增胶囊行：仅当 `task.uploader` 存在时渲染一个纯文本胶囊（内容即 `uploader`，不加图标前缀），视频卡没有标签概念，不涉及折叠逻辑。
+- 底部 meta 行：沿用现有 `[mode, resolution, duration].filter(Boolean).join(' · ')` 的写法，把 `highlightCount > 0 ? \`${highlightCount} 处高亮\` : null` 和 `noteCount > 0 ? \`${noteCount} 条笔记\` : null` 一并加入同一个数组再 `filter(Boolean).join(' · ')`——每个计数独立判断是否为 0，不强行拼成一对（避免"0 条笔记"这类噪音，也不用 emoji，符合 `DESIGN.md` 的 AI-slop 规避原则）。
 - 失败态分支不动。
 
 ### 5. 前端组件：`ArticleCard`（`_index.tsx` 内联组件，本次改动量足以拆成独立文件 `web/src/components/article-card.tsx`，与 `task-card.tsx` 并列）
@@ -87,7 +87,7 @@ countAnnotations(paths) → { highlightCount, noteCount }
 Task.highlightCount / Article.highlightCount（前端类型）
         │
         ▼
-<TaskCard> / <ArticleCard> 底部 meta 行渲染 "🔖N · 📝M"（N/M 都为 0 时不渲染）
+<TaskCard> / <ArticleCard> 底部 meta 行渲染 "N 处高亮 · M 条笔记"（各自独立判断，0 的那一项不渲染，都为 0 则整段不渲染）
 
 
 文章 frontmatter（YAML）
@@ -106,7 +106,7 @@ listArticles() 新增解构 → Article.author / .tags / .sourceUrl
 
 - 视频无 `uploader` → 顶部胶囊行不渲染（不留空 div）。
 - 文章无 `author`/`tags`/`sourceUrl`（纯手写笔记、无 frontmatter 扩展字段）→ 卡片退化成当前样子（标题 + 日期 + slug），顶部胶囊行整体不渲染。
-- 标注计数为 0（新建但还没标注过的任务/文章）→ 计数段不渲染，避免"🔖0 · 📝0"这种无意义噪音。
+- 标注计数为 0（新建但还没标注过的任务/文章）→ 对应那一项（高亮或笔记）不渲染，两者都为 0 则整段不渲染，避免"0 处高亮 · 0 条笔记"这种无意义噪音。
 - `tags` 超过 3 个 → 前 3 个正常显示，第 4 个起折叠为 `+N`，`title` 属性提供完整列表（无障碍/低成本方案，不引入新的 tooltip 交互组件）。
 - 高亮/笔记文件不存在或 JSON 损坏 → 复用现有 `readJson` 的 catch 逻辑，计数兜底为 0，不影响列表接口整体响应。
 - 已废弃范围：视频"处理中"状态展示——现有数据模型和真实样本都不支持，本设计不新增任何 `status`/`progress`/`current_step` 相关 UI 或接口字段。

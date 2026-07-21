@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>首页 · 任务列表 — 设计稿</title>
+<title>首页 · 任务列表卡片重设计 — 设计稿</title>
 <style>
   :root {
     --bg-canvas:     #F9F8F4;
@@ -190,6 +190,33 @@
     background: var(--bg-elevated);
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
+  /* ── 顶部作者/标签胶囊行（新增，视频卡与文章卡共用） ── */
+  .pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .pill.tag {
+    background: var(--accent-3);
+    color: var(--accent-11);
+  }
+  .pill.more {
+    color: var(--text-tertiary);
+    cursor: default;
+  }
+
   .task-title {
     font-size: 15px;
     font-weight: 500;
@@ -263,6 +290,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .article-meta {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+  }
 
   /* ── 空状态 ── */
   .empty-state {
@@ -293,10 +326,12 @@
 </style>
 
 <div class="page">
-  <h1 class="page-title">首页 · 任务列表（重新设计）</h1>
+  <h1 class="page-title">首页 · 任务列表卡片重设计（设计稿）</h1>
   <p class="page-sub">
-    对应实现：<code>web/src/routes/_index.tsx</code>。视频/文章双 Tab，卡片网格布局，⌘K 聚焦搜索框。
-    本稿在 token 体系内做了克制的视觉打磨：卡片 hover 时叠加极浅阴影（中性色，非新增色板）强化可点击感，其余尺寸/间距/圆角均与源码及 DESIGN.md 规范保持一致。
+    对应实现：<code>web/src/routes/_index.tsx</code> + <code>web/src/components/task-card.tsx</code>。
+    在完成稿基础上新增：卡片顶部作者/标签胶囊行、底部 meta 行标注计数（高亮数 · 笔记数）。
+    对应设计文档：<code>docs/superpowers/specs/2026-07-21-list-card-redesign-design.md</code>。
+    胶囊沿用 kbd 芯片的 4px 圆角与 elevated 背景色，标签额外用 accent-3/accent-11 做浅色区分，不引入新色板、不使用 emoji（遵循 DESIGN.md 的 AI-slop 规避原则）。
   </p>
 
   <div class="state-switch">
@@ -325,11 +360,13 @@
       <div id="panel-video">
         <div class="card-grid">
           <a class="task-card">
+            <div class="pill-row"><span class="pill">MIT OpenCourseWare</span></div>
             <h2 class="task-title">深度学习中的注意力机制综述与前沿进展</h2>
             <p class="task-url">https://www.youtube.com/watch?v=dQw4w9WgXcQ</p>
-            <div class="task-meta-row"><span>video · 1080p · 42:18</span><span>3 小时前</span></div>
+            <div class="task-meta-row"><span>video · 1080p · 42:18 · 5 处高亮 · 2 条笔记</span><span>3 小时前</span></div>
           </a>
           <a class="task-card">
+            <div class="pill-row"><span class="pill">Lenny's Podcast</span></div>
             <h2 class="task-title">Rust 异步编程实战：从 Future 到 Tokio Runtime</h2>
             <p class="task-url">https://www.bilibili.com/video/BV1x4411u7CN</p>
             <div class="task-meta-row"><span>video · 4K · 1:17:58</span><span>2026-07-18</span></div>
@@ -337,7 +374,7 @@
           <a class="task-card">
             <h2 class="task-title">如何设计一个可扩展的分布式任务调度系统</h2>
             <p class="task-url">https://www.youtube.com/watch?v=abcd1234efg</p>
-            <div class="task-meta-row"><span>audio · 720p · 28:04</span><span>2026-07-16</span></div>
+            <div class="task-meta-row"><span>audio · 720p · 28:04 · 1 处高亮</span><span>2026-07-16</span></div>
           </a>
           <a class="task-card">
             <h2 class="task-title">播客翻译失败示例</h2>
@@ -345,9 +382,10 @@
             <div class="task-meta-row failed">下载失败：网络超时</div>
           </a>
           <a class="task-card">
+            <div class="pill-row"><span class="pill">3Blue1Brown</span></div>
             <h2 class="task-title">神经网络可解释性研究：从显著性图到概念激活向量</h2>
             <p class="task-url">https://www.youtube.com/watch?v=zxy987wvu</p>
-            <div class="task-meta-row"><span>video · 2K · 55:32</span><span>1 周前</span></div>
+            <div class="task-meta-row"><span>video · 2K · 55:32 · 12 处高亮 · 6 条笔记</span><span>1 周前</span></div>
           </a>
           <a class="task-card">
             <h2 class="task-title">从零实现一个 LSM-Tree 存储引擎</h2>
@@ -361,14 +399,26 @@
       <div id="panel-article" style="display:none;">
         <div class="card-grid">
           <a class="article-card">
+            <div class="pill-row">
+              <span class="pill">Anthropic</span>
+              <span class="pill tag">claude</span>
+            </div>
+            <div class="article-title">Claude's new constitution</div>
+            <div class="article-date">2026-03-22</div>
+            <div class="article-slug">6b11fc6d</div>
+            <div class="article-meta">3 处高亮 · 1 条笔记</div>
+          </a>
+          <a class="article-card">
+            <div class="pill-row">
+              <span class="pill">深度学习读书会</span>
+              <span class="pill tag">attention</span>
+              <span class="pill tag">transformer</span>
+              <span class="pill tag">nlp</span>
+              <span class="pill more" title="rlhf, survey">+2</span>
+            </div>
             <div class="article-title">深度学习中的注意力机制综述</div>
             <div class="article-date">2024-01-01</div>
             <div class="article-slug">2024/attention-survey</div>
-          </a>
-          <a class="article-card">
-            <div class="article-title">我们如何用原生 CDP 重写 Browser Use：从抽象层陷阱中吸取的教训</div>
-            <div class="article-date">2026-06-20</div>
-            <div class="article-slug">2026/browser-use-native-cdp-rewrite-lessons</div>
           </a>
           <a class="article-card">
             <div class="article-title">分布式系统中的一致性模型速查</div>
@@ -376,9 +426,16 @@
             <div class="article-slug">notes/distributed-consistency</div>
           </a>
           <a class="article-card">
+            <div class="pill-row">
+              <span class="pill">Rust 团队</span>
+              <span class="pill tag">rust</span>
+              <span class="pill tag">生命周期</span>
+              <span class="pill tag">教程</span>
+            </div>
             <div class="article-title">Rust 生命周期标注实战指南</div>
             <div class="article-date">2026-04-02</div>
             <div class="article-slug">rust/lifetimes-in-practice</div>
+            <div class="article-meta">7 处高亮 · 3 条笔记</div>
           </a>
         </div>
       </div>
@@ -394,8 +451,10 @@
   </div>
 
   <p class="caption">
-    视频 Tab 卡片为纯文本卡片（无缩略图）：标题（2 行截断）、URL（单行截断）、底部 meta 行（mode · 分辨率 · 时长，等宽字体）+ 相对/绝对时间；
-    失败任务的 meta 行改为红色错误文案，占满整行不再显示时间。文章 Tab 卡片字段更简：标题、日期、slug（等宽字体截断）。
+    新增顶部胶囊行：无作者/无标签时整行不渲染（见"分布式系统中的一致性模型速查"，纯手写笔记无 frontmatter 扩展字段的退化态）；
+    标签超过 3 个折叠为 <code>+N</code>，鼠标悬停 <code>title</code> 属性显示完整列表（见"深度学习中的注意力机制综述"）。
+    标注计数追加在原有 meta 行末尾（视频卡）或单独一行（文章卡），高亮数和笔记数都为 0 时该段整体不显示（不展示"0 处高亮"这类噪音信息）。
+    失败任务的 meta 行保持原样（红色错误文案，占满整行），本次不涉及处理中状态——现有数据模型和真实样本均不支持，详见设计文档"背景与现状确认"一节。
     空状态不使用图标，纯文字 + 等宽字体的配置命令提示，符合 <code>DESIGN.md</code> 中"无 happy-talk"的克制文案原则。
   </p>
 </div>
