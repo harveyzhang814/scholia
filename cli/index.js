@@ -56,7 +56,7 @@ if (!cmd || cmd === 'serve') {
       console.error(`Scholia is already running (pid ${existing.pid}, port ${existing.port}). Run "scholia stop" first.`);
       process.exit(1);
     }
-    writeRunningInfo({ pid: process.pid, port: actualPort, startedAt: new Date().toISOString() });
+    writeRunningInfo({ pid: process.pid, port: actualPort, token, startedAt: new Date().toISOString() });
     const url = `http://localhost:${actualPort}?token=${token}`;
     if (actualPort !== port) console.log(`Port ${port} was in use; using ${actualPort} instead.`);
     console.log(`Scholia running at ${url}`);
@@ -106,6 +106,16 @@ if (!cmd || cmd === 'serve') {
     setTimeout(check, 100);
   })();
 
+} else if (cmd === 'web') {
+  const info = readRunningInfo();
+  if (!info || !isProcessAlive(info.pid)) {
+    console.error('Scholia is not running. Run "scholia start" first.');
+    process.exit(1);
+  }
+  const url = `http://localhost:${info.port}?token=${info.token}`;
+  console.log(`Opening ${url}`);
+  openBrowser(url);
+
 } else if (cmd === 'config') {
   const KEY_MAP = { 'work-dir': 'WORK_DIR', 'content-dir': 'CONTENT_DIR' };
   const [subCmd, key, value] = rest;
@@ -144,6 +154,6 @@ if (!cmd || cmd === 'serve') {
   process.exit(0);
 
 } else {
-  console.error(`Unknown command: ${cmd}\nUsage:\n  scholia serve [--port N] [--open]\n  scholia start [--port N] [--open]\n  scholia stop\n  scholia config set <key> <value>\n  scholia config get <key>`);
+  console.error(`Unknown command: ${cmd}\nUsage:\n  scholia serve [--port N] [--open]\n  scholia start [--port N] [--open]\n  scholia web\n  scholia stop\n  scholia config set <key> <value>\n  scholia config get <key>`);
   process.exit(1);
 }
