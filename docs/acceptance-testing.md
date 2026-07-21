@@ -144,6 +144,8 @@ scholia serve --open
 | 6.9 | `scholia start` | 后台启动，终端立即返回并打印 `Scholia started (pid ..., port ...)`；关闭终端服务不受影响 | ☐ |
 | 6.10 | 已有实例时 `scholia start` | 打印 `Scholia is already running (pid ..., port ...)` 并 exit 1 | ☐ |
 | 6.11 | `scholia stop`（停止 `start` 启动的实例） | 打印 `Stopped scholia (pid <pid>, port <port>).`，进程实际退出 | ☐ |
+| 6.12 | 未运行时 `scholia web` | 打印 `Scholia is not running. Run "scholia start" first.` 并 exit 1 | ☐ |
+| 6.13 | `scholia start` 后执行 `scholia web` | 浏览器打开对应实例的 URL（带正确 token） | ☐ |
 
 ---
 
