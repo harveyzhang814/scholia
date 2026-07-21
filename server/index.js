@@ -1,6 +1,6 @@
 'use strict';
 const Koa = require('koa');
-const Router = require('koa-router');
+const Router = require('@koa/router');
 const bodyParser = require('koa-bodyparser');
 const path = require('path');
 const fs = require('fs');
