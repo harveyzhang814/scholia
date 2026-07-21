@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router';
+import { useParams, Link, useNavigate } from 'react-router';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTask, useContent, useReveal, useMediaInfo, useHighlights, useAddHighlight, useDeleteHighlight } from '@/hooks/use-tasks';
 import { Reader } from '@/components/reader';
@@ -14,7 +14,15 @@ import { usePlayerStore } from '@/stores/player-store';
 
 export default function TaskDetail() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const isArticleTask = id.startsWith('article-');
+  const goBack = () => {
+    if (window.history.state?.idx > 0) {
+      navigate(-1);
+    } else {
+      navigate(isArticleTask ? '/articles' : '/videos');
+    }
+  };
   const { data: task, isLoading } = useTask(id);
   const { data: mediaInfo } = useMediaInfo(id);
   const mediaKind: 'video' | 'audio' | null =
@@ -71,7 +79,7 @@ export default function TaskDetail() {
       <header className="h-12 flex items-center justify-between px-5 border-b flex-shrink-0"
               style={{ borderColor: 'var(--border-subtle)' }}>
         <div className="flex items-center gap-4 min-w-0">
-          <Link to="/" className="text-sm" style={{ color: 'var(--text-tertiary)' }}>←</Link>
+          <button type="button" onClick={goBack} className="text-sm" style={{ color: 'var(--text-tertiary)' }}>←</button>
           <h1 className="chinese text-sm font-medium truncate">{task.title || task.url}</h1>
         </div>
         <div className="flex items-center gap-3">
