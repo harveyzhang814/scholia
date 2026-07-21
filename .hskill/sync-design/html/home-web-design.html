@@ -1,0 +1,424 @@
+<title>首页 · 任务列表 — 设计稿</title>
+<style>
+  :root {
+    --bg-canvas:     #F9F8F4;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #F1EFE9;
+    --border-subtle: #E5E2DA;
+    --border-strong: #CFCBC0;
+    --text-primary:   #2C2A24;
+    --text-secondary: #67645E;
+    --text-tertiary:  #6E6961;
+    --accent-3:  #EBF1E8;
+    --accent-9:  #5A8A5A;
+    --accent-10: #466F46;
+    --accent-11: #3D5E3D;
+    --accent-12: #243B24;
+    --status-ok:   #4A8A5A;
+    --status-err:  #B05050;
+    --status-busy: #C28A3D;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-canvas:     #1A1A18;
+      --bg-surface:    #232322;
+      --bg-elevated:   #2A2A28;
+      --border-subtle: #2E2E2B;
+      --border-strong: #3D3E3B;
+      --text-primary:   #E8E8E6;
+      --text-secondary: #9A9B98;
+      --text-tertiary:  #868782;
+      --accent-3:  #2A3A2A;
+      --accent-9:  #7DAE7D;
+      --accent-10: #6FA06F;
+      --accent-11: #9BC79B;
+      --accent-12: #C8E0C8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 24px;
+    line-height: 1.6;
+    max-width: 900px;
+  }
+
+  .page-sub code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .state-switch {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .state-btn {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, color 120ms;
+  }
+  .state-btn:hover { background: var(--bg-elevated); }
+  .state-btn.active {
+    border-color: var(--accent-9);
+    color: var(--accent-10);
+    background: var(--accent-3);
+    font-weight: 500;
+  }
+
+  /* ── 首页外壳（完整还原：header + tab bar + 内容区，对应 web/src/routes/_index.tsx） ── */
+  .home-frame {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-canvas);
+  }
+
+  .home-inner {
+    padding: 40px 32px 64px;
+    min-height: 560px;
+  }
+
+  .home-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .home-h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 6px 12px;
+  }
+  .search-input {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    width: 160px;
+  }
+  .kbd {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-elevated);
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 32px;
+    margin-left: -12px;
+  }
+  .tab {
+    padding: 10px 12px;
+    font-size: 14px;
+    border-bottom: 2px solid transparent;
+    color: var(--text-tertiary);
+    cursor: default;
+  }
+  .tab.active {
+    color: var(--text-primary);
+    font-weight: 500;
+    border-bottom-color: var(--accent-9);
+  }
+
+  /* ── 卡片网格（视频 / 文章 共用布局，字段不同） ── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 480px));
+    gap: 16px;
+  }
+
+  .task-card {
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 16px;
+    transition: background 120ms, box-shadow 120ms;
+  }
+  .task-card:hover {
+    background: var(--bg-elevated);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .task-title {
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.4;
+    margin: 0 0 8px;
+    color: var(--text-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .task-url {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 0 0 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .task-meta-row {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+  }
+  .task-meta-row.failed {
+    justify-content: flex-start;
+    color: var(--status-err);
+    font-family: var(--font-sans);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .article-card {
+    display: block;
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 16px;
+    transition: background 120ms, box-shadow 120ms;
+  }
+  .article-card:hover {
+    background: var(--bg-elevated);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .article-title {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+    margin: 0 0 4px;
+    color: var(--text-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .article-date {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 0 0 4px;
+  }
+  .article-slug {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── 空状态 ── */
+  .empty-state {
+    text-align: center;
+    padding: 64px 0;
+    font-size: 13px;
+    color: var(--text-tertiary);
+    line-height: 1.8;
+  }
+  .empty-state code {
+    font-family: var(--font-mono);
+    color: var(--accent-11);
+  }
+
+  .caption {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.7;
+    max-width: 900px;
+  }
+  .caption code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+</style>
+
+<div class="page">
+  <h1 class="page-title">首页 · 任务列表（重新设计）</h1>
+  <p class="page-sub">
+    对应实现：<code>web/src/routes/_index.tsx</code>。视频/文章双 Tab，卡片网格布局，⌘K 聚焦搜索框。
+    本稿在 token 体系内做了克制的视觉打磨：卡片 hover 时叠加极浅阴影（中性色，非新增色板）强化可点击感，其余尺寸/间距/圆角均与源码及 DESIGN.md 规范保持一致。
+  </p>
+
+  <div class="state-switch">
+    <button class="state-btn active" data-state="video">状态 1 — 视频 Tab（默认）</button>
+    <button class="state-btn" data-state="article">状态 2 — 文章 Tab</button>
+    <button class="state-btn" data-state="empty">状态 3 — 空状态（无数据）</button>
+  </div>
+
+  <div class="home-frame">
+    <div class="home-inner">
+      <div class="home-header">
+        <h1 class="home-h1">Scholia</h1>
+        <div class="search-box">
+          <span class="search-input">搜索…</span>
+          <span class="kbd">⌘K</span>
+        </div>
+      </div>
+
+      <!-- 状态 1 / 2 共用 Tab bar，随状态切换 active 项 -->
+      <div class="tab-bar" id="tab-bar">
+        <div class="tab active" id="tab-video">视频</div>
+        <div class="tab" id="tab-article">文章</div>
+      </div>
+
+      <!-- 状态 1：视频 Tab -->
+      <div id="panel-video">
+        <div class="card-grid">
+          <a class="task-card">
+            <h2 class="task-title">深度学习中的注意力机制综述与前沿进展</h2>
+            <p class="task-url">https://www.youtube.com/watch?v=dQw4w9WgXcQ</p>
+            <div class="task-meta-row"><span>video · 1080p · 42:18</span><span>3 小时前</span></div>
+          </a>
+          <a class="task-card">
+            <h2 class="task-title">Rust 异步编程实战：从 Future 到 Tokio Runtime</h2>
+            <p class="task-url">https://www.bilibili.com/video/BV1x4411u7CN</p>
+            <div class="task-meta-row"><span>video · 4K · 1:17:58</span><span>2026-07-18</span></div>
+          </a>
+          <a class="task-card">
+            <h2 class="task-title">如何设计一个可扩展的分布式任务调度系统</h2>
+            <p class="task-url">https://www.youtube.com/watch?v=abcd1234efg</p>
+            <div class="task-meta-row"><span>audio · 720p · 28:04</span><span>2026-07-16</span></div>
+          </a>
+          <a class="task-card">
+            <h2 class="task-title">播客翻译失败示例</h2>
+            <p class="task-url">https://podcast.example.com/ep-114</p>
+            <div class="task-meta-row failed">下载失败：网络超时</div>
+          </a>
+          <a class="task-card">
+            <h2 class="task-title">神经网络可解释性研究：从显著性图到概念激活向量</h2>
+            <p class="task-url">https://www.youtube.com/watch?v=zxy987wvu</p>
+            <div class="task-meta-row"><span>video · 2K · 55:32</span><span>1 周前</span></div>
+          </a>
+          <a class="task-card">
+            <h2 class="task-title">从零实现一个 LSM-Tree 存储引擎</h2>
+            <p class="task-url">https://www.bilibili.com/video/BV1y7411Q7Eg</p>
+            <div class="task-meta-row"><span>video · 1080p · 1:03:41</span><span>2026-07-10</span></div>
+          </a>
+        </div>
+      </div>
+
+      <!-- 状态 2：文章 Tab -->
+      <div id="panel-article" style="display:none;">
+        <div class="card-grid">
+          <a class="article-card">
+            <div class="article-title">深度学习中的注意力机制综述</div>
+            <div class="article-date">2024-01-01</div>
+            <div class="article-slug">2024/attention-survey</div>
+          </a>
+          <a class="article-card">
+            <div class="article-title">我们如何用原生 CDP 重写 Browser Use：从抽象层陷阱中吸取的教训</div>
+            <div class="article-date">2026-06-20</div>
+            <div class="article-slug">2026/browser-use-native-cdp-rewrite-lessons</div>
+          </a>
+          <a class="article-card">
+            <div class="article-title">分布式系统中的一致性模型速查</div>
+            <div class="article-date">2026-05-14</div>
+            <div class="article-slug">notes/distributed-consistency</div>
+          </a>
+          <a class="article-card">
+            <div class="article-title">Rust 生命周期标注实战指南</div>
+            <div class="article-date">2026-04-02</div>
+            <div class="article-slug">rust/lifetimes-in-practice</div>
+          </a>
+        </div>
+      </div>
+
+      <!-- 状态 3：空状态 -->
+      <div id="panel-empty" style="display:none;">
+        <div class="empty-state">
+          暂无视频<br>
+          配置视频目录：<code>scholia config set work-dir ~/vdl-work</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">
+    视频 Tab 卡片为纯文本卡片（无缩略图）：标题（2 行截断）、URL（单行截断）、底部 meta 行（mode · 分辨率 · 时长，等宽字体）+ 相对/绝对时间；
+    失败任务的 meta 行改为红色错误文案，占满整行不再显示时间。文章 Tab 卡片字段更简：标题、日期、slug（等宽字体截断）。
+    空状态不使用图标，纯文字 + 等宽字体的配置命令提示，符合 <code>DESIGN.md</code> 中"无 happy-talk"的克制文案原则。
+  </p>
+</div>
+
+<script>
+  var stateBtns = document.querySelectorAll('.state-btn');
+  var panels = {
+    video: document.getElementById('panel-video'),
+    article: document.getElementById('panel-article'),
+    empty: document.getElementById('panel-empty'),
+  };
+  var tabVideo = document.getElementById('tab-video');
+  var tabArticle = document.getElementById('tab-article');
+
+  stateBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      stateBtns.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var target = btn.getAttribute('data-state');
+      Object.keys(panels).forEach(function (key) {
+        panels[key].style.display = key === target ? 'block' : 'none';
+      });
+      tabVideo.classList.toggle('active', target !== 'article');
+      tabArticle.classList.toggle('active', target === 'article');
+    });
+  });
+</script>
