@@ -62,4 +62,16 @@ describe('ArticleCard', () => {
     expect(screen.getByText('2026-03-22')).toBeInTheDocument();
     expect(screen.getByText('intro')).toBeInTheDocument();
   });
+
+  it('shows the date in the bottom meta row alongside annotation counts, like the video card', () => {
+    renderCard({ ...baseArticle, date: '2026-03-22', highlightCount: 2, noteCount: 1 });
+    const date = screen.getByText('2026-03-22');
+    const annotations = screen.getByText(/2 处高亮/);
+    expect(date.parentElement).toBe(annotations.parentElement);
+  });
+
+  it('falls back to relative time from updatedAt when date is absent', () => {
+    renderCard({ ...baseArticle, date: undefined, updatedAt: Date.now() });
+    expect(screen.getByText('刚刚')).toBeInTheDocument();
+  });
 });

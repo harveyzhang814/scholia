@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import type { Article } from '@/lib/api';
+import { formatRelativeTime } from '@/lib/time';
 import { Pill } from './pill';
 
 const MAX_VISIBLE_TAGS = 3;
@@ -34,17 +35,14 @@ export function ArticleCard({ article }: { article: Article }) {
       <div className="text-sm font-medium mb-1 line-clamp-2" style={{ color: 'var(--text-primary)' }}>
         {article.title}
       </div>
-      {article.date && (
-        <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{article.date}</div>
-      )}
       <div className="text-xs mt-1 truncate" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
         {article.slug}
       </div>
-      {annotationMeta && (
-        <div className="text-xs mt-1.5" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-          {annotationMeta}
-        </div>
-      )}
+      <div className="mt-1.5 flex items-center justify-between text-xs"
+           style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
+        <span>{annotationMeta}</span>
+        <span>{article.date ?? formatRelativeTime(article.updatedAt)}</span>
+      </div>
     </Link>
   );
 }
