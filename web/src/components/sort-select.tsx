@@ -9,7 +9,7 @@ interface SortSelectProps {
 export function SortSelect({ value, onChange, fields }: SortSelectProps) {
   return (
     <div
-      className="flex items-center gap-1 rounded-lg border px-2 py-1.5"
+      className="flex items-center gap-2 rounded-lg border px-3.5 py-2"
       style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}
     >
       <select
@@ -26,8 +26,8 @@ export function SortSelect({ value, onChange, fields }: SortSelectProps) {
       <button
         type="button"
         onClick={() => onChange({ ...value, direction: value.direction === 'asc' ? 'desc' : 'asc' })}
-        className="text-sm px-1 cursor-pointer"
-        style={{ color: 'var(--text-tertiary)' }}
+        className="text-sm pl-1.5 border-l cursor-pointer"
+        style={{ color: 'var(--text-tertiary)', borderColor: 'var(--border-subtle)' }}
         title={value.direction === 'asc' ? '升序' : '降序'}
       >
         {value.direction === 'asc' ? '↑' : '↓'}
