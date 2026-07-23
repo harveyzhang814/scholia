@@ -22,3 +22,19 @@ describe('Reader highlight rendering', () => {
     expect(container.querySelectorAll('mark.vdl-hl').length).toBeGreaterThan(0);
   });
 });
+
+describe('Reader note-anchor rendering', () => {
+  it('renders a mark for a note anchor entirely within one text node', () => {
+    const content = '这首歌是 Rick Astley 的 **Never Gonna Give You Up**，经典金曲。';
+    const notes = [{ id: 'n1', anchor: 'Never Gonna Give You Up' }];
+    const { container } = render(<Reader content={content} notes={notes} />);
+    expect(container.querySelectorAll('mark.vdl-note-anchor').length).toBeGreaterThan(0);
+  });
+
+  it('renders a mark for a note anchor that spans across a <strong> boundary', () => {
+    const content = '这首歌是 Rick Astley 的 **Never Gonna Give You Up**，经典金曲。';
+    const notes = [{ id: 'n1', anchor: '的 Never Gonna Give You Up，经典' }];
+    const { container } = render(<Reader content={content} notes={notes} />);
+    expect(container.querySelectorAll('mark.vdl-note-anchor').length).toBeGreaterThan(0);
+  });
+});

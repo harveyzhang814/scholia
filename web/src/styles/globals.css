@@ -409,3 +409,19 @@ mark.vdl-hl[data-color="yellow"] { background: rgba(255, 214, 0, 0.35); }
 mark.vdl-hl[data-color="green"]  { background: rgba(74, 222, 128, 0.35); }
 mark.vdl-hl[data-color="red"]    { background: rgba(248, 113, 113, 0.35); }
 mark.vdl-hl[data-color="blue"]   { background: transparent; border-bottom: 2px solid rgba(59, 130, 246, 0.9); }
+
+/* ── 笔记锚点标记（区别于高亮：暖灰色块 + 点状下划线，不引入新色相——
+   DESIGN.md 明确「无紫色/渐变」，联动强调态复用品牌唯一 accent） ── */
+mark.vdl-note-anchor {
+  background: rgba(207, 203, 192, 0.34);
+  border-bottom: 1px dotted var(--text-tertiary);
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0 1px;
+  transition: background 120ms, box-shadow 120ms;
+}
+mark.vdl-note-anchor.is-linked {
+  background: var(--accent-3);
+  border-bottom-color: var(--accent-9);
+  box-shadow: inset 0 0 0 1px var(--accent-9);
+}

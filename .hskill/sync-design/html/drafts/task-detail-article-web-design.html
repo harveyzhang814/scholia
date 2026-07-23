@@ -1,0 +1,586 @@
+<meta charset="utf-8">
+<title>文章任务详情页（纯读模式）— 笔记锚点标记 · 设计稿</title>
+<style>
+  :root {
+    --bg-canvas:     #F9F8F4;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #F1EFE9;
+    --border-subtle: #E5E2DA;
+    --border-strong: #CFCBC0;
+    --text-primary:   #2C2A24;
+    --text-secondary: #67645E;
+    --text-tertiary:  #6E6961;
+    --accent-3:  #EBF1E8;
+    --accent-9:  #5A8A5A;
+    --accent-10: #466F46;
+    --accent-11: #3D5E3D;
+    --accent-12: #243B24;
+    --status-ok:   #4A8A5A;
+    --status-err:  #B05050;
+    --status-busy: #C28A3D;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-canvas:     #1A1A18;
+      --bg-surface:    #232322;
+      --bg-elevated:   #2A2A28;
+      --border-subtle: #2E2E2B;
+      --border-strong: #3D3E3B;
+      --text-primary:   #E8E8E6;
+      --text-secondary: #9A9B98;
+      --text-tertiary:  #868782;
+      --accent-3:  #2A3A2A;
+      --accent-9:  #7DAE7D;
+      --accent-10: #6FA06F;
+      --accent-11: #9BC79B;
+      --accent-12: #C8E0C8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 24px;
+    line-height: 1.6;
+    max-width: 900px;
+  }
+
+  .page-sub code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .state-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .state-switch:last-of-type { margin-bottom: 28px; }
+  .state-switch-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin: 0 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .state-btn {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, color 120ms;
+  }
+  .state-btn:hover { background: var(--bg-elevated); }
+  .state-btn.active {
+    border-color: var(--accent-9);
+    color: var(--accent-10);
+    background: var(--accent-3);
+    font-weight: 500;
+  }
+
+  /* ── 文章任务详情页外壳（无媒体：ModeSwitcher / 甘特图入口隐藏，Tab 栏无总结/文章切换） ── */
+  .detail-frame {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-surface);
+  }
+
+  .frame-header {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .frame-header .left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+  }
+  .back-arrow { color: var(--text-tertiary); font-size: 14px; }
+  .frame-title {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .frame-header .right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
+  .theme-picker-btn {
+    font-size: 13px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--text-tertiary);
+  }
+  .kbd {
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    font-size: 12px;
+  }
+
+  /* ── Tab bar（无媒体文章任务：左侧无 总结/文章 切换项，仅保留右侧 复制/显示文件） ── */
+  .tab-bar {
+    padding: 0 48px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .tabs { display: flex; min-height: 1px; }
+  .tab-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  /* ── 三栏内容行：正文列 | TOC | 笔记栏（对应 .article-notes-row） ── */
+  .content-row {
+    display: flex;
+    height: 560px;
+  }
+
+  /* 正文列 — 对应 .article-col，信息栏和正文都在这一列的滚动视口内 */
+  .article-col-mock {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    overflow: hidden; /* 这个 demo 用两个静态帧模拟滚动前后，不做真实滚动 */
+  }
+  .article-scroll {
+    padding: 40px 48px;
+  }
+
+  /* ── ArticleMetaBar — 信息栏
+     嵌在 Reader 的 <article class="prose-cn"> 内部、正文标题之上 —— 因此它的宽度
+     天然等于正文列宽度，并随正文一起滚动。 ── */
+  .meta-bar {
+    padding-bottom: 16px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 12px;
+  }
+  .meta-scalar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px 24px;
+  }
+  .meta-field { min-width: 0; }
+  .meta-label {
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+    opacity: 0.7;
+    margin-bottom: 2px;
+  }
+  .meta-value {
+    color: var(--text-secondary);
+    overflow-wrap: anywhere; /* 长值（如 URL）自动换行，不溢出到相邻网格列 */
+  }
+  .meta-array-row { margin-top: 8px; }
+  .meta-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .chip {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+
+  .article-h1 {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0 0 16px;
+  }
+  .article-h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 12px;
+  }
+  .article-scroll p {
+    font-size: 13.5px;
+    line-height: 23.625px;
+    color: var(--text-primary);
+    margin: 0 0 14px;
+  }
+
+  /* TOC — 对应 web/src/components/toc.tsx（w-44 px-6 py-14, sticky） */
+  .toc-mock {
+    width: 224px;
+    flex-shrink: 0;
+    padding: 56px 24px;
+  }
+  .toc-item {
+    display: block;
+    padding: 4px 0;
+    font-size: 12.5px;
+    color: var(--text-tertiary);
+  }
+  .toc-item.active { color: var(--text-primary); font-weight: 500; }
+
+  /* 笔记栏 — 对应 .notes-col + NotesPanel，固定 260px，独立于正文滚动 */
+  .notes-col-mock {
+    width: 260px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border-subtle);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .notes-header {
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .notes-input-block {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .notes-textarea {
+    padding: 8px;
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-tertiary);
+    font-size: 12.5px;
+    min-height: 52px;
+    line-height: 1.6;
+  }
+  .notes-input-actions {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .notes-save-btn {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--text-tertiary);
+    border: 1px solid var(--border-subtle);
+  }
+  .notes-empty {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  /* ── 高亮 mark（对应 web/src/components/reader.tsx + globals.css .vdl-hl）
+     仅作对比参照，展示笔记锚点标记与高亮的样式差异 ── */
+  mark.vdl-hl {
+    background: transparent;
+    border-radius: 2px;
+    cursor: context-menu;
+  }
+  mark.vdl-hl[data-color="yellow"] { background: rgba(255, 214, 0, 0.35); }
+
+  /* ── 笔记锚点标记（新增，对应 web/src/components/reader.tsx 待新增的 note-anchor 注入 effect）
+     刻意不引入新色相：DESIGN.md 明确「无紫色/渐变」，且高亮已占用 黄/绿/红实色块 + 蓝色下划线。
+     改用「暖灰色块 + 点状下划线」表达"这是笔记，不是高亮"，联动强调态复用品牌唯一 accent（sage green）。 ── */
+  mark.vdl-note-anchor {
+    background: rgba(207, 203, 192, 0.34); /* border-strong 暖灰，低饱和度，天然与高亮的鲜艳色块区分 */
+    border-bottom: 1px dotted var(--text-tertiary);
+    border-radius: 2px;
+    cursor: pointer;
+    padding: 0 1px;
+    transition: background 120ms, box-shadow 120ms;
+  }
+  mark.vdl-note-anchor.is-linked {
+    background: var(--accent-3);
+    border-bottom-color: var(--accent-9);
+    box-shadow: inset 0 0 0 1px var(--accent-9);
+  }
+
+  /* 笔记卡片（对应 web/src/components/notes-panel.tsx NoteItem，新增 isLinked 强调态）
+     只用一种手法（背景色 + 左侧强调条）表达"联动中"，不叠加 border-color，避免和左侧 box-shadow
+     在圆角处产生粗细不一致的双重描边。编辑态不再额外套用 is-linked，直接沿用真实实现里
+     textarea 自身的 accent 描边——避免"绿框套绿框"。 ── */
+  .note-item-mock {
+    margin: 8px 12px 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    transition: background 120ms, box-shadow 120ms;
+  }
+  .note-item-mock.is-linked {
+    background: var(--accent-3);
+    box-shadow: inset 2px 0 0 var(--accent-9);
+  }
+  .note-body-view {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text-primary);
+  }
+  .note-edit-textarea {
+    display: none;
+    width: 100%;
+    font-size: 12.5px;
+    line-height: 1.6;
+    padding: 6px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent-9);
+    color: var(--text-primary);
+    resize: none;
+  }
+
+  .caption {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.7;
+    max-width: 900px;
+  }
+  .caption code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+</style>
+
+<div class="page">
+  <h1 class="page-title">文章任务详情页（纯读模式 E · 无媒体）— 笔记锚点标记</h1>
+  <p class="page-sub">
+    对应实现：<code>web/src/routes/tasks.$id.tsx</code>（<code>isArticleTask=true</code>、<code>mediaKind=null</code> 时的渲染分支）。
+    本稿在已上线的 <code>task-detail-article-web</code> 基础上，新增「笔记锚点在正文中的视觉标记」设计：
+    正文中标为 <code>计算机视觉等领域的演化路径</code> 的这段文字是笔记的锚点，用暖灰色块 + 点状下划线标记——
+    与右侧 <code>自然语言处理</code> 的高亮（黄色实色块，对应 <code>mark.vdl-hl</code>）明显不同。
+    悬停正文锚点或右侧笔记卡片，两者会互相高亮联动；点击正文锚点会让笔记卡片进入编辑态。
+  </p>
+
+  <div class="state-switch-label">滚动状态</div>
+  <div class="state-switch" data-group="scroll">
+    <button class="state-btn active" data-state="top">状态 1 — 顶部（信息栏 + 正文标题同屏）</button>
+    <button class="state-btn" data-state="scrolled">状态 2 — 向下滚动（信息栏随正文滚出视口，TOC 仍 sticky 可见）</button>
+  </div>
+
+  <div class="state-switch-label">笔记锚点联动状态（也可直接把鼠标移到下方正文标记或笔记卡片上体验真实交互）</div>
+  <div class="state-switch" data-group="link">
+    <button class="state-btn link-btn active" data-linkstate="default">默认（无联动）</button>
+    <button class="state-btn link-btn" data-linkstate="anchor-hover">悬停正文锚点 → 卡片高亮</button>
+    <button class="state-btn link-btn" data-linkstate="card-hover">悬停笔记卡片 → 锚点高亮</button>
+    <button class="state-btn link-btn" data-linkstate="editing">点击锚点 → 卡片进入编辑态</button>
+  </div>
+
+  <div class="detail-frame">
+    <div class="frame-header">
+      <div class="left">
+        <span class="back-arrow">←</span>
+        <span class="frame-title">深度学习中的注意力机制综述</span>
+      </div>
+      <div class="right">
+        <span class="theme-picker-btn" title="文章主题">✦</span>
+        <span class="kbd">⌘K</span>
+      </div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tabs"><!-- 无媒体文章任务：isArticleTask=true，总结/文章 切换不渲染 --></div>
+      <div class="tab-actions">
+        <span>复制</span>
+        <span>显示文件</span>
+      </div>
+    </div>
+
+    <div class="content-row">
+      <div class="article-col-mock">
+        <!-- 状态 1：滚动视口顶部 -->
+        <div class="article-scroll" id="scroll-top">
+          <div class="meta-bar">
+            <div class="meta-scalar-grid">
+              <div class="meta-field">
+                <div class="meta-label">Date</div>
+                <div class="meta-value">2024-01-01</div>
+              </div>
+              <div class="meta-field">
+                <div class="meta-label">Author</div>
+                <div class="meta-value">Jane Doe</div>
+              </div>
+              <div class="meta-field">
+                <div class="meta-label">Source Url</div>
+                <div class="meta-value">https://arxiv.org/abs/2024.03158v2-attention-survey-full-paper</div>
+              </div>
+            </div>
+            <div class="meta-array-row">
+              <div class="meta-label">Tags</div>
+              <div class="meta-chips">
+                <span class="chip">ai</span>
+                <span class="chip">machine-learning</span>
+                <span class="chip">nlp</span>
+              </div>
+            </div>
+          </div>
+          <h1 class="article-h1">深度学习中的注意力机制综述</h1>
+          <p>注意力机制自 2017 年 Transformer 架构提出以来，已成为现代深度学习模型的核心组件之一。本文从基础原理出发，系统梳理其在<mark class="vdl-hl" data-color="yellow">自然语言处理</mark>、<mark class="vdl-note-anchor" data-note-id="n1">计算机视觉等领域的演化路径</mark>……</p>
+          <p>与传统的循环神经网络相比，注意力机制能够并行处理序列数据，同时更好地捕捉长距离依赖关系。这一特性使其成为大规模预训练模型的首选架构……</p>
+        </div>
+
+        <!-- 状态 2：向下滚动后 —— 信息栏已滚出视口，只剩正文 -->
+        <div class="article-scroll" id="scroll-down" style="display:none;">
+          <h2 class="article-h2">经验教训</h2>
+          <p>不要把 LLM 包装在抽象层里。给它最大行动空间，然后做限制，而不是反过来。</p>
+          <p>我们仍然在包装它的工具。每一个 helper 都是一个约束，强化学习过的模型不得不绕着它走。</p>
+          <p>当我们构建 Browser Use 第一版时，我们交付了数千行 element extractors、DOM indexers、click wrappers。LLM 懂 CDP，它们在数百万 token 中训练过。</p>
+        </div>
+      </div>
+
+      <aside class="toc-mock">
+        <nav>
+          <a class="toc-item active">经验教训</a>
+          <a class="toc-item">为什么用原生 CDP</a>
+          <a class="toc-item">我们做错了什么</a>
+          <a class="toc-item">四个文件</a>
+        </nav>
+      </aside>
+
+      <aside class="notes-col-mock">
+        <div class="notes-header">笔记 · 1</div>
+        <div class="notes-input-block">
+          <div class="notes-textarea">写下笔记…</div>
+          <div class="notes-input-actions">
+            <span class="notes-save-btn">保存</span>
+          </div>
+        </div>
+        <div class="note-item-mock" data-note-id="n1">
+          <p class="note-body-view">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</p>
+          <textarea class="note-edit-textarea" rows="3">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</textarea>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <p class="caption">
+    信息栏（Date/Author/Source Url 网格 + Tags chips）左右边界与下方正文标题、段落对齐，到 TOC 开始的位置为止 —— 不跨到 TOC 或笔记栏下面。
+    <code>Source Url</code> 是特意选的长且不含空格的值，用来展示 <code>overflow-wrap: anywhere</code>：换行到第二行，而不是溢出到右边 <code>Tags</code> 或下一列。
+    点击上方"向下滚动"按钮：信息栏和标题一起离开视口，只剩正文段落 —— 因为它是 <code>&lt;article class="prose-cn"&gt;</code> 内部的第一个元素，
+    和正文共享同一个滚动容器；TOC 因自身 <code>position: sticky</code> 保持可见，笔记栏固定宽度不受影响。
+  </p>
+  <p class="caption">
+    <strong>笔记锚点标记设计说明：</strong>
+    <code>mark.vdl-note-anchor</code> 用暖灰色块（<code>border-strong</code> 低透明度）+ 点状下划线，与高亮 <code>mark.vdl-hl</code> 的黄/绿/红实色块、蓝色下划线在色相和纹理上都不同——
+    刻意不引入紫色等新色相（<code>DESIGN.md</code> 明确「无紫色/渐变」的反 AI-slop 约束），联动强调态复用品牌唯一 accent（sage green），与 Tab 下划线、悬停锚点徽标等既有交互态保持同一套语言。
+    悬停正文锚点 ↔ 悬停笔记卡片会互相高亮（<code>is-linked</code> 类），点击正文锚点会让对应卡片滚动到可见并进入编辑态——对应实现里这几个状态由 <code>hoveredNoteId</code> / <code>focusNoteId</code> 两个提升到 <code>tasks.$id.tsx</code> 的共享状态驱动。
+  </p>
+</div>
+
+<script>
+  var stateBtns = document.querySelectorAll('[data-state]');
+  var panels = {
+    top: document.getElementById('scroll-top'),
+    scrolled: document.getElementById('scroll-down'),
+  };
+
+  stateBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      stateBtns.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var target = btn.getAttribute('data-state');
+      Object.keys(panels).forEach(function (key) {
+        panels[key].style.display = key === target ? 'block' : 'none';
+      });
+    });
+  });
+
+  // ── 笔记锚点联动 demo ──────────────────────────────
+  var linkBtns = document.querySelectorAll('.link-btn');
+  var noteAnchorMark = document.querySelector('mark.vdl-note-anchor[data-note-id="n1"]');
+  var noteItem = document.querySelector('.note-item-mock[data-note-id="n1"]');
+  var noteBodyView = noteItem.querySelector('.note-body-view');
+  var noteEditArea = noteItem.querySelector('.note-edit-textarea');
+
+  function syncActiveLinkBtn(state) {
+    linkBtns.forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-linkstate') === state);
+    });
+  }
+
+  function applyLinkState(state) {
+    noteAnchorMark.classList.remove('is-linked');
+    noteItem.classList.remove('is-linked');
+    noteBodyView.style.display = 'block';
+    noteEditArea.style.display = 'none';
+
+    if (state === 'anchor-hover' || state === 'card-hover') {
+      noteAnchorMark.classList.add('is-linked');
+      noteItem.classList.add('is-linked');
+    }
+    if (state === 'editing') {
+      // 编辑态只保留锚点标记的联动色，卡片本身不再叠加 is-linked——
+      // 卡片已经用 textarea 自身的 accent 描边表达"可编辑"，两者都上色会变成"绿框套绿框"
+      noteAnchorMark.classList.add('is-linked');
+      noteBodyView.style.display = 'none';
+      noteEditArea.style.display = 'block';
+      noteItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  linkBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var state = btn.getAttribute('data-linkstate');
+      syncActiveLinkBtn(state);
+      applyLinkState(state);
+    });
+  });
+
+  // 真实悬停 / 点击也可直接体验，不依赖按钮
+  noteAnchorMark.addEventListener('mouseenter', function () { applyLinkState('anchor-hover'); syncActiveLinkBtn('anchor-hover'); });
+  noteAnchorMark.addEventListener('mouseleave', function () { applyLinkState('default'); syncActiveLinkBtn('default'); });
+  noteItem.addEventListener('mouseenter', function () { applyLinkState('card-hover'); syncActiveLinkBtn('card-hover'); });
+  noteItem.addEventListener('mouseleave', function () { applyLinkState('default'); syncActiveLinkBtn('default'); });
+  noteAnchorMark.addEventListener('click', function () { applyLinkState('editing'); syncActiveLinkBtn('editing'); });
+</script>
