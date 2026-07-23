@@ -11,6 +11,10 @@ interface NotesPanelProps {
   pendingAnchor?: string;
   onAnchorConsumed?: () => void;
   articleRef?: RefObject<HTMLDivElement | null>;
+  hoveredNoteId?: string | null;
+  onNoteHover?: (id: string | null) => void;
+  focusNoteId?: string | null;
+  onFocusConsumed?: () => void;
 }
 
 function resolveAnchorY(anchor: string, articleEl: HTMLElement): number | null {
@@ -36,11 +40,19 @@ function NoteItem({
   onUpdate,
   onDelete,
   onHeightChange,
+  isLinked,
+  onHover,
+  autoEdit,
+  onAutoEditConsumed,
 }: {
   note: Note;
   onUpdate: (body: string) => void;
   onDelete: () => void;
   onHeightChange: (id: string, h: number) => void;
+  isLinked: boolean;
+  onHover: (id: string | null) => void;
+  autoEdit: boolean;
+  onAutoEditConsumed: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.body);
@@ -56,6 +68,13 @@ function NoteItem({
     return () => ro.disconnect();
   }, [note.id, onHeightChange]);
 
+  useEffect(() => {
+    if (!autoEdit) return;
+    setEditing(true);
+    liRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    onAutoEditConsumed();
+  }, [autoEdit, onAutoEditConsumed]);
+
   const save = () => {
     if (draft.trim() && draft.trim() !== note.body) onUpdate(draft.trim());
     setEditing(false);
@@ -66,7 +85,14 @@ function NoteItem({
     <li
       ref={liRef}
       className="px-4 py-3 group"
-      style={{ borderBottom: '1px solid var(--border-subtle)' }}
+      style={{
+        borderBottom: '1px solid var(--border-subtle)',
+        background: isLinked ? 'var(--accent-3)' : undefined,
+        boxShadow: isLinked ? 'inset 2px 0 0 var(--accent-9)' : undefined,
+        transition: 'background 120ms, box-shadow 120ms',
+      }}
+      onMouseEnter={() => onHover(note.id)}
+      onMouseLeave={() => onHover(null)}
     >
       {note.mediaTimestamp !== undefined && (
         <div className="text-xs mb-1" style={{ color: 'var(--accent-9)', fontFamily: 'var(--font-mono)' }}>
@@ -128,7 +154,7 @@ function NoteItem({
 const ESTIMATED_HEIGHT = 72;
 const GAP = 8;
 
-export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, articleRef }: NotesPanelProps) {
+export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, articleRef, hoveredNoteId, onNoteHover, focusNoteId, onFocusConsumed }: NotesPanelProps) {
   const [draft, setDraft] = useState('');
   const currentTime = usePlayerStore((s) => s.currentTime);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -144,6 +170,8 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
   }, []);
 
   const [positions, setPositions] = useState<Record<string, number>>({});
+  const handleNoteHover = onNoteHover ?? (() => {});
+  const handleFocusConsumed = onFocusConsumed ?? (() => {});
   const [articleHeight, setArticleHeight] = useState(0);
 
   useEffect(() => {
@@ -289,6 +317,10 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
               onHeightChange={onHeightChange}
               onUpdate={(body) => updateNote.mutate({ noteId: note.id, body })}
               onDelete={() => deleteNote.mutate(note.id)}
+              isLinked={hoveredNoteId === note.id}
+              onHover={handleNoteHover}
+              autoEdit={focusNoteId === note.id}
+              onAutoEditConsumed={handleFocusConsumed}
             />
           ))}
         </ul>
@@ -314,6 +346,10 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
                 onHeightChange={onHeightChange}
                 onUpdate={(body) => updateNote.mutate({ noteId: note.id, body })}
                 onDelete={() => deleteNote.mutate(note.id)}
+                isLinked={hoveredNoteId === note.id}
+                onHover={handleNoteHover}
+                autoEdit={focusNoteId === note.id}
+                onAutoEditConsumed={handleFocusConsumed}
               />
             </ul>
           ))}
