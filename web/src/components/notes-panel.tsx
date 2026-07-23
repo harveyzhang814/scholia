@@ -87,8 +87,8 @@ function NoteItem({
       className="px-4 py-3 group"
       style={{
         borderBottom: '1px solid var(--border-subtle)',
-        background: isLinked ? 'var(--accent-3)' : undefined,
-        boxShadow: isLinked ? 'inset 2px 0 0 var(--accent-9)' : undefined,
+        background: isLinked && !editing ? 'var(--accent-3)' : undefined,
+        boxShadow: isLinked && !editing ? 'inset 2px 0 0 var(--accent-9)' : undefined,
         transition: 'background 120ms, box-shadow 120ms',
       }}
       onMouseEnter={() => onHover(note.id)}
