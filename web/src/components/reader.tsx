@@ -4,13 +4,14 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { MermaidChart } from './mermaid-chart';
 import { ArticleMetaBar } from './article-meta-bar';
-import { api, type Highlight } from '@/lib/api';
+import { api, type Highlight, type Note } from '@/lib/api';
 
 interface ReaderProps {
   taskId?: string;
   content: string;
   frontmatter?: Record<string, unknown>;
   highlights?: Highlight[];
+  notes?: Pick<Note, 'id' | 'anchor'>[];
   onAnchorSelect?: (anchor: string) => void;
   onAddHighlight?: (anchor: string, color: 'yellow' | 'green' | 'red' | 'blue') => void;
   onDeleteHighlight?: (id: string) => void;
@@ -89,7 +90,7 @@ function injectAnchorMarks<T extends AnchorMarkItem>(
   }
 }
 
-export function Reader({ taskId, content, frontmatter, highlights, onAnchorSelect, onAddHighlight, onDeleteHighlight }: ReaderProps) {
+export function Reader({ taskId, content, frontmatter, highlights, notes, onAnchorSelect, onAddHighlight, onDeleteHighlight }: ReaderProps) {
   const md = useMemo(() => content ?? '', [content]);
   const articleRef = useRef<HTMLElement>(null);
   const isArticleTask = taskId?.startsWith('article-') ?? false;
@@ -194,6 +195,16 @@ export function Reader({ taskId, content, frontmatter, highlights, onAnchorSelec
       mark.dataset.color = hl.color;
     });
   }, [highlights, md]);
+
+  // ── Post-render note-anchor injection ────────────────────────
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article) return;
+    const anchored = notes?.length ? notes.filter((n) => n.anchor) : [];
+    injectAnchorMarks(article, anchored, 'vdl-note-anchor', (mark, note) => {
+      mark.dataset.noteId = note.id;
+    });
+  }, [notes, md]);
 
   return (
     <>
