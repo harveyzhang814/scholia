@@ -122,7 +122,14 @@ Reader 的 hoveredNoteId effect → mark[data-note-id].classList.toggle('is-link
 
 ## 测试策略
 
-现有代码库对 `Reader`/`NotesPanel` 没有组件测试先例，本次也不新增（DOM 注入 + 原生事件监听的测试成本明显高于收益），采用手动验证：
+`web/src/components/reader.test.tsx` 已经用 vitest + `@testing-library/react` 覆盖了高亮 mark 注入（`renders a mark for an anchor entirely within one text node` / `...that spans across a <strong> boundary`）。既然把注入算法抽成了共享 helper，笔记锚点标记要跟着补同样两条用例：
+
+- 新增 `describe('Reader note-anchor rendering', ...)`：
+  - `renders a mark for a note anchor entirely within one text node` —— 传入 `notes={[{ id: 'n1', anchor: '...' }]}`，断言 `container.querySelectorAll('mark.vdl-note-anchor').length` 大于 0。
+  - `renders a mark for a note anchor that spans across a <strong> boundary` —— 复用高亮测试里跨 `<strong>` 边界的 anchor 文本，验证共享 helper 对两种标记类型行为一致。
+- `hoveredNoteId`/`onNoteHover`/`onNoteAnchorClick` 这类交互回调（悬停联动、点击回调）不做单元测试——现有测试文件只验证 DOM 注入结果，不模拟 `mouseenter`/`click` 事件，保持和现有测试的覆盖粒度一致；这部分改用手动验证。
+
+手动验证：
 
 - `cd web && npm run dev` 起服务，打开一篇文章任务：
   - 选中文字创建笔记 → 正文出现暖灰色 `note-anchor` 标记，与高亮（黄/绿/红/蓝）明显区分。
