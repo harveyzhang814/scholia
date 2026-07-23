@@ -213,6 +213,8 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
   }, [notes, md, onNoteHover, onNoteAnchorClick]);
 
   // ── Reverse hover sync: sidebar card → article mark ──────────
+  // NOTE: This effect depends on running AFTER the note-injection effect (deps [notes, md, ...])
+  // to re-apply is-linked to the fresh marks. Relies on onNoteHover/onNoteAnchorClick being stable.
   useEffect(() => {
     const article = articleRef.current;
     if (!article) return;

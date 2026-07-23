@@ -35,7 +35,7 @@ function resolveAnchorY(anchor: string, articleEl: HTMLElement): number | null {
   return null;
 }
 
-function NoteItem({
+export function NoteItem({
   note,
   onUpdate,
   onDelete,
@@ -74,6 +74,11 @@ function NoteItem({
     liRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     onAutoEditConsumed();
   }, [autoEdit, onAutoEditConsumed]);
+
+  useEffect(() => {
+    if (!isLinked) return;
+    liRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [isLinked]);
 
   const save = () => {
     if (draft.trim() && draft.trim() !== note.body) onUpdate(draft.trim());
