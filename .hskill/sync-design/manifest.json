@@ -92,6 +92,21 @@
       "uiStates": ["顶部-信息栏与正文标题同屏", "向下滚动-信息栏随正文滚出视口"],
       "description": "文章展示页信息栏，嵌入完整详情页布局（header/tab bar/正文列+TOC+笔记栏三栏）：信息栏是正文模块(prose-cn)的一部分，宽度与正文列一致、随正文滚动，长值（如 URL）自动换行，数组字段渲染为 chips",
       "linkedEntryId": null
+    },
+    {
+      "id": "task-detail-article-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/drafts/task-detail-article-web-design.html",
+      "uiStates": [
+        "顶部-信息栏与正文标题同屏",
+        "向下滚动-信息栏随正文滚出视口",
+        "笔记锚点默认态（无联动）",
+        "悬停正文锚点→笔记卡片联动高亮",
+        "悬停笔记卡片→正文锚点联动高亮",
+        "点击正文锚点→卡片滚动可见并进入编辑态"
+      ],
+      "description": "文章任务详情页新增「笔记锚点」正文标记：暖灰色块+点状下划线，区别于高亮的黄/绿/红实色块与蓝色下划线（未用紫色，遵循 DESIGN.md 的无紫色/渐变约束）；正文锚点与右侧笔记卡片双向悬停联动高亮，点击锚点使对应卡片进入编辑态，联动强调色复用品牌唯一 accent（sage green）",
+      "linkedEntryId": "task-detail-article-web"
     }
   ],
   "ignoredFiles": []
