@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate } from 'react-router';
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useTask, useContent, useReveal, useMediaInfo, useHighlights, useAddHighlight, useDeleteHighlight } from '@/hooks/use-tasks';
+import { useTask, useContent, useReveal, useMediaInfo, useHighlights, useAddHighlight, useDeleteHighlight, useNotes } from '@/hooks/use-tasks';
 import { Reader } from '@/components/reader';
 import { Toc, extractToc } from '@/components/toc';
 import { SubtitleList } from '@/components/subtitle-list';
@@ -41,6 +41,9 @@ export default function TaskDetail() {
   const [ccEnabled, setCcEnabled] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
   const [pendingAnchor, setPendingAnchor] = useState<string>('');
+  const { data: notes = [] } = useNotes(id);
+  const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
+  const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
   const articleRef = useRef<HTMLDivElement>(null);
   const resetPlayer = usePlayerStore((s) => s.reset);
 
@@ -177,9 +180,13 @@ export default function TaskDetail() {
                       content={content}
                       frontmatter={tab === 'article' ? task.frontmatter : undefined}
                       highlights={highlights}
+                      notes={notes}
                       onAnchorSelect={(anchor) => setPendingAnchor(anchor)}
                       onAddHighlight={(anchor, color) => addHighlight.mutate({ anchor, color })}
                       onDeleteHighlight={(hlId) => deleteHighlight.mutate(hlId)}
+                      hoveredNoteId={hoveredNoteId}
+                      onNoteHover={setHoveredNoteId}
+                      onNoteAnchorClick={setFocusNoteId}
                     />
                   </div>
                   <Toc items={toc} />
@@ -190,6 +197,10 @@ export default function TaskDetail() {
                       pendingAnchor={pendingAnchor}
                       onAnchorConsumed={() => setPendingAnchor('')}
                       articleRef={articleRef}
+                      hoveredNoteId={hoveredNoteId}
+                      onNoteHover={setHoveredNoteId}
+                      focusNoteId={focusNoteId}
+                      onFocusConsumed={() => setFocusNoteId(null)}
                     />
                   </aside>
                 </div>
