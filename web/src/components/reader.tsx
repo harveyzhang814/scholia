@@ -12,6 +12,9 @@ interface ReaderProps {
   frontmatter?: Record<string, unknown>;
   highlights?: Highlight[];
   notes?: Pick<Note, 'id' | 'anchor'>[];
+  hoveredNoteId?: string | null;
+  onNoteHover?: (id: string | null) => void;
+  onNoteAnchorClick?: (id: string) => void;
   onAnchorSelect?: (anchor: string) => void;
   onAddHighlight?: (anchor: string, color: 'yellow' | 'green' | 'red' | 'blue') => void;
   onDeleteHighlight?: (id: string) => void;
@@ -90,7 +93,7 @@ function injectAnchorMarks<T extends AnchorMarkItem>(
   }
 }
 
-export function Reader({ taskId, content, frontmatter, highlights, notes, onAnchorSelect, onAddHighlight, onDeleteHighlight }: ReaderProps) {
+export function Reader({ taskId, content, frontmatter, highlights, notes, onAnchorSelect, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
   const md = useMemo(() => content ?? '', [content]);
   const articleRef = useRef<HTMLElement>(null);
   const isArticleTask = taskId?.startsWith('article-') ?? false;
@@ -203,8 +206,21 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
     const anchored = notes?.length ? notes.filter((n) => n.anchor) : [];
     injectAnchorMarks(article, anchored, 'vdl-note-anchor', (mark, note) => {
       mark.dataset.noteId = note.id;
+      mark.addEventListener('mouseenter', () => onNoteHover?.(note.id));
+      mark.addEventListener('mouseleave', () => onNoteHover?.(null));
+      mark.addEventListener('click', () => onNoteAnchorClick?.(note.id));
     });
-  }, [notes, md]);
+  }, [notes, md, onNoteHover, onNoteAnchorClick]);
+
+  // ── Reverse hover sync: sidebar card → article mark ──────────
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article) return;
+    article.querySelectorAll('mark.vdl-note-anchor').forEach((el) => {
+      const markEl = el as HTMLElement;
+      markEl.classList.toggle('is-linked', !!hoveredNoteId && markEl.dataset.noteId === hoveredNoteId);
+    });
+  }, [hoveredNoteId, notes, md]);
 
   return (
     <>
