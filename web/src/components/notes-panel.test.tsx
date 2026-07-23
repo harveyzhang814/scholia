@@ -6,7 +6,7 @@ import type { Note } from '@/lib/api';
 describe('NoteItem isLinked/editing interaction', () => {
   beforeEach(() => {
     // Mock ResizeObserver for tests
-    global.ResizeObserver = class ResizeObserver {
+    globalThis.ResizeObserver = class ResizeObserver {
       observe() {}
       unobserve() {}
       disconnect() {}
