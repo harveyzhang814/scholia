@@ -25,6 +25,19 @@
   --status-busy: #C28A3D;
 }
 
+/* markdown-preview-core mermaid theme bridge — indirection through the
+   tokens above means this only needs to be defined once; the dark-mode
+   media query below already flips --bg-elevated/--text-primary/etc. */
+:root {
+  --md-mermaid-bg: transparent;
+  --md-mermaid-primary: var(--bg-elevated);
+  --md-mermaid-primary-text: var(--text-primary);
+  --md-mermaid-primary-border: var(--border-strong);
+  --md-mermaid-line: var(--accent-10);
+  --md-mermaid-secondary: var(--accent-3);
+  --md-mermaid-tertiary: var(--bg-canvas);
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --bg-canvas:     #1A1A18;
