@@ -1,8 +1,7 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
-import ReactMarkdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { MarkdownPreview } from '@harveyzhang814/markdown-preview-core';
+import type { Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
-import { MermaidChart } from './mermaid-chart';
 import { ArticleMetaBar } from './article-meta-bar';
 import { api, type Highlight, type Note } from '@/lib/api';
 
@@ -99,13 +98,6 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
   const isArticleTask = taskId?.startsWith('article-') ?? false;
 
   const mdComponents: Components = useMemo(() => ({
-    code({ className, children, ...props }) {
-      const lang = /language-(\w+)/.exec(className ?? '')?.[1];
-      if (lang === 'mermaid') {
-        return <MermaidChart code={String(children).trim()} />;
-      }
-      return <code className={className} {...props}>{children}</code>;
-    },
     ...(isArticleTask ? {
       img({ src, ...props }) {
         const resolved = typeof src === 'string' ? resolveArticleImageSrc(taskId!, src) : src;
@@ -228,13 +220,11 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
     <>
       <article ref={articleRef} className="prose-cn" onMouseUp={handleMouseUp} onContextMenu={handleContextMenu}>
         <ArticleMetaBar frontmatter={frontmatter} />
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
+        <MarkdownPreview
+          content={md}
           rehypePlugins={[rehypeHighlight]}
           components={mdComponents}
-        >
-          {md}
-        </ReactMarkdown>
+        />
       </article>
 
       {/* Selection toolbar */}
