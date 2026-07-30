@@ -22,7 +22,8 @@ const injectDevToken = {
 export default defineConfig({
   plugins: [react(), tailwindcss(), injectDevToken],
   resolve: {
-    alias: { '@': path.resolve(__dirname, './src') }
+    alias: { '@': path.resolve(__dirname, './src') },
+    dedupe: ['react', 'react-dom', 'mermaid']
   },
   server: {
     port: 5173,
