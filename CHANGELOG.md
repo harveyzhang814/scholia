@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-31
+
+### Fixed
+
+- `npm run release:local` (and any global install from a packed tarball) no longer fails to resolve `@harveyzhang814/markdown-preview-core` — `postinstall` now regenerates `web/.npmrc` before installing web dependencies, since npm always strips `.npmrc` from published tarballs regardless of the `files` whitelist.
+
 ## [0.4.0] - 2026-07-31
 
 ### Added
