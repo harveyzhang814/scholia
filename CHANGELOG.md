@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-31
+
+### Fixed
+
+- `npm run release:local` no longer 404s on `@harveyzhang814/markdown-preview-core` — `npm install -g` propagates `npm_config_global=true` to postinstall's child processes, which made the nested `web/` install ignore the project `.npmrc` even after the 0.4.1 fix; the nested install now forces `npm_config_global=false` so it reads `web/.npmrc`. Verified with a real `npm run release:local` run.
+
 ## [0.4.1] - 2026-07-31
 
 ### Fixed
