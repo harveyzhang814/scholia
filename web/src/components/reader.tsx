@@ -1,16 +1,19 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
-import ReactMarkdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { MarkdownPreview } from '@harveyzhang814/markdown-preview-core';
+import type { Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
-import { MermaidChart } from './mermaid-chart';
 import { ArticleMetaBar } from './article-meta-bar';
-import { api, type Highlight } from '@/lib/api';
+import { api, type Highlight, type Note } from '@/lib/api';
 
 interface ReaderProps {
   taskId?: string;
   content: string;
   frontmatter?: Record<string, unknown>;
   highlights?: Highlight[];
+  notes?: Pick<Note, 'id' | 'anchor'>[];
+  hoveredNoteId?: string | null;
+  onNoteHover?: (id: string | null) => void;
+  onNoteAnchorClick?: (id: string) => void;
   onAnchorSelect?: (anchor: string) => void;
   onAddHighlight?: (anchor: string, color: 'yellow' | 'green' | 'red' | 'blue') => void;
   onDeleteHighlight?: (id: string) => void;
@@ -34,19 +37,67 @@ const COLORS: { key: 'yellow' | 'green' | 'red' | 'blue'; bg?: string; underline
   { key: 'blue',   underline: 'rgba(59, 130, 246, 0.9)' },
 ];
 
-export function Reader({ taskId, content, frontmatter, highlights, onAnchorSelect, onAddHighlight, onDeleteHighlight }: ReaderProps) {
+interface AnchorMarkItem {
+  id: string;
+  anchor: string;
+}
+
+function injectAnchorMarks<T extends AnchorMarkItem>(
+  article: HTMLElement,
+  items: T[],
+  markClass: string,
+  decorate: (mark: HTMLElement, item: T) => void,
+) {
+  // Unwrap all previously injected marks of this class
+  article.querySelectorAll(`mark.${markClass}`).forEach((mark) => {
+    mark.replaceWith(...Array.from(mark.childNodes));
+  });
+
+  for (const item of items) {
+    // Search across the full concatenated text so an anchor that spans
+    // multiple text nodes (e.g. selection crossing into/out of a <strong>
+    // or <a>) can still be found — a single node's textContent won't
+    // contain it even though the anchor exists in the rendered text.
+    const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+    let fullText = '';
+    let node: Text | null;
+    while ((node = walker.nextNode() as Text | null)) {
+      textNodes.push(node);
+      fullText += node.textContent ?? '';
+    }
+    const idx = fullText.indexOf(item.anchor);
+    if (idx === -1) continue;
+    const end = idx + item.anchor.length;
+
+    let pos = 0;
+    for (const tn of textNodes) {
+      const nodeStart = pos;
+      const nodeEnd = pos + (tn.textContent?.length ?? 0);
+      pos = nodeEnd;
+      if (nodeEnd <= idx || nodeStart >= end) continue;
+
+      let target = tn;
+      const sliceStart = Math.max(0, idx - nodeStart);
+      const sliceEnd = Math.min(nodeEnd, end) - nodeStart;
+      if (sliceStart > 0) target = target.splitText(sliceStart);
+      if (sliceEnd - sliceStart < (target.textContent?.length ?? 0)) target.splitText(sliceEnd - sliceStart);
+
+      const mark = document.createElement('mark');
+      mark.className = markClass;
+      decorate(mark, item);
+      target.parentNode?.insertBefore(mark, target);
+      mark.appendChild(target);
+    }
+  }
+}
+
+export function Reader({ taskId, content, frontmatter, highlights, notes, onAnchorSelect, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
   const md = useMemo(() => content ?? '', [content]);
   const articleRef = useRef<HTMLElement>(null);
   const isArticleTask = taskId?.startsWith('article-') ?? false;
 
   const mdComponents: Components = useMemo(() => ({
-    code({ className, children, ...props }) {
-      const lang = /language-(\w+)/.exec(className ?? '')?.[1];
-      if (lang === 'mermaid') {
-        return <MermaidChart code={String(children).trim()} />;
-      }
-      return <code className={className} {...props}>{children}</code>;
-    },
     ...(isArticleTask ? {
       img({ src, ...props }) {
         const resolved = typeof src === 'string' ? resolveArticleImageSrc(taskId!, src) : src;
@@ -133,46 +184,47 @@ export function Reader({ taskId, content, frontmatter, highlights, onAnchorSelec
   useEffect(() => {
     const article = articleRef.current;
     if (!article) return;
-
-    // Unwrap all previously injected marks
-    article.querySelectorAll('mark.vdl-hl').forEach((mark) => {
-      mark.replaceWith(...Array.from(mark.childNodes));
+    const sorted = highlights?.length ? [...highlights].sort((a, b) => a.createdAt - b.createdAt) : [];
+    injectAnchorMarks(article, sorted, 'vdl-hl', (mark, hl) => {
+      mark.dataset.hlId = hl.id;
+      mark.dataset.color = hl.color;
     });
-
-    if (!highlights?.length) return;
-
-    const sorted = [...highlights].sort((a, b) => a.createdAt - b.createdAt);
-
-    for (const hl of sorted) {
-      const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
-      let node: Text | null;
-      while ((node = walker.nextNode() as Text | null)) {
-        const idx = node.textContent?.indexOf(hl.anchor) ?? -1;
-        if (idx === -1) continue;
-        const mid = node.splitText(idx);
-        mid.splitText(hl.anchor.length);
-        const mark = document.createElement('mark');
-        mark.className = 'vdl-hl';
-        mark.dataset.hlId = hl.id;
-        mark.dataset.color = hl.color;
-        mid.parentNode?.insertBefore(mark, mid);
-        mark.appendChild(mid);
-        break;
-      }
-    }
   }, [highlights, md]);
+
+  // ── Post-render note-anchor injection ────────────────────────
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article) return;
+    const anchored = notes?.length ? notes.filter((n) => n.anchor) : [];
+    injectAnchorMarks(article, anchored, 'vdl-note-anchor', (mark, note) => {
+      mark.dataset.noteId = note.id;
+      mark.addEventListener('mouseenter', () => onNoteHover?.(note.id));
+      mark.addEventListener('mouseleave', () => onNoteHover?.(null));
+      mark.addEventListener('click', () => onNoteAnchorClick?.(note.id));
+    });
+  }, [notes, md, onNoteHover, onNoteAnchorClick]);
+
+  // ── Reverse hover sync: sidebar card → article mark ──────────
+  // NOTE: This effect depends on running AFTER the note-injection effect (deps [notes, md, ...])
+  // to re-apply is-linked to the fresh marks. Relies on onNoteHover/onNoteAnchorClick being stable.
+  useEffect(() => {
+    const article = articleRef.current;
+    if (!article) return;
+    article.querySelectorAll('mark.vdl-note-anchor').forEach((el) => {
+      const markEl = el as HTMLElement;
+      markEl.classList.toggle('is-linked', !!hoveredNoteId && markEl.dataset.noteId === hoveredNoteId);
+    });
+  }, [hoveredNoteId, notes, md]);
 
   return (
     <>
       <article ref={articleRef} className="prose-cn" onMouseUp={handleMouseUp} onContextMenu={handleContextMenu}>
         <ArticleMetaBar frontmatter={frontmatter} />
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
+        <MarkdownPreview
+          content={md}
           rehypePlugins={[rehypeHighlight]}
           components={mdComponents}
-        >
-          {md}
-        </ReactMarkdown>
+        />
       </article>
 
       {/* Selection toolbar */}

@@ -39,10 +39,29 @@ async function req(port, method, urlPath, body) {
     duration: '120', mode: 'media', ts: '2024-01-01T00:00:00.000Z',
   }));
   fs.writeFileSync(path.join(workDir, taskId, 'writing', 'article.md'), '# Article\n\nContent');
+  fs.writeFileSync(path.join(workDir, taskId, 'highlights.json'), JSON.stringify([{ id: 'h1' }, { id: 'h2' }]));
+  fs.writeFileSync(path.join(workDir, taskId, 'notes.json'), JSON.stringify([{ id: 'n1' }]));
+
+  // Second video task with no annotation files — verifies the zero-fallback.
+  // Older timestamp than `taskId` so it still sorts second (list is newest-first).
+  const taskId2 = 'noannotations999';
+  fs.mkdirSync(path.join(workDir, taskId2), { recursive: true });
+  fs.writeFileSync(path.join(workDir, taskId2, 'meta.json'), JSON.stringify({
+    id: taskId2, url: 'https://yt.com/v2', title: 'No Annotations Video',
+    mode: 'media', ts: '2023-01-01T00:00:00.000Z',
+  }));
 
   fs.writeFileSync(path.join(contentDir, 'intro.md'), '---\ntitle: Intro\n---\n\n# Hello');
   fs.mkdirSync(path.join(contentDir, '2024'), { recursive: true });
   fs.writeFileSync(path.join(contentDir, '2024', 'tips.md'), '---\ntitle: Tips\n---\n\n# Tips');
+  // Pre-seed highlights for the "2024-tips" article, not "intro" — "intro" gets
+  // highlights/notes POSTed to it later by the existing CRUD tests (further down
+  // this file), and pre-seeding it here would make those tests' "starts at length 1
+  // after POST" assertions fail (they'd see length 2 instead). "2024-tips" only gets
+  // a *note* POSTed to it later (a different file), so seeding its highlights.json
+  // here is safe.
+  fs.mkdirSync(path.join(contentDir, '2024', 'tips'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, '2024', 'tips', 'highlights.json'), JSON.stringify([{ id: 'ah1' }]));
 
   // Bilingual reading entry with a sibling Image/ folder
   fs.mkdirSync(path.join(contentDir, 'hash1', 'Translation'), { recursive: true });
@@ -68,9 +87,19 @@ async function req(port, method, urlPath, body) {
     const r = await req(port, 'GET', '/api/tasks');
     assert.equal(r.status, 200);
     assert.ok(Array.isArray(r.body));
-    assert.equal(r.body.length, 1);
+    assert.equal(r.body.length, 2);
     assert.equal(r.body[0].id, taskId);
     assert.equal(r.body[0].title, 'Test Video');
+  });
+
+  await test('GET /api/tasks includes highlightCount and noteCount', async () => {
+    const r = await req(port, 'GET', '/api/tasks');
+    const withAnnotations = r.body.find((t) => t.id === taskId);
+    assert.equal(withAnnotations.highlightCount, 2);
+    assert.equal(withAnnotations.noteCount, 1);
+    const withoutAnnotations = r.body.find((t) => t.id === taskId2);
+    assert.equal(withoutAnnotations.highlightCount, 0);
+    assert.equal(withoutAnnotations.noteCount, 0);
   });
 
   await test('GET /api/articles returns article list', async () => {
@@ -78,6 +107,16 @@ async function req(port, method, urlPath, body) {
     assert.equal(r.status, 200);
     assert.equal(r.body.length, 3);
     assert.ok(r.body.some((a) => a.slug === 'intro' && a.title === 'Intro'));
+  });
+
+  await test('GET /api/articles includes highlightCount and noteCount', async () => {
+    const r = await req(port, 'GET', '/api/articles');
+    const intro = r.body.find((a) => a.slug === 'intro');
+    assert.equal(intro.highlightCount, 0);
+    assert.equal(intro.noteCount, 0);
+    const tips = r.body.find((a) => a.slug === '2024-tips');
+    assert.equal(tips.highlightCount, 1);
+    assert.equal(tips.noteCount, 0);
   });
 
   await test('GET /api/tasks/:id returns video task', async () => {
@@ -139,10 +178,12 @@ async function req(port, method, urlPath, body) {
   });
 
   // Highlights CRUD
-  await test('highlights: empty list initially', async () => {
+  await test('highlights: list includes pre-seeded highlights', async () => {
     const r = await req(port, 'GET', `/api/tasks/${taskId}/highlights`);
     assert.equal(r.status, 200);
-    assert.deepEqual(r.body, []);
+    assert.equal(r.body.length, 2);
+    assert.equal(r.body[0].id, 'h1');
+    assert.equal(r.body[1].id, 'h2');
   });
 
   let hlId;
@@ -155,17 +196,19 @@ async function req(port, method, urlPath, body) {
     hlId = r.body.id;
   });
 
-  await test('highlights: GET returns created highlight', async () => {
+  await test('highlights: GET returns posted highlight plus pre-seeded ones', async () => {
     const r = await req(port, 'GET', `/api/tasks/${taskId}/highlights`);
-    assert.equal(r.body.length, 1);
+    assert.equal(r.body.length, 3);
     assert.equal(r.body[0].id, hlId);
   });
 
-  await test('highlights: DELETE removes highlight', async () => {
+  await test('highlights: DELETE removes the posted highlight, leaves pre-seeded', async () => {
     const r = await req(port, 'DELETE', `/api/tasks/${taskId}/highlights/${hlId}`);
     assert.equal(r.status, 204);
     const r2 = await req(port, 'GET', `/api/tasks/${taskId}/highlights`);
-    assert.deepEqual(r2.body, []);
+    assert.equal(r2.body.length, 2);
+    assert.deepEqual(r2.body[0].id, 'h1');
+    assert.deepEqual(r2.body[1].id, 'h2');
   });
 
   // Notes CRUD
@@ -184,11 +227,12 @@ async function req(port, method, urlPath, body) {
     assert.equal(r.body.body, 'Updated note');
   });
 
-  await test('notes: DELETE removes note', async () => {
+  await test('notes: DELETE removes posted note, leaves pre-seeded', async () => {
     const r = await req(port, 'DELETE', `/api/tasks/${taskId}/notes/${noteId}`);
     assert.equal(r.status, 204);
     const r2 = await req(port, 'GET', `/api/tasks/${taskId}/notes`);
-    assert.deepEqual(r2.body, []);
+    assert.equal(r2.body.length, 1);
+    assert.equal(r2.body[0].id, 'n1');
   });
 
   // Article highlights

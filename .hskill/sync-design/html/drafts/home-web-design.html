@@ -1,0 +1,528 @@
+<meta charset="utf-8">
+<title>首页 · 任务列表卡片重设计 — 设计稿</title>
+<style>
+  :root {
+    --bg-canvas:     #F9F8F4;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #F1EFE9;
+    --border-subtle: #E5E2DA;
+    --border-strong: #CFCBC0;
+    --text-primary:   #2C2A24;
+    --text-secondary: #67645E;
+    --text-tertiary:  #6E6961;
+    --accent-3:  #EBF1E8;
+    --accent-9:  #5A8A5A;
+    --accent-10: #466F46;
+    --accent-11: #3D5E3D;
+    --accent-12: #243B24;
+    --status-ok:   #4A8A5A;
+    --status-err:  #B05050;
+    --status-busy: #C28A3D;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-canvas:     #1A1A18;
+      --bg-surface:    #232322;
+      --bg-elevated:   #2A2A28;
+      --border-subtle: #2E2E2B;
+      --border-strong: #3D3E3B;
+      --text-primary:   #E8E8E6;
+      --text-secondary: #9A9B98;
+      --text-tertiary:  #868782;
+      --accent-3:  #2A3A2A;
+      --accent-9:  #7DAE7D;
+      --accent-10: #6FA06F;
+      --accent-11: #9BC79B;
+      --accent-12: #C8E0C8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 24px;
+    line-height: 1.6;
+    max-width: 900px;
+  }
+
+  .page-sub code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .state-switch {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .state-btn {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, color 120ms;
+  }
+  .state-btn:hover { background: var(--bg-elevated); }
+  .state-btn.active {
+    border-color: var(--accent-9);
+    color: var(--accent-10);
+    background: var(--accent-3);
+    font-weight: 500;
+  }
+
+  /* ── 首页外壳（完整还原：header + tab bar + 内容区，对应 web/src/routes/_index.tsx） ── */
+  .home-frame {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-canvas);
+  }
+
+  .home-inner {
+    padding: 40px 32px 64px;
+    min-height: 560px;
+  }
+
+  .home-header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+  .home-h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  /* ── 顶部导航（原下划线 tab bar 已并入 header，随路由 /videos ↔ /articles 切换） ── */
+  .home-nav {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .nav-link {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--text-tertiary);
+    cursor: default;
+    transition: background 120ms, color 120ms;
+  }
+  .nav-link.active {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    font-weight: 500;
+  }
+
+  /* ── 独立工具栏（本次重设计对象：从 header 右侧移出，改为列表上方单独一行、左对齐） ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 9px 14px;
+  }
+  .search-input {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    width: 260px;
+  }
+  .kbd {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-elevated);
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+  .sort-select {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 9px 14px;
+  }
+  .sort-field {
+    font-size: 14px;
+    color: var(--text-primary);
+  }
+  .sort-caret {
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
+  .sort-dir {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    padding-left: 6px;
+    border-left: 1px solid var(--border-subtle);
+  }
+
+  /* ── 卡片网格（视频 / 文章 共用布局，字段不同） ── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 480px));
+    gap: 16px;
+  }
+
+  .task-card {
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 16px;
+    transition: background 120ms, box-shadow 120ms;
+  }
+  .task-card:hover {
+    background: var(--bg-elevated);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  /* ── 顶部作者/标签胶囊行（新增，视频卡与文章卡共用） ── */
+  .pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .pill.tag {
+    background: var(--accent-3);
+    color: var(--accent-11);
+  }
+  .pill.more {
+    color: var(--text-tertiary);
+    cursor: default;
+  }
+
+  .task-title {
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.4;
+    margin: 0 0 8px;
+    color: var(--text-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .task-url {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 0 0 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .task-meta-row {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+  }
+  .task-meta-row.failed {
+    justify-content: flex-start;
+    color: var(--status-err);
+    font-family: var(--font-sans);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .article-card {
+    display: block;
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 16px;
+    transition: background 120ms, box-shadow 120ms;
+  }
+  .article-card:hover {
+    background: var(--bg-elevated);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .article-title {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+    margin: 0 0 4px;
+    color: var(--text-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .article-date {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 0 0 4px;
+  }
+  .article-slug {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .article-meta {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+  }
+
+  /* ── 空状态 ── */
+  .empty-state {
+    text-align: center;
+    padding: 64px 0;
+    font-size: 13px;
+    color: var(--text-tertiary);
+    line-height: 1.8;
+  }
+  .empty-state code {
+    font-family: var(--font-mono);
+    color: var(--accent-11);
+  }
+
+  .caption {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.7;
+    max-width: 900px;
+  }
+  .caption code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+</style>
+
+<div class="page">
+  <h1 class="page-title">首页 · 独立工具栏重设计（设计稿）</h1>
+  <p class="page-sub">
+    对应实现：<code>web/src/routes/_index.tsx</code> + <code>web/src/components/sort-select.tsx</code>。
+    本次改动范围：搜索框 + 排序控件从原本挤在 header 右侧（<code>justify-end</code>、随 header 高度收窄）改为列表上方独立一行、<strong>左对齐</strong>，并按"独立一行"重新设计尺寸——
+    内边距从 <code>6px 12px</code> 放大到 <code>9px 14px</code>，搜索框宽度从 <code>160px</code> 放大到 <code>260px</code>，字号从 13px 提到 14px，圆角维持 8px（与原实现一致，未引入新半径 token）。
+    同时同步还原了此前已上线的 header 改动：视频/文章切换已从下划线 tab bar 改为并入 header 的路由导航（<code>/videos</code> ↔ <code>/articles</code>），本稿在此基础上继续做工具栏重设计，不改动导航部分。
+    卡片区块（顶部作者/标签胶囊、底部标注计数）为此前已上线内容，本次未改动，保留仅供整页预览完整性参考。
+  </p>
+
+  <div class="state-switch">
+    <button class="state-btn active" data-state="video">状态 1 — 视频 Tab（默认）</button>
+    <button class="state-btn" data-state="article">状态 2 — 文章 Tab</button>
+    <button class="state-btn" data-state="empty">状态 3 — 空状态（无数据）</button>
+  </div>
+
+  <div class="home-frame">
+    <div class="home-inner">
+      <div class="home-header">
+        <h1 class="home-h1">Scholia</h1>
+        <!-- 状态 1 / 2 共用导航，随状态切换 active 项；状态 3（空状态）沿用视频态 -->
+        <nav class="home-nav" id="home-nav">
+          <span class="nav-link active" id="nav-video">视频</span>
+          <span class="nav-link" id="nav-article">文章</span>
+        </nav>
+      </div>
+
+      <!-- 独立工具栏：三个状态共用，不随 Tab/空状态切换隐藏（对应实现中 Toolbar 在 Content 区块之外恒定渲染） -->
+      <div class="toolbar">
+        <div class="search-box">
+          <span class="search-input">搜索…</span>
+          <span class="kbd">⌘K</span>
+        </div>
+        <div class="sort-select">
+          <span class="sort-field">日期</span>
+          <span class="sort-caret">⌄</span>
+          <span class="sort-dir">↓</span>
+        </div>
+      </div>
+
+      <!-- 状态 1：视频 Tab -->
+      <div id="panel-video">
+        <div class="card-grid">
+          <a class="task-card">
+            <div class="pill-row"><span class="pill">MIT OpenCourseWare</span></div>
+            <h2 class="task-title">深度学习中的注意力机制综述与前沿进展</h2>
+            <p class="task-url">https://www.youtube.com/watch?v=dQw4w9WgXcQ</p>
+            <div class="task-meta-row"><span>video · 1080p · 42:18 · 5 处高亮 · 2 条笔记</span><span>3 小时前</span></div>
+          </a>
+          <a class="task-card">
+            <div class="pill-row"><span class="pill">Lenny's Podcast</span></div>
+            <h2 class="task-title">Rust 异步编程实战：从 Future 到 Tokio Runtime</h2>
+            <p class="task-url">https://www.bilibili.com/video/BV1x4411u7CN</p>
+            <div class="task-meta-row"><span>video · 4K · 1:17:58</span><span>2026-07-18</span></div>
+          </a>
+          <a class="task-card">
+            <h2 class="task-title">如何设计一个可扩展的分布式任务调度系统</h2>
+            <p class="task-url">https://www.youtube.com/watch?v=abcd1234efg</p>
+            <div class="task-meta-row"><span>audio · 720p · 28:04 · 1 处高亮</span><span>2026-07-16</span></div>
+          </a>
+          <a class="task-card">
+            <h2 class="task-title">播客翻译失败示例</h2>
+            <p class="task-url">https://podcast.example.com/ep-114</p>
+            <div class="task-meta-row failed">下载失败：网络超时</div>
+          </a>
+          <a class="task-card">
+            <div class="pill-row"><span class="pill">3Blue1Brown</span></div>
+            <h2 class="task-title">神经网络可解释性研究：从显著性图到概念激活向量</h2>
+            <p class="task-url">https://www.youtube.com/watch?v=zxy987wvu</p>
+            <div class="task-meta-row"><span>video · 2K · 55:32 · 12 处高亮 · 6 条笔记</span><span>1 周前</span></div>
+          </a>
+          <a class="task-card">
+            <h2 class="task-title">从零实现一个 LSM-Tree 存储引擎</h2>
+            <p class="task-url">https://www.bilibili.com/video/BV1y7411Q7Eg</p>
+            <div class="task-meta-row"><span>video · 1080p · 1:03:41</span><span>2026-07-10</span></div>
+          </a>
+        </div>
+      </div>
+
+      <!-- 状态 2：文章 Tab -->
+      <div id="panel-article" style="display:none;">
+        <div class="card-grid">
+          <a class="article-card">
+            <div class="pill-row">
+              <span class="pill">Anthropic</span>
+              <span class="pill tag">claude</span>
+            </div>
+            <div class="article-title">Claude's new constitution</div>
+            <div class="article-date">2026-03-22</div>
+            <div class="article-slug">6b11fc6d</div>
+            <div class="article-meta">3 处高亮 · 1 条笔记</div>
+          </a>
+          <a class="article-card">
+            <div class="pill-row">
+              <span class="pill">深度学习读书会</span>
+              <span class="pill tag">attention</span>
+              <span class="pill tag">transformer</span>
+              <span class="pill tag">nlp</span>
+              <span class="pill more" title="rlhf, survey">+2</span>
+            </div>
+            <div class="article-title">深度学习中的注意力机制综述</div>
+            <div class="article-date">2024-01-01</div>
+            <div class="article-slug">2024/attention-survey</div>
+          </a>
+          <a class="article-card">
+            <div class="article-title">分布式系统中的一致性模型速查</div>
+            <div class="article-date">2026-05-14</div>
+            <div class="article-slug">notes/distributed-consistency</div>
+          </a>
+          <a class="article-card">
+            <div class="pill-row">
+              <span class="pill">Rust 团队</span>
+              <span class="pill tag">rust</span>
+              <span class="pill tag">生命周期</span>
+              <span class="pill tag">教程</span>
+            </div>
+            <div class="article-title">Rust 生命周期标注实战指南</div>
+            <div class="article-date">2026-04-02</div>
+            <div class="article-slug">rust/lifetimes-in-practice</div>
+            <div class="article-meta">7 处高亮 · 3 条笔记</div>
+          </a>
+        </div>
+      </div>
+
+      <!-- 状态 3：空状态 -->
+      <div id="panel-empty" style="display:none;">
+        <div class="empty-state">
+          暂无视频<br>
+          配置视频目录：<code>scholia config set work-dir ~/vdl-work</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">
+    工具栏左对齐、不再跟随卡片网格右边界收窄——三个状态（视频/文章/空状态）均恒定展示在导航下方，切换 Tab 或触发空状态都不影响其位置和尺寸。
+    排序控件从原生 <code>&lt;select&gt;</code> + 独立方向按钮的组合抽象为一个整体点击区，字段文字与升/降序箭头用竖线分隔，保持与搜索框一致的高度和圆角，视觉上成对出现。
+  </p>
+  <p class="caption">
+    新增顶部胶囊行：无作者/无标签时整行不渲染（见"分布式系统中的一致性模型速查"，纯手写笔记无 frontmatter 扩展字段的退化态）；
+    标签超过 3 个折叠为 <code>+N</code>，鼠标悬停 <code>title</code> 属性显示完整列表（见"深度学习中的注意力机制综述"）。
+    标注计数追加在原有 meta 行末尾（视频卡）或单独一行（文章卡），高亮数和笔记数都为 0 时该段整体不显示（不展示"0 处高亮"这类噪音信息）。
+    失败任务的 meta 行保持原样（红色错误文案，占满整行），本次不涉及处理中状态——现有数据模型和真实样本均不支持，详见设计文档"背景与现状确认"一节。
+    空状态不使用图标，纯文字 + 等宽字体的配置命令提示，符合 <code>DESIGN.md</code> 中"无 happy-talk"的克制文案原则。
+  </p>
+</div>
+
+<script>
+  var stateBtns = document.querySelectorAll('.state-btn');
+  var panels = {
+    video: document.getElementById('panel-video'),
+    article: document.getElementById('panel-article'),
+    empty: document.getElementById('panel-empty'),
+  };
+  var navVideo = document.getElementById('nav-video');
+  var navArticle = document.getElementById('nav-article');
+
+  stateBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      stateBtns.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var target = btn.getAttribute('data-state');
+      Object.keys(panels).forEach(function (key) {
+        panels[key].style.display = key === target ? 'block' : 'none';
+      });
+      navVideo.classList.toggle('active', target !== 'article');
+      navArticle.classList.toggle('active', target === 'article');
+    });
+  });
+</script>

@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { createBrowserRouter, RouterProvider } from 'react-router';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import RootLayout from './routes/_layout';
 import Home from './routes/_index';
@@ -16,7 +16,9 @@ const router = createBrowserRouter([
   {
     element: <RootLayout />,
     children: [
-      { path: '/', element: <Home /> },
+      { path: '/', element: <Navigate to="/videos" replace /> },
+      { path: '/videos', element: <Home /> },
+      { path: '/articles', element: <Home /> },
       { path: '/tasks/:id', element: <TaskDetail /> },
       { path: '/tasks/:id/gantt', element: <GanttPage /> }
     ]

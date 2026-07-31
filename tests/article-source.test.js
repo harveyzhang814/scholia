@@ -171,6 +171,20 @@ async function test(name, fn) {
     JSON.stringify({ title: 'Origin Only', fetched_at: '2024-03-01' }));
   fs.writeFileSync(path.join(contentDir, 'def456', 'Origin', 'Untranslated.md'), '# Not translated yet');
 
+  // extract-url's real frontmatter convention: publish_date (page display date)
+  // + fetch_date (scrape time) — never a plain `date` field.
+  fs.mkdirSync(path.join(contentDir, 'pub789', 'Translation'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, 'pub789', 'meta.json'),
+    JSON.stringify({ title: 'Pub Title', fetched_at: '2020-01-01' }));
+  fs.writeFileSync(path.join(contentDir, 'pub789', 'Translation', 'Article.md'),
+    '---\npublish_date: 2026-03-22\nfetch_date: 2026-03-25\n---\n\n# Body');
+
+  fs.mkdirSync(path.join(contentDir, 'empty999', 'Translation'), { recursive: true });
+  fs.writeFileSync(path.join(contentDir, 'empty999', 'meta.json'),
+    JSON.stringify({ title: 'Empty Publish Date', fetched_at: '2020-01-01' }));
+  fs.writeFileSync(path.join(contentDir, 'empty999', 'Translation', 'Article.md'),
+    '---\npublish_date:\nfetch_date: 2026-04-01\n---\n\n# Body');
+
   await test('listArticles exposes one entry per bilingual dir, using its hash as the slug', async () => {
     const articles = await listArticles(contentDir);
     assert.ok(articles.some(a => a.slug === 'abc123'));
@@ -196,6 +210,24 @@ async function test(name, fn) {
     assert.ok(md.includes('Not translated yet'));
   });
 
+  await test('listArticles surfaces fetch_date/fetched_at as date when frontmatter lacks date', async () => {
+    const articles = await listArticles(contentDir);
+    // abc123: Translation frontmatter has fetch_date but no date
+    assert.equal(articles.find(a => a.slug === 'abc123').date, '2024-06-01');
+    // def456: no frontmatter at all — falls back to meta.json's fetched_at
+    assert.equal(articles.find(a => a.slug === 'def456').date, '2024-03-01');
+  });
+
+  await test('listArticles prefers frontmatter publish_date over fetch_date and meta.json', async () => {
+    const articles = await listArticles(contentDir);
+    assert.equal(articles.find(a => a.slug === 'pub789').date, '2026-03-22');
+  });
+
+  await test('listArticles falls back to fetch_date when publish_date is blank', async () => {
+    const articles = await listArticles(contentDir);
+    assert.equal(articles.find(a => a.slug === 'empty999').date, '2026-04-01');
+  });
+
   // Vault internals (.obsidian, .trash, .git, ...) must never surface as articles
   fs.mkdirSync(path.join(contentDir, '.trash'), { recursive: true });
   fs.writeFileSync(path.join(contentDir, '.trash', 'deleted-note.md'), '# Deleted note');
@@ -207,6 +239,36 @@ async function test(name, fn) {
     assert.ok(!articles.some(a => a.slug.includes('trash')));
     assert.ok(!articles.some(a => a.slug.includes('obsidian')));
     assert.equal(await articleFileExists(contentDir, '.trash-deleted-note'), false);
+  });
+
+  await test('listArticles includes author/tags/sourceUrl from frontmatter', async () => {
+    fs.writeFileSync(path.join(contentDir, 'meta-rich.md'),
+      '---\ntitle: Meta Rich\nauthor: Jane Doe\ntags:\n  - ai\n  - ml\nsource_url: https://example.com/meta-rich\n---\n\n# Body');
+    const articles = await listArticles(contentDir);
+    const entry = articles.find(a => a.slug === 'meta-rich');
+    assert.ok(entry);
+    assert.equal(entry.author, 'Jane Doe');
+    assert.deepEqual(entry.tags, ['ai', 'ml']);
+    assert.equal(entry.sourceUrl, 'https://example.com/meta-rich');
+    fs.rmSync(path.join(contentDir, 'meta-rich.md'));
+  });
+
+  await test('listArticles leaves author/tags/sourceUrl undefined when frontmatter lacks them', async () => {
+    const articles = await listArticles(contentDir);
+    const dive = articles.find(a => a.slug === 'deep-dive');
+    assert.ok(dive);
+    assert.equal(dive.author, undefined);
+    assert.equal(dive.tags, undefined);
+    assert.equal(dive.sourceUrl, undefined);
+  });
+
+  await test('listArticles falls back to meta.json source_url when frontmatter omits it', async () => {
+    // abc123's Translation file frontmatter only sets fetch_date — no source_url.
+    // Its meta.json (written earlier in this file) has source_url: 'https://example.com'.
+    const articles = await listArticles(contentDir);
+    const entry = articles.find(a => a.slug === 'abc123');
+    assert.ok(entry);
+    assert.equal(entry.sourceUrl, 'https://example.com');
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);

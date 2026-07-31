@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-31
+
+### Added
+
+- Home list: per-tab (video/article) sort controls, persisted across sessions.
+- Home list: redesigned cards — author/tag pills and highlight/note counts on both video and article cards.
+- Header navigation: video/article tab switch moved into the header nav bar.
+- Reader: note-anchor highlighting — clicking a note highlights and scrolls to its anchor in the article, distinct from regular highlights, with hover sync in both directions.
+
+### Changed
+
+- Reader: markdown rendering now uses `@harveyzhang814/markdown-preview-core` in place of `react-markdown` + a homegrown Mermaid component.
+- Server: migrated internal routing from `koa-router` to `@koa/router`.
+
+### Fixed
+
+- Article date now falls back to `publish_date`/`fetch_date` frontmatter when missing, and displays in the same bottom meta row position as video cards.
+- Task detail and article tab pages return to the correct originating list route when navigating back.
+- Highlight anchors spanning inline markdown elements (e.g. bold/link boundaries) now highlight correctly.
+- Home list sorting no longer misorders empty-string values; article sort field is now validated.
+- Note card hover-link background no longer shows while the note is being edited.
+
 ## [0.3.0] - 2026-07-21
 
 ### Added
