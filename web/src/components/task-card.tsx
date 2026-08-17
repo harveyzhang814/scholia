@@ -13,7 +13,7 @@ function formatResolution(width?: number, height?: number): string | null {
   return `${width}×${height}`;
 }
 
-export function TaskCard({ task }: { task: Task }) {
+export function TaskCard({ task, unread }: { task: Task; unread?: boolean }) {
   const isFailed   = task.status === 'failed';
   const duration   = task.duration_seconds ? formatDuration(task.duration_seconds) : null;
   const resolution = formatResolution(task.width, task.height);
@@ -24,7 +24,7 @@ export function TaskCard({ task }: { task: Task }) {
   return (
     <Link
       to={`/tasks/${task.id}`}
-      className="flex flex-col rounded-xl border p-4 transition-colors"
+      className="relative flex flex-col rounded-xl border p-4 transition-colors"
       style={{
         background: 'var(--bg-surface)',
         borderColor: 'var(--border-subtle)',
@@ -32,6 +32,9 @@ export function TaskCard({ task }: { task: Task }) {
       onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-elevated)')}
       onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-surface)')}
     >
+      {unread && (
+        <span aria-label="未读" className="absolute top-3 right-3 w-2 h-2 rounded-full" style={{ background: 'var(--accent-9)' }} />
+      )}
       {/* Author pill */}
       {task.uploader && (
         <div className="flex flex-wrap gap-1.5 mb-2">

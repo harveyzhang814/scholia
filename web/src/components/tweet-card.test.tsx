@@ -64,4 +64,23 @@ describe('TweetCard', () => {
     render(<TweetCard tweet={base} ownerHandle="trq212" />);
     expect(screen.getByRole('link', { name: /在 X 上查看/ })).toHaveAttribute('href', base.url);
   });
+
+  it('shows an unread dot and no unmark control when unread', () => {
+    const { container } = render(<TweetCard tweet={base} ownerHandle="trq212" unread onMarkUnread={() => {}} />);
+    expect(container.querySelector('[aria-label="未读"]')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '标记未读' })).toBeNull();
+  });
+
+  it('shows a mark-unread button instead of a dot when read', () => {
+    const onMarkUnread = () => {};
+    const { container } = render(<TweetCard tweet={base} ownerHandle="trq212" unread={false} onMarkUnread={onMarkUnread} />);
+    expect(container.querySelector('[aria-label="未读"]')).toBeNull();
+    expect(screen.getByRole('button', { name: '标记未读' })).toBeInTheDocument();
+  });
+
+  it('renders no read-state control when neither prop is passed', () => {
+    const { container } = render(<TweetCard tweet={base} ownerHandle="trq212" />);
+    expect(container.querySelector('[aria-label="未读"]')).toBeNull();
+    expect(screen.queryByRole('button', { name: '标记未读' })).toBeNull();
+  });
 });

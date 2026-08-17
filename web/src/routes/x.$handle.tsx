@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router';
 import { useXTimeline } from '@/hooks/use-x-timelines';
-import { TweetCard } from '@/components/tweet-card';
+import { TweetCardTracked } from '@/components/tweet-card-tracked';
+import { useReadIds, useMarkUnread } from '@/hooks/use-read-state';
 
 export default function XTimelineDetail() {
   const { handle = '' } = useParams();
@@ -10,6 +11,8 @@ export default function XTimelineDetail() {
     else navigate('/x');
   };
   const { data: timeline, isLoading } = useXTimeline(handle);
+  const { data: readIds } = useReadIds();
+  const markUnread = useMarkUnread();
 
   if (isLoading) return <div className="p-8 text-sm" style={{ color: 'var(--text-tertiary)' }}>加载中…</div>;
   if (!timeline) return <div className="p-8 text-sm" style={{ color: 'var(--status-err)' }}>未找到时间线</div>;
@@ -27,9 +30,18 @@ export default function XTimelineDetail() {
             <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>该 handle 暂无推文</div>
           ) : (
             <div className="flex flex-col gap-3.5">
-              {timeline.tweets.map((tweet) => (
-                <TweetCard key={tweet.tweet_id} tweet={tweet} ownerHandle={timeline.handle} />
-              ))}
+              {timeline.tweets.map((tweet) => {
+                const id = `tweet-${tweet.tweet_id}`;
+                return (
+                  <TweetCardTracked
+                    key={tweet.tweet_id}
+                    tweet={tweet}
+                    ownerHandle={timeline.handle}
+                    isRead={readIds?.has(id) ?? false}
+                    onMarkUnread={() => markUnread.mutate(id)}
+                  />
+                );
+              })}
             </div>
           )}
         </div>

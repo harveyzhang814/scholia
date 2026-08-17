@@ -11,6 +11,7 @@ import { ProseThemePicker } from '@/components/prose-theme-picker';
 import { useUiStore } from '@/stores/ui-store';
 import type { LayoutMode } from '@/stores/ui-store';
 import { usePlayerStore } from '@/stores/player-store';
+import { useMarkRead, useMarkUnread } from '@/hooks/use-read-state';
 
 export default function TaskDetail() {
   const { id = '' } = useParams();
@@ -46,9 +47,14 @@ export default function TaskDetail() {
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
   const articleRef = useRef<HTMLDivElement>(null);
   const resetPlayer = usePlayerStore((s) => s.reset);
+  const markRead = useMarkRead();
+  const markUnread = useMarkUnread();
 
   // Reset player state when switching tasks so stale playing/time don't bleed over
   useEffect(() => { resetPlayer(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Opening a task marks it read
+  useEffect(() => { if (id) markRead.mutate(id); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-set default mode based on mediaKind (once per task load)
   useEffect(() => {
@@ -98,6 +104,8 @@ export default function TaskDetail() {
               ▦
             </Link>
           )}
+          <button type="button" onClick={() => markUnread.mutate(id)} style={{ color: 'var(--text-tertiary)' }}
+                  className="text-sm hover:text-[var(--text-secondary)] cursor-pointer">标记为未读</button>
           <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
             <kbd className="px-1 py-0.5 rounded border" style={{ borderColor: 'var(--border-subtle)' }}>⌘K</kbd>
           </div>

@@ -4,6 +4,7 @@ const Router = require('@koa/router');
 const bodyParser = require('koa-bodyparser');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const crypto = require('crypto');
 
 const { getVideoDirs, getArticleAnnotationDirs } = require('./paths');
@@ -63,6 +64,7 @@ function createApp(options = {}) {
   const WORK_DIR = options.workDir || null;
   const CONTENT_DIR = options.contentDir || null;
   const X_DIR = options.xDir || null;
+  const READ_STATE_PATH = options.readStatePath || path.join(os.homedir(), '.config', 'scholia', 'read-state.json');
   const token = options.token || crypto.randomBytes(24).toString('hex');
 
   const app = new Koa();
@@ -108,10 +110,33 @@ function createApp(options = {}) {
   router.get('/x-timelines', async (ctx) => {
     if (!X_DIR) { ctx.body = []; return; }
     try {
-      ctx.body = await listXTimelines(X_DIR);
+      const readState = await readJson(READ_STATE_PATH, {});
+      ctx.body = await listXTimelines(X_DIR, new Set(Object.keys(readState)));
     } catch (err) {
       ctx.status = 500; ctx.body = { error: err.message };
     }
+  });
+
+  // Read state (opened videos/articles, viewport-visible tweets)
+  router.get('/read-state', async (ctx) => {
+    const state = await readJson(READ_STATE_PATH, {});
+    ctx.body = Object.keys(state);
+  });
+
+  router.post('/read-state/:id', async (ctx) => {
+    const { id } = ctx.params;
+    const state = await readJson(READ_STATE_PATH, {});
+    state[id] = Date.now();
+    await writeJson(READ_STATE_PATH, state);
+    ctx.status = 204;
+  });
+
+  router.delete('/read-state/:id', async (ctx) => {
+    const { id } = ctx.params;
+    const state = await readJson(READ_STATE_PATH, {});
+    delete state[id];
+    await writeJson(READ_STATE_PATH, state);
+    ctx.status = 204;
   });
 
   // Get a single X timeline's full tweet stream
