@@ -35,14 +35,18 @@ async function listXTimelines(xDir) {
     const handle = path.basename(file.name, '.json');
     const tweets = await readHandleFile(xDir, handle);
     if (!tweets) continue; // corrupt/non-array JSON — skip this handle, don't fail the whole list
-    const sorted = tweets.slice().sort(compareTweetIdDesc);
-    const latest = sorted[0];
-    summaries.push({
-      handle,
-      tweetCount: tweets.length,
-      latestAt: latest ? latest.timestamp : undefined,
-      latestPreview: latest ? (latest.translated ?? latest.text) : undefined,
-    });
+    try {
+      const sorted = tweets.slice().sort(compareTweetIdDesc);
+      const latest = sorted[0];
+      summaries.push({
+        handle,
+        tweetCount: tweets.length,
+        latestAt: latest ? latest.timestamp : undefined,
+        latestPreview: latest ? (latest.translated ?? latest.text) : undefined,
+      });
+    } catch {
+      continue; // a tweet with a missing/invalid tweet_id shouldn't take down the whole list
+    }
   }
   summaries.sort((a, b) => {
     const at = a.latestAt ? Date.parse(a.latestAt) : 0;
@@ -59,4 +63,4 @@ async function getXTimeline(handle, xDir) {
   return { handle, tweets: tweets.slice().sort(compareTweetIdDesc) };
 }
 
-module.exports = { isValidHandle, listXTimelines, getXTimeline };
+module.exports = { listXTimelines, getXTimeline };

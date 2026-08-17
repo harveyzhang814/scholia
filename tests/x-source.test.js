@@ -49,6 +49,20 @@ async function test(name, fn) {
   fs.writeFileSync(path.join(xDir, 'broken.json'), '{not valid json');
   fs.writeFileSync(path.join(xDir, 'empty.json'), JSON.stringify([]));
   fs.writeFileSync(path.join(xDir, 'not-a-tweet-file.txt'), 'ignore me');
+  fs.writeFileSync(path.join(xDir, 'partially-broken.json'), JSON.stringify([
+    {
+      tweet_id: '2088298127346536578', url: 'https://x.com/partially-broken/status/1',
+      text: 'valid tweet', timestamp: '2026-08-14T16:14:06.000Z', author_handle: '@partially-broken',
+      type: 'post', reply_to_handle: null, quoted_author: null, quoted_text: null,
+      quoted_timestamp: null, translated: null,
+    },
+    {
+      tweet_id: null, url: 'https://x.com/partially-broken/status/2',
+      text: 'tweet with missing tweet_id', timestamp: '2026-08-14T17:00:00.000Z', author_handle: '@partially-broken',
+      type: 'post', reply_to_handle: null, quoted_author: null, quoted_text: null,
+      quoted_timestamp: null, translated: null,
+    },
+  ]));
 
   await test('listXTimelines returns one summary per valid handle file, skipping corrupt JSON', async () => {
     const summaries = await listXTimelines(xDir);
@@ -77,6 +91,13 @@ async function test(name, fn) {
   await test('listXTimelines returns [] for a missing directory', async () => {
     const summaries = await listXTimelines(path.join(tmp, 'does-not-exist'));
     assert.deepEqual(summaries, []);
+  });
+
+  await test('listXTimelines skips a handle whose array contains a tweet with a missing tweet_id, without crashing the whole list', async () => {
+    const summaries = await listXTimelines(xDir);
+    const handles = summaries.map((s) => s.handle).sort();
+    assert.ok(!handles.includes('partially-broken'), 'the malformed handle should be skipped, not crash the whole call');
+    assert.ok(handles.includes('trq212'), 'other valid handles must still be present');
   });
 
   await test('getXTimeline sorts tweets by tweet_id descending using BigInt precision', async () => {

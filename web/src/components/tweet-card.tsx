@@ -108,7 +108,7 @@ export function TweetCard({ tweet, ownerHandle }: { tweet: XTweet; ownerHandle: 
     return (
       <div className="rounded-xl border" style={{ padding: 10, background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}>
         <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-tertiary)', margin: '0 0 8px 4px' }}>
-          <span>↻</span>{ownerHandle} 转推了
+          <span>↻</span>@{ownerHandle} 转推了
         </div>
         <BaseCard handle={tweet.author_handle} time={tweet.timestamp} text={tweet.text} translated={tweet.translated} url={tweet.url} />
       </div>

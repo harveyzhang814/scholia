@@ -107,7 +107,11 @@ function createApp(options = {}) {
   // List X timelines
   router.get('/x-timelines', async (ctx) => {
     if (!X_DIR) { ctx.body = []; return; }
-    ctx.body = await listXTimelines(X_DIR);
+    try {
+      ctx.body = await listXTimelines(X_DIR);
+    } catch (err) {
+      ctx.status = 500; ctx.body = { error: err.message };
+    }
   });
 
   // Get a single X timeline's full tweet stream
