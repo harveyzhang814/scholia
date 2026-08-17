@@ -32,6 +32,7 @@ if (!cmd || cmd === 'serve') {
   const { app, token } = createApp({
     workDir: config.workDir,
     contentDir: config.contentDir,
+    xDir: config.xDir,
     staticDir,
   });
 
@@ -117,12 +118,12 @@ if (!cmd || cmd === 'serve') {
   openBrowser(url);
 
 } else if (cmd === 'config') {
-  const KEY_MAP = { 'work-dir': 'WORK_DIR', 'content-dir': 'CONTENT_DIR' };
+  const KEY_MAP = { 'work-dir': 'WORK_DIR', 'content-dir': 'CONTENT_DIR', 'x-dir': 'X_DIR' };
   const [subCmd, key, value] = rest;
 
   if (subCmd === 'set') {
     const configKey = KEY_MAP[key];
-    if (!configKey) { console.error(`Unknown key: ${key}\nKnown keys: work-dir, content-dir`); process.exit(1); }
+    if (!configKey) { console.error(`Unknown key: ${key}\nKnown keys: work-dir, content-dir, x-dir`); process.exit(1); }
     writeValue(configKey, value);
     console.log(`${key} = ${value}`);
 
@@ -133,7 +134,7 @@ if (!cmd || cmd === 'serve') {
     console.log(val ?? '(not set)');
 
   } else {
-    console.error(`Usage: scholia config set|get <work-dir|content-dir> [value]`);
+    console.error(`Usage: scholia config set|get <work-dir|content-dir|x-dir> [value]`);
     process.exit(1);
   }
 

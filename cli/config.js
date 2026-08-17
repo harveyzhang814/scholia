@@ -45,9 +45,11 @@ function writeValue(key, value, cfgPath = getConfigPath()) {
 function readConfig(cfgPath = getConfigPath()) {
   const workDirRaw = readValue('WORK_DIR', cfgPath);
   const contentDirRaw = readValue('CONTENT_DIR', cfgPath);
+  const xDirRaw = readValue('X_DIR', cfgPath);
   return {
     workDir: workDirRaw ? expandPath(workDirRaw) : null,
     contentDir: contentDirRaw ? expandPath(contentDirRaw) : null,
+    xDir: xDirRaw ? expandPath(xDirRaw) : null,
   };
 }
 
