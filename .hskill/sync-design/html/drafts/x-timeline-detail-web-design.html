@@ -1,0 +1,395 @@
+<meta charset="utf-8">
+<title>X 时间线详情页（推文流）— 设计稿</title>
+<style>
+  :root {
+    --bg-canvas:     #F9F8F4;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #F1EFE9;
+    --border-subtle: #E5E2DA;
+    --border-strong: #CFCBC0;
+    --text-primary:   #2C2A24;
+    --text-secondary: #67645E;
+    --text-tertiary:  #6E6961;
+    --accent-3:  #EBF1E8;
+    --accent-9:  #5A8A5A;
+    --accent-10: #466F46;
+    --accent-11: #3D5E3D;
+    --accent-12: #243B24;
+    --status-ok:   #4A8A5A;
+    --status-err:  #B05050;
+    --status-busy: #C28A3D;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-canvas:     #1A1A18;
+      --bg-surface:    #232322;
+      --bg-elevated:   #2A2A28;
+      --border-subtle: #2E2E2B;
+      --border-strong: #3D3E3B;
+      --text-primary:   #E8E8E6;
+      --text-secondary: #9A9B98;
+      --text-tertiary:  #868782;
+      --accent-3:  #2A3A2A;
+      --accent-9:  #7DAE7D;
+      --accent-10: #6FA06F;
+      --accent-11: #9BC79B;
+      --accent-12: #C8E0C8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  .page-title { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+  .page-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 24px;
+    line-height: 1.6;
+    max-width: 900px;
+  }
+  .page-sub code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .state-switch { display: flex; gap: 8px; margin-bottom: 28px; }
+  .state-btn {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, color 120ms;
+  }
+  .state-btn:hover { background: var(--bg-elevated); }
+  .state-btn.active {
+    border-color: var(--accent-9);
+    color: var(--accent-10);
+    background: var(--accent-3);
+    font-weight: 500;
+  }
+
+  /* ── 详情页外壳（对应 web/src/routes/x.$handle.tsx，仿 tasks.$id.tsx 的 frame-header 结构，无 tab bar / TOC / 笔记栏） ── */
+  .detail-frame {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-surface);
+  }
+
+  .frame-header {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .back-arrow { color: var(--text-tertiary); font-size: 14px; }
+  .frame-title { font-size: 14px; font-weight: 500; }
+
+  .feed-viewport {
+    height: 640px;
+    overflow: hidden; /* 这个 demo 用静态帧模拟滚动列表，不做真实滚动 */
+    background: var(--bg-canvas);
+  }
+  .feed-col {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 28px 0 40px;
+  }
+
+  /* ── 推文卡片（基础形态，四种 type 共用） ── */
+  .tweet-card {
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 16px 18px;
+  }
+  .tweet-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .tweet-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--accent-3);
+    color: var(--accent-11);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .tweet-handle { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
+  .tweet-time {
+    margin-left: auto;
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+  }
+  .tweet-text {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  /* ── 原文/译文并排：译文次级样式，虚线分隔，不用左边框（左边框留给引用嵌套块，避免视觉混淆） ── */
+  .tweet-translated {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin: 8px 0 0;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border-subtle);
+  }
+  .tweet-foot {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .tweet-link {
+    font-size: 11.5px;
+    color: var(--text-tertiary);
+  }
+
+  /* ── 引用嵌套块（quote 类型：quoted_author/quoted_text/quoted_timestamp） ── */
+  .quote-embed {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-left: 2px solid var(--border-strong);
+    background: var(--bg-elevated);
+    border-radius: 0 8px 8px 0;
+  }
+  .quote-embed .tweet-head { margin-bottom: 4px; }
+  .quote-embed .tweet-avatar { width: 20px; height: 20px; font-size: 9.5px; }
+  .quote-embed .tweet-handle { font-size: 12.5px; }
+  .quote-embed .tweet-text { font-size: 13px; color: var(--text-secondary); }
+
+  /* ── 转推外层框（repost 类型：author_handle 是原推文作者，不是 ownerHandle——
+     用外层浅底框 + 内层白底卡片的"信封"视觉，把归属反转显式画出来） ── */
+  .repost-wrap {
+    border-radius: 12px;
+    padding: 10px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+  }
+  .repost-wrap .tweet-card { background: var(--bg-surface); }
+  .lead-line {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 0 0 6px 4px;
+  }
+  .repost-wrap .lead-line { margin: 0 0 8px 4px; }
+  .lead-icon { font-size: 12px; }
+
+  /* ── 回复上下文（reply 类型：不用卡片外元素，直接是卡片内部、头像行之上的
+     第一行内容——和 quote 的内嵌小卡片同属"卡片内部结构"这一类，
+     只有 repost 的外层框是唯一越出卡片边界的类型） ── */
+  .reply-context {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin: 0 0 8px;
+  }
+
+  .tweet-item + .tweet-item,
+  .tweet-item + .repost-wrap,
+  .repost-wrap + .tweet-item {
+    margin-top: 14px;
+  }
+  .feed-col > * + * { margin-top: 14px; }
+
+  .empty-feed {
+    text-align: center;
+    padding: 64px 0;
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
+
+  .caption {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.7;
+    max-width: 900px;
+  }
+  .caption code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+  .caption strong { color: var(--text-secondary); }
+</style>
+
+<div class="page">
+  <h1 class="page-title">X 时间线详情页 · 推文流（设计稿）</h1>
+  <p class="page-sub">
+    对应实现：<code>web/src/routes/x.$handle.tsx</code>（新文件，不接入 <code>tasks.$id.tsx</code>）+ 新组件 <code>web/src/components/tweet-card.tsx</code>。
+    Header 仿 <code>tasks.$id.tsx</code> 的 <code>frame-header</code> 结构（返回箭头 + 标题），但没有 Tab 栏、TOC、笔记栏——纯只读推文流，按 <code>tweet_id</code> 倒序（最新在前）。
+    推文流按 <strong>640px</strong> 居中窄列排布（区别于文章正文列的阅读宽度，更贴近推文卡片的原生比例），不铺满详情页全宽。
+    四种 <code>type</code> 不用文字标签区分，完全靠卡片结构自证，且只有一种类型允许越出卡片边界：<code>post</code> 是基础卡片；<code>reply</code> 在卡片内部、头像行之上多一行回复对象，不产生任何卡片外元素；<code>quote</code> 同样是卡片内部结构，主卡片里再嵌一层左边框子卡片；只有 <code>repost</code> 因为要同时呈现"谁转推的"和"原作者是谁"两个身份，才需要卡片外的一层浅底外框把两者分开——"卡片内部结构"（reply/quote）和"卡片外部结构"（repost）是两种不同量级的差异，混排在推文流里一眼就能分开，不需要读任何标签。
+  </p>
+
+  <div class="state-switch">
+    <button class="state-btn active" data-state="feed">状态 1 — 推文流（原创/回复/引用/转推混排，结构自证）</button>
+    <button class="state-btn" data-state="empty">状态 2 — 空状态（该 handle 暂无推文）</button>
+  </div>
+
+  <div class="detail-frame">
+    <div class="frame-header">
+      <span class="back-arrow">←</span>
+      <span class="frame-title">@trq212</span>
+    </div>
+
+    <div class="feed-viewport">
+      <!-- 状态 1：连续推文流，不加任何类型文字标签——四种类型完全靠卡片自身结构区分：
+           post 是最简单的基础卡片；reply 在卡片内部头像行之上多一行回复对象，不产生
+           任何卡片外元素；quote 在主卡片内嵌一层左边框子卡片；只有 repost 整个套在
+           一层浅底外框里，是唯一越出卡片边界的类型。四种结构互不相同，混排在一起
+           扫一眼就能分出彼此，不需要读文字。 -->
+      <div class="feed-col" id="panel-feed">
+
+        <!-- post：原创，最基础形态，其余三种 type 都是在这个基础卡片上叠加结构 -->
+        <div class="tweet-item">
+          <div class="tweet-card">
+            <div class="tweet-head">
+              <span class="tweet-avatar">TR</span>
+              <span class="tweet-handle">@trq212</span>
+              <span class="tweet-time">2026-08-11 19:21</span>
+            </div>
+            <p class="tweet-text">There are more details in the help center &amp; we'll share more as we roll this out:</p>
+            <p class="tweet-translated">帮助中心里有更多细节，随着功能推出我们会分享更多信息：</p>
+            <div class="tweet-foot"><span class="tweet-link">在 X 上查看 ↗</span></div>
+          </div>
+        </div>
+
+        <!-- reply：回复对象作为卡片内部头像行之上的第一行内容，不越出卡片边界——
+             和 quote 的内嵌小卡片一样，都是"卡片内部多一层结构"，只有 repost 越出卡片外 -->
+        <div class="tweet-item">
+          <div class="tweet-card">
+            <div class="reply-context"><span class="lead-icon">↩</span>回复 @openai</div>
+            <div class="tweet-head">
+              <span class="tweet-avatar">TR</span>
+              <span class="tweet-handle">@trq212</span>
+              <span class="tweet-time">2026-08-12 09:03</span>
+            </div>
+            <p class="tweet-text">this is exactly the kind of workflow improvement I've been waiting for</p>
+            <p class="tweet-translated">这正是我一直在等的那种工作流改进</p>
+            <div class="tweet-foot"><span class="tweet-link">在 X 上查看 ↗</span></div>
+          </div>
+        </div>
+
+        <!-- quote：主卡片内多套一层左边框子卡片——结构上"卡片里嵌了一张卡片" -->
+        <div class="tweet-item">
+          <div class="tweet-card">
+            <div class="tweet-head">
+              <span class="tweet-avatar">TR</span>
+              <span class="tweet-handle">@trq212</span>
+              <span class="tweet-time">2026-08-13 23:48</span>
+            </div>
+            <p class="tweet-text">everything truly is code</p>
+            <p class="tweet-translated">一切终究都是代码</p>
+            <div class="quote-embed">
+              <div class="tweet-head">
+                <span class="tweet-avatar">MA</span>
+                <span class="tweet-handle">@mannay</span>
+                <span class="tweet-time">2026-08-12 12:50</span>
+              </div>
+              <p class="tweet-text">You can just draw faces with javascript // coding doodles</p>
+            </div>
+            <div class="tweet-foot"><span class="tweet-link">在 X 上查看 ↗</span></div>
+          </div>
+        </div>
+
+        <!-- repost：整张卡片被包在一层浅底外框里——结构上"卡片外面还有一层容器"，
+             和 quote 的"卡片里嵌卡片"正好相反，两种嵌套方向不会认混。
+             author_handle 在这个 type 下是 @lydiahallie（原作者），不是页面主人 @trq212 -->
+        <div class="repost-wrap">
+          <div class="lead-line"><span class="lead-icon">↻</span>@trq212 转推了</div>
+          <div class="tweet-card">
+            <div class="tweet-head">
+              <span class="tweet-avatar">LH</span>
+              <span class="tweet-handle">@lydiahallie</span>
+              <span class="tweet-time">2026-08-14 16:14</span>
+            </div>
+            <p class="tweet-text">Is there anything you wish you could personalize in Claude Code that hooks, permissions, custom subagents, etc. can't get you yet? What would you use it for?</p>
+            <p class="tweet-translated">在 Claude Code 里，有没有什么你希望能自定义、但 hooks、权限设置、自定义 subagent 等现有机制还满足不了的？你会用来做什么？</p>
+            <div class="tweet-foot"><span class="tweet-link">在 X 上查看 ↗</span></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 状态 2：空状态 -->
+      <div class="feed-col" id="panel-empty" style="display:none;">
+        <div class="empty-feed">该 handle 暂无推文</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">
+    <strong>四种类型不设文字标签，靠结构本身区分</strong>：<code>post</code> 是无附加结构的基础卡片；<code>reply</code> 和 <code>quote</code> 都是"卡片内部结构"——回复对象是卡片内头像行之上的一行文字，被引用推文是卡片内嵌的左边框子卡片，两者都不产生任何卡片外元素；<code>repost</code> 是唯一的例外，因为它天然需要同时呈现两个身份（谁转推的 / 原作者是谁），只能用卡片外的浅底外框把两者分开。"卡片内部结构"和"卡片外部结构"是量级不同的两类差异，混排时不会认混。
+  </p>
+  <p class="caption">
+    <strong>归属反转是本稿的核心设计点</strong>：转推（<code>repost</code>）卡片里 <code>author_handle</code> 字段是<strong>被转推的原作者</strong>（示例中的 @lydiahallie），不是页面主人 @trq212 本人——
+    这个信息在数据里完全不显式存在，只能靠归档文件的归属（当前浏览的 handle）推出来，所以外层框顶部保留了一行"@trq212 转推了"的说明文字（不是类型标签，是转发关系本身的必要信息，删掉这行读者就无法知道是谁转发的），内层卡片本身依然是普通白底 <code>.tweet-card</code>。
+    引用（<code>quote</code>）反过来：主卡片的 <code>@trq212</code> 就是发言人本人，被引用的 <code>@mannay</code> 内容降级为卡片内部的左边框嵌套小块，视觉层级上明显次于主卡片。
+  </p>
+  <p class="caption">
+    原文与译文（<code>translated</code>）默认并排显示，译文用次级文字颜色 + 虚线分隔，不用左边框——左边框留给"引用嵌套块"这一种语义，避免同一个视觉元素承担两种不同含义。
+    <code>translated</code> 为 <code>null</code> 时（归档未走完整 skill 流程的边界情况）这段直接不渲染，只剩原文，不显示"暂无翻译"这类占位文案。
+  </p>
+</div>
+
+<script>
+  var stateBtns = document.querySelectorAll('.state-btn');
+  var panels = {
+    feed: document.getElementById('panel-feed'),
+    empty: document.getElementById('panel-empty'),
+  };
+  stateBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      stateBtns.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var target = btn.getAttribute('data-state');
+      Object.keys(panels).forEach(function (key) {
+        panels[key].style.display = key === target ? 'block' : 'none';
+      });
+    });
+  });
+</script>
