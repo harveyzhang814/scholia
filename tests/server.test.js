@@ -404,6 +404,14 @@ async function req(port, method, urlPath, body) {
     assert.equal(r3.body[0].hasUnread, true);
   });
 
+  await test('concurrent POSTs to /api/read-state all succeed and persist (no lost updates)', async () => {
+    const ids = ['tweet-race-1', 'tweet-race-2', 'tweet-race-3', 'tweet-race-4', 'tweet-race-5'];
+    const results = await Promise.all(ids.map((id) => req(port, 'POST', `/api/read-state/${id}`)));
+    for (const r of results) assert.equal(r.status, 204);
+    const r2 = await req(port, 'GET', '/api/read-state');
+    for (const id of ids) assert.ok(r2.body.includes(id), `expected ${id} to be persisted`);
+  });
+
   await test('read-state routes require auth like other routes', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/read-state`);
     assert.equal(res.status, 401);

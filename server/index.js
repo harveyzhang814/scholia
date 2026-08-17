@@ -67,6 +67,21 @@ function createApp(options = {}) {
   const READ_STATE_PATH = options.readStatePath || path.join(os.homedir(), '.config', 'scholia', 'read-state.json');
   const token = options.token || crypto.randomBytes(24).toString('hex');
 
+  // Serializes read-modify-write cycles on READ_STATE_PATH. Concurrent tweets
+  // entering the viewport at once (e.g. after a scroll) fire POSTs together;
+  // without this, their writeJson calls race on the shared .tmp path and
+  // clobber each other's updates.
+  let readStateQueue = Promise.resolve();
+  function updateReadState(mutate) {
+    const result = readStateQueue.then(async () => {
+      const state = await readJson(READ_STATE_PATH, {});
+      mutate(state);
+      await writeJson(READ_STATE_PATH, state);
+    });
+    readStateQueue = result.catch(() => {});
+    return result;
+  }
+
   const app = new Koa();
   const rootRouter = new Router();
   const router = new Router({ prefix: '/api' });
@@ -125,17 +140,13 @@ function createApp(options = {}) {
 
   router.post('/read-state/:id', async (ctx) => {
     const { id } = ctx.params;
-    const state = await readJson(READ_STATE_PATH, {});
-    state[id] = Date.now();
-    await writeJson(READ_STATE_PATH, state);
+    await updateReadState((state) => { state[id] = Date.now(); });
     ctx.status = 204;
   });
 
   router.delete('/read-state/:id', async (ctx) => {
     const { id } = ctx.params;
-    const state = await readJson(READ_STATE_PATH, {});
-    delete state[id];
-    await writeJson(READ_STATE_PATH, state);
+    await updateReadState((state) => { delete state[id]; });
     ctx.status = 204;
   });
 
