@@ -36,4 +36,14 @@ describe('XCard', () => {
     renderCard({ ...base, latestAt: new Date().toISOString() });
     expect(screen.getByText('刚刚')).toBeInTheDocument();
   });
+
+  it('shows an unread dot when hasUnread is true', () => {
+    const { container } = renderCard({ ...base, hasUnread: true });
+    expect(container.querySelector('[aria-label="未读"]')).toBeTruthy();
+  });
+
+  it('shows no unread dot when hasUnread is false or omitted', () => {
+    const { container } = renderCard(base);
+    expect(container.querySelector('[aria-label="未读"]')).toBeNull();
+  });
 });

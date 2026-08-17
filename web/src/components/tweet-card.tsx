@@ -70,50 +70,74 @@ function BaseCard({ handle, time, text, translated, url, extraTop }: {
   );
 }
 
-export function TweetCard({ tweet, ownerHandle }: { tweet: XTweet; ownerHandle: string }) {
-  const type = tweet.type === 'reply' || tweet.type === 'quote' || tweet.type === 'repost' ? tweet.type : 'post';
-
-  if (type === 'reply') {
+function ReadMarker({ unread, onMarkUnread }: { unread?: boolean; onMarkUnread?: () => void }) {
+  if (unread) {
     return (
-      <BaseCard
-        handle={tweet.author_handle}
-        time={tweet.timestamp}
-        text={tweet.text}
-        translated={tweet.translated}
-        url={tweet.url}
-        extraTop={
-          <div className="flex items-center gap-1.5 text-xs mb-2" style={{ color: 'var(--text-tertiary)' }}>
-            <span>↩</span>回复 {tweet.reply_to_handle}
-          </div>
-        }
+      <span
+        aria-label="未读"
+        className="absolute top-3 right-3 w-2 h-2 rounded-full"
+        style={{ background: 'var(--accent-9)' }}
       />
     );
   }
-
-  if (type === 'quote') {
+  if (onMarkUnread) {
     return (
-      <div className="rounded-xl border" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)', padding: '16px 18px' }}>
-        <TweetHead handle={tweet.author_handle} time={tweet.timestamp} />
-        <TweetBody text={tweet.text} translated={tweet.translated} />
-        <div className="mt-2.5 rounded-r-lg" style={{ padding: '10px 12px', borderLeft: '2px solid var(--border-strong)', background: 'var(--bg-elevated)' }}>
-          <TweetHead handle={tweet.quoted_author ?? ''} time={tweet.quoted_timestamp ?? ''} small />
-          <p className="text-[13px]" style={{ color: 'var(--text-secondary)', margin: 0 }}>{tweet.quoted_text}</p>
-        </div>
-        <TweetLink url={tweet.url} />
-      </div>
+      <button
+        type="button"
+        onClick={onMarkUnread}
+        className="absolute top-3 right-3 text-[11px] hover:opacity-70"
+        style={{ color: 'var(--text-tertiary)' }}
+      >
+        标记未读
+      </button>
     );
   }
+  return null;
+}
 
-  if (type === 'repost') {
-    return (
-      <div className="rounded-xl border" style={{ padding: 10, background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}>
-        <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-tertiary)', margin: '0 0 8px 4px' }}>
-          <span>↻</span>@{ownerHandle} 转推了
+export function TweetCard({ tweet, ownerHandle, unread, onMarkUnread }: {
+  tweet: XTweet; ownerHandle: string; unread?: boolean; onMarkUnread?: () => void;
+}) {
+  const type = tweet.type === 'reply' || tweet.type === 'quote' || tweet.type === 'repost' ? tweet.type : 'post';
+
+  const card = type === 'reply' ? (
+    <BaseCard
+      handle={tweet.author_handle}
+      time={tweet.timestamp}
+      text={tweet.text}
+      translated={tweet.translated}
+      url={tweet.url}
+      extraTop={
+        <div className="flex items-center gap-1.5 text-xs mb-2" style={{ color: 'var(--text-tertiary)' }}>
+          <span>↩</span>回复 {tweet.reply_to_handle}
         </div>
-        <BaseCard handle={tweet.author_handle} time={tweet.timestamp} text={tweet.text} translated={tweet.translated} url={tweet.url} />
+      }
+    />
+  ) : type === 'quote' ? (
+    <div className="rounded-xl border" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)', padding: '16px 18px' }}>
+      <TweetHead handle={tweet.author_handle} time={tweet.timestamp} />
+      <TweetBody text={tweet.text} translated={tweet.translated} />
+      <div className="mt-2.5 rounded-r-lg" style={{ padding: '10px 12px', borderLeft: '2px solid var(--border-strong)', background: 'var(--bg-elevated)' }}>
+        <TweetHead handle={tweet.quoted_author ?? ''} time={tweet.quoted_timestamp ?? ''} small />
+        <p className="text-[13px]" style={{ color: 'var(--text-secondary)', margin: 0 }}>{tweet.quoted_text}</p>
       </div>
-    );
-  }
+      <TweetLink url={tweet.url} />
+    </div>
+  ) : type === 'repost' ? (
+    <div className="rounded-xl border" style={{ padding: 10, background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}>
+      <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-tertiary)', margin: '0 0 8px 4px' }}>
+        <span>↻</span>@{ownerHandle} 转推了
+      </div>
+      <BaseCard handle={tweet.author_handle} time={tweet.timestamp} text={tweet.text} translated={tweet.translated} url={tweet.url} />
+    </div>
+  ) : (
+    <BaseCard handle={tweet.author_handle} time={tweet.timestamp} text={tweet.text} translated={tweet.translated} url={tweet.url} />
+  );
 
-  return <BaseCard handle={tweet.author_handle} time={tweet.timestamp} text={tweet.text} translated={tweet.translated} url={tweet.url} />;
+  return (
+    <div className="relative">
+      <ReadMarker unread={unread} onMarkUnread={onMarkUnread} />
+      {card}
+    </div>
+  );
 }

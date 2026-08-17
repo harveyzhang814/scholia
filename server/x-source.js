@@ -25,7 +25,7 @@ async function readHandleFile(xDir, handle) {
   } catch { return null; }
 }
 
-async function listXTimelines(xDir) {
+async function listXTimelines(xDir, readIds = new Set()) {
   let entries;
   try { entries = await fs.promises.readdir(xDir, { withFileTypes: true }); }
   catch { return []; }
@@ -43,6 +43,7 @@ async function listXTimelines(xDir) {
         tweetCount: tweets.length,
         latestAt: latest ? latest.timestamp : undefined,
         latestPreview: latest ? (latest.translated ?? latest.text) : undefined,
+        hasUnread: tweets.some((t) => !readIds.has(`tweet-${t.tweet_id}`)),
       });
     } catch {
       continue; // a tweet with a missing/invalid tweet_id shouldn't take down the whole list

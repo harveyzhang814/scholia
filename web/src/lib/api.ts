@@ -197,6 +197,7 @@ export interface XTimelineSummary {
   tweetCount: number;
   latestAt?: string;
   latestPreview?: string;
+  hasUnread?: boolean;
 }
 
 export interface XTimeline {
@@ -266,6 +267,10 @@ export const api = {
 
   listXTimelines: () => request<XTimelineSummary[]>('/api/x-timelines'),
   getXTimeline: (handle: string) => request<XTimeline>(`/api/x-timelines/${handle}`),
+
+  listReadIds: () => request<string[]>('/api/read-state'),
+  markRead: (id: string) => request<void>(`/api/read-state/${encodeURIComponent(id)}`, { method: 'POST' }),
+  markUnread: (id: string) => request<void>(`/api/read-state/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   token: () => TOKEN
 };

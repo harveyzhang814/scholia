@@ -29,11 +29,13 @@ if (!cmd || cmd === 'serve') {
 
   const config = readConfig();
   const staticDir = path.join(__dirname, '..', 'web', 'dist');
+  const readStatePath = path.join(path.dirname(getConfigPath()), 'read-state.json');
   const { app, token } = createApp({
     workDir: config.workDir,
     contentDir: config.contentDir,
     xDir: config.xDir,
     staticDir,
+    readStatePath,
   });
 
   const server = http.createServer(app.callback());

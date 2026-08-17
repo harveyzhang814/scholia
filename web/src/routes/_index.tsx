@@ -10,6 +10,7 @@ import { SortSelect } from '@/components/sort-select';
 import { api } from '@/lib/api';
 import { sortTasks, sortArticles, sortXTimelines, type SortField } from '@/lib/sort';
 import { useUiStore } from '@/stores/ui-store';
+import { useReadIds } from '@/hooks/use-read-state';
 
 const VIDEO_SORT_FIELDS: { value: SortField; label: string }[] = [
   { value: 'date', label: '日期' },
@@ -41,6 +42,7 @@ export default function Home() {
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { data: articles = [], isLoading: articlesLoading } = useArticles();
   const { data: xTimelines = [], isLoading: xLoading } = useXTimelines();
+  const { data: readIds } = useReadIds();
   const [searchQuery, setSearchQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -150,7 +152,7 @@ export default function Home() {
           <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>无匹配结果</div>
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 480px))' }}>
-            {sortedTasks.map((t) => <TaskCard key={t.id} task={t} />)}
+            {sortedTasks.map((t) => <TaskCard key={t.id} task={t} unread={!readIds?.has(t.id)} />)}
           </div>
         )
       ) : tab === 'article' ? (
@@ -163,7 +165,7 @@ export default function Home() {
           <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>无匹配结果</div>
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 480px))' }}>
-            {sortedArticles.map((a) => <ArticleCard key={a.id} article={a} />)}
+            {sortedArticles.map((a) => <ArticleCard key={a.id} article={a} unread={!readIds?.has(a.id)} />)}
           </div>
         )
       ) : (

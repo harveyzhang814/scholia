@@ -88,8 +88,9 @@ async function req(port, method, urlPath, body) {
     },
   ]));
 
+  const readStatePath = path.join(tmp, 'read-state.json');
   const { createApp } = require('../server');
-  const { app, token: _t } = createApp({ workDir, contentDir, xDir, token: TOKEN });
+  const { app, token: _t } = createApp({ workDir, contentDir, xDir, token: TOKEN, readStatePath });
   const server = http.createServer(app.callback());
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
@@ -365,6 +366,46 @@ async function req(port, method, urlPath, body) {
 
   await test('GET /api/x-timelines requires auth like other routes', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/x-timelines`);
+    assert.equal(res.status, 401);
+  });
+
+  // Read state
+  await test('GET /api/read-state starts empty', async () => {
+    const r = await req(port, 'GET', '/api/read-state');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body, []);
+  });
+
+  await test('GET /api/x-timelines reports hasUnread before anything is marked read', async () => {
+    const r = await req(port, 'GET', '/api/x-timelines');
+    assert.equal(r.body[0].hasUnread, true);
+  });
+
+  await test('POST /api/read-state/:id marks an id read', async () => {
+    const r = await req(port, 'POST', `/api/read-state/${encodeURIComponent(taskId)}`);
+    assert.equal(r.status, 204);
+    const r2 = await req(port, 'GET', '/api/read-state');
+    assert.ok(r2.body.includes(taskId));
+  });
+
+  await test('marking every tweet in a handle read flips hasUnread to false', async () => {
+    await req(port, 'POST', `/api/read-state/${encodeURIComponent('tweet-2087258093499695106')}`);
+    await req(port, 'POST', `/api/read-state/${encodeURIComponent('tweet-2088298127346536578')}`);
+    const r = await req(port, 'GET', '/api/x-timelines');
+    assert.equal(r.body[0].hasUnread, false);
+  });
+
+  await test('DELETE /api/read-state/:id unmarks an id, flipping hasUnread back to true', async () => {
+    const r = await req(port, 'DELETE', `/api/read-state/${encodeURIComponent('tweet-2087258093499695106')}`);
+    assert.equal(r.status, 204);
+    const r2 = await req(port, 'GET', '/api/read-state');
+    assert.ok(!r2.body.includes('tweet-2087258093499695106'));
+    const r3 = await req(port, 'GET', '/api/x-timelines');
+    assert.equal(r3.body[0].hasUnread, true);
+  });
+
+  await test('read-state routes require auth like other routes', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/read-state`);
     assert.equal(res.status, 401);
   });
 

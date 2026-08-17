@@ -7,13 +7,16 @@ function initials(handle: string): string {
 }
 
 export function XCard({ timeline }: { timeline: XTimelineSummary }) {
-  const { handle, tweetCount, latestAt, latestPreview } = timeline;
+  const { handle, tweetCount, latestAt, latestPreview, hasUnread } = timeline;
   return (
     <Link
       to={`/x/${handle}`}
-      className="block rounded-xl border p-4 hover:opacity-80 transition-opacity"
+      className="relative block rounded-xl border p-4 hover:opacity-80 transition-opacity"
       style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}
     >
+      {hasUnread && (
+        <span aria-label="未读" className="absolute top-3 right-3 w-2 h-2 rounded-full" style={{ background: 'var(--accent-9)' }} />
+      )}
       <div className="flex items-center gap-2 mb-2">
         <span
           className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold flex-shrink-0"

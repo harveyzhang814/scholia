@@ -5,7 +5,7 @@ import { Pill } from './pill';
 
 const MAX_VISIBLE_TAGS = 3;
 
-export function ArticleCard({ article }: { article: Article }) {
+export function ArticleCard({ article, unread }: { article: Article; unread?: boolean }) {
   const visibleTags = article.tags?.slice(0, MAX_VISIBLE_TAGS) ?? [];
   const hiddenTags = article.tags?.slice(MAX_VISIBLE_TAGS) ?? [];
   const hasPillRow = Boolean(article.author) || visibleTags.length > 0;
@@ -17,9 +17,12 @@ export function ArticleCard({ article }: { article: Article }) {
   return (
     <Link
       to={`/tasks/${article.id}`}
-      className="block rounded-xl border p-4 hover:opacity-80 transition-opacity"
+      className="relative block rounded-xl border p-4 hover:opacity-80 transition-opacity"
       style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)' }}
     >
+      {unread && (
+        <span aria-label="未读" className="absolute top-3 right-3 w-2 h-2 rounded-full" style={{ background: 'var(--accent-9)' }} />
+      )}
       {hasPillRow && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {article.author && <Pill>{article.author}</Pill>}
