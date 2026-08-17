@@ -148,9 +148,13 @@ export function useXTimeline(handle: string | undefined) // useQuery(['x-timelin
 - `web/src/components/x-card.tsx`（新文件，列表卡片，仿 `article-card.tsx` 的结构）：显示 handle、`latestPreview`（`line-clamp-2`）、`tweetCount`、相对时间（复用 `formatRelativeTime`）。`Link to={`/x/${handle}`}`。
 - `web/src/components/tweet-card.tsx`（新文件）：
   - props：`tweet: XTweet`、`ownerHandle: string`。
-  - 按 `type` 分支渲染（语义见上一节"数据语义"表格）；未知 `type` 值兜底为按 `post` 处理（保守降级，不隐藏内容）。
-  - 原文 `text` 与 `translated` 并排显示（样式区分，如原文正常字重、译文次级颜色），`translated` 为 `null` 时只显示原文。
-  - `quote`/`repost` 的内层引用块渲染为视觉上区分的嵌套卡片（如左侧竖线 + 缩进，不单独发请求，数据已经在同一个 tweet 对象里）。
+  - **四种 type 不设文字标签/徽标区分，完全靠卡片结构本身自证**（已通过设计稿 `.hskill/sync-design/html/drafts/x-timeline-detail-web-design.html` 验证）：
+    - `post`：无附加结构的基础卡片，其余三种都是在它上面叠加出来的。
+    - `reply`：卡片**内部**、头像行之上新增一行"回复 @xxx"（`reply_to_handle`），不产生任何卡片外元素——和 `quote` 一样属于"卡片内部结构"。
+    - `quote`：主卡片内嵌一层视觉上次级的子卡片（左侧色块边框 + 次级背景），展示 `quoted_author`/`quoted_text`/`quoted_timestamp`，同样不越出卡片边界。
+    - `repost`：**唯一越出卡片边界的类型**——整张卡片外面包一层浅底外框，外框顶部一行说明文字"`{ownerHandle}` 转推了"，内层是普通卡片、展示 `author_handle`（原作者，不是 `ownerHandle`）的内容。这行说明文字不是类型标签，是转发关系本身的必要信息（归档数据里推不出"谁转的"，删掉就无法还原）。
+    - 未知 `type` 值兜底为按 `post` 处理（保守降级，不隐藏内容）。
+  - 原文 `text` 与 `translated` 并排显示（原文正常字重、译文次级颜色 + 顶部虚线分隔，不用左边框——左边框留给 `quote` 的嵌套块，避免同一视觉元素承担两种语义），`translated` 为 `null` 时只显示原文。
   - `url` 渲染为外链（新标签页打开 x.com 原帖），不做站内跳转。
 
 **主页 tab 导航（`web/src/routes/_index.tsx`）**：`nav` 数组从两项扩展为三项，新增 `{ to: '/x', label: 'X' }`；空状态文案新增"暂无 X 时间线 / 配置数据目录：`scholia config set x-dir ~/.hskill/sync-xtimeline/tweets`"（此处提示命令里出现 sync-xtimeline 的默认路径纯粹是给用户的示例文案，不代表代码里有该路径的默认值假设）。
