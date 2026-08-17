@@ -71,8 +71,25 @@ async function req(port, method, urlPath, body) {
   fs.writeFileSync(path.join(contentDir, 'hash1', 'Image', 'pic.png'), 'fake-png-bytes');
   fs.writeFileSync(path.join(tmp, 'outside.png'), 'outside-bytes');
 
+  const xDir = path.join(tmp, 'tweets');
+  fs.mkdirSync(xDir, { recursive: true });
+  fs.writeFileSync(path.join(xDir, 'trq212.json'), JSON.stringify([
+    {
+      tweet_id: '2087258093499695106', url: 'https://x.com/trq212/status/2087258093499695106',
+      text: 'oldest post', timestamp: '2026-08-11T19:21:23.000Z', author_handle: '@trq212',
+      type: 'post', reply_to_handle: null, quoted_author: null, quoted_text: null,
+      quoted_timestamp: null, translated: '最旧的一条',
+    },
+    {
+      tweet_id: '2088298127346536578', url: 'https://x.com/lydiahallie/status/2088298127346536578',
+      text: 'newest repost content', timestamp: '2026-08-14T16:14:06.000Z', author_handle: '@lydiahallie',
+      type: 'repost', reply_to_handle: null, quoted_author: null, quoted_text: null,
+      quoted_timestamp: null, translated: '最新的转推内容',
+    },
+  ]));
+
   const { createApp } = require('../server');
-  const { app, token: _t } = createApp({ workDir, contentDir, token: TOKEN });
+  const { app, token: _t } = createApp({ workDir, contentDir, xDir, token: TOKEN });
   const server = http.createServer(app.callback());
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
@@ -317,6 +334,37 @@ async function req(port, method, urlPath, body) {
 
   await test('401 without token', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/tasks`);
+    assert.equal(res.status, 401);
+  });
+
+  await test('GET /api/x-timelines returns a summary per handle', async () => {
+    const r = await req(port, 'GET', '/api/x-timelines');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.length, 1);
+    assert.equal(r.body[0].handle, 'trq212');
+    assert.equal(r.body[0].tweetCount, 2);
+    assert.equal(r.body[0].latestAt, '2026-08-14T16:14:06.000Z');
+  });
+
+  await test('GET /api/x-timelines/:handle returns tweets sorted newest-first', async () => {
+    const r = await req(port, 'GET', '/api/x-timelines/trq212');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.handle, 'trq212');
+    assert.deepEqual(r.body.tweets.map((t) => t.tweet_id), ['2088298127346536578', '2087258093499695106']);
+  });
+
+  await test('GET /api/x-timelines/:handle 404s for an unknown handle', async () => {
+    const r = await req(port, 'GET', '/api/x-timelines/nobody');
+    assert.equal(r.status, 404);
+  });
+
+  await test('GET /api/x-timelines/:handle 404s for a handle with path separators', async () => {
+    const r = await req(port, 'GET', `/api/x-timelines/${encodeURIComponent('../trq212')}`);
+    assert.equal(r.status, 404);
+  });
+
+  await test('GET /api/x-timelines requires auth like other routes', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/x-timelines`);
     assert.equal(res.status, 401);
   });
 
