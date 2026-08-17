@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const { getVideoDirs, getArticleAnnotationDirs } = require('./paths');
 const { listVideos, getVideoTask, getVideoMediaInfo, getVideoSubtitles, getVideoContent } = require('./video-source');
 const { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent, resolveArticleFile } = require('./article-source');
+const { listXTimelines, getXTimeline } = require('./x-source');
 const { createStaticServe } = require('./static-serve');
 
 const ASSET_MIME = {
@@ -61,6 +62,7 @@ async function countAnnotations(paths) {
 function createApp(options = {}) {
   const WORK_DIR = options.workDir || null;
   const CONTENT_DIR = options.contentDir || null;
+  const X_DIR = options.xDir || null;
   const token = options.token || crypto.randomBytes(24).toString('hex');
 
   const app = new Koa();
@@ -100,6 +102,25 @@ function createApp(options = {}) {
       }));
     }
     catch (err) { ctx.status = 500; ctx.body = { error: err.message }; }
+  });
+
+  // List X timelines
+  router.get('/x-timelines', async (ctx) => {
+    if (!X_DIR) { ctx.body = []; return; }
+    try {
+      ctx.body = await listXTimelines(X_DIR);
+    } catch (err) {
+      ctx.status = 500; ctx.body = { error: err.message };
+    }
+  });
+
+  // Get a single X timeline's full tweet stream
+  router.get('/x-timelines/:handle', async (ctx) => {
+    const { handle } = ctx.params;
+    if (!X_DIR) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    const timeline = await getXTimeline(handle, X_DIR);
+    if (!timeline) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    ctx.body = timeline;
   });
 
   // Get task (video or article)

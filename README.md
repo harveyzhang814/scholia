@@ -31,6 +31,9 @@ scholia config set work-dir ~/vdl-work
 # 配置文章目录（Obsidian vault 或任意 Markdown 目录）
 scholia config set content-dir ~/notes/articles
 
+# 配置 X 时间线目录（sync-xtimeline 归档的按 handle 分文件 JSON）
+scholia config set x-dir ~/.hskill/sync-xtimeline/tweets
+
 # 启动，浏览器自动打开
 scholia serve --open
 ```
@@ -109,8 +112,10 @@ scholia stop
 ```bash
 scholia config set work-dir <path>      # 设置视频目录
 scholia config set content-dir <path>   # 设置文章目录
+scholia config set x-dir <path>         # 设置 X 时间线目录
 scholia config get work-dir             # 查看当前值
 scholia config get content-dir
+scholia config get x-dir
 ```
 
 支持的配置键：
@@ -119,10 +124,11 @@ scholia config get content-dir
 |----|------|
 | `work-dir` | VDL work 目录路径（包含各 taskId 子目录） |
 | `content-dir` | Markdown 文章目录路径 |
+| `x-dir` | X 时间线归档目录路径（按 handle 分文件的 JSON，如 sync-xtimeline 产出） |
 
 ## 内容协议
 
-Scholia 消费两种内容格式，不负责生产内容。
+Scholia 消费三种内容格式，不负责生产内容。
 
 ### 视频 — VDL 格式
 
@@ -195,6 +201,17 @@ Scholia 只在这个目录里创建/读写 `highlights.json`、`notes.json` 这�
 - slug 直接用 `<hash>` 目录名，不拼接文件路径。
 - 文章正文 frontmatter 缺 `title`/日期时，回退读 `meta.json` 的 `title`/`fetched_at`。
 - 注解按上面同样的规则，落在实际被选中的那个 `.md` 文件同级（例如 `<hash>/Translation/<标题>/{highlights.json,notes.json}`）。
+
+### X 时间线 — sync-xtimeline 归档格式
+
+只读消费，不支持高亮/笔记。数据来自外部工具（如 `sync-xtimeline` skill）按 handle 分文件写入的归档：
+
+```
+<x-dir>/
+  <handle>.json   # 该 handle 的全部推文，JSON 数组
+```
+
+每条推文固定 11 个字段（`tweet_id`/`url`/`text`/`timestamp`/`author_handle`/`type`/`reply_to_handle`/`quoted_author`/`quoted_text`/`quoted_timestamp`/`translated`），Scholia 按 `type`（`post`/`repost`/`quote`/`reply`）渲染不同的卡片结构，按 `tweet_id` 倒序展示（最新在前）。Scholia 不写入这个目录，也不做归档去重/修复。
 
 ## 架构
 

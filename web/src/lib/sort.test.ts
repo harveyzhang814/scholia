@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { compareBy, sortTasks, sortArticles } from './sort';
-import type { Task } from './api';
-import type { Article } from './api';
+import { compareBy, sortTasks, sortArticles, sortXTimelines } from './sort';
+import type { Task, Article, XTimelineSummary } from './api';
 
 describe('compareBy', () => {
   it('compares numbers ascending and descending', () => {
@@ -121,5 +120,33 @@ describe('sortArticles', () => {
       { ...baseArticle, id: 'b', title: 'Apple' },
     ];
     expect(sortArticles(articles, { field: 'title', direction: 'asc' }).map((a) => a.id)).toEqual(['b', 'a']);
+  });
+});
+
+const baseXTimeline: XTimelineSummary = { handle: 'trq212', tweetCount: 20 };
+
+describe('sortXTimelines', () => {
+  it('sorts by date descending using latestAt', () => {
+    const timelines: XTimelineSummary[] = [
+      { ...baseXTimeline, handle: 'a', latestAt: '2026-08-01T00:00:00.000Z' },
+      { ...baseXTimeline, handle: 'b', latestAt: '2026-08-14T00:00:00.000Z' },
+    ];
+    expect(sortXTimelines(timelines, { field: 'date', direction: 'desc' }).map((t) => t.handle)).toEqual(['b', 'a']);
+  });
+
+  it('sorts handles missing latestAt to the end', () => {
+    const timelines: XTimelineSummary[] = [
+      { ...baseXTimeline, handle: 'a', latestAt: '2026-08-01T00:00:00.000Z' },
+      { ...baseXTimeline, handle: 'b' },
+    ];
+    expect(sortXTimelines(timelines, { field: 'date', direction: 'desc' }).map((t) => t.handle)).toEqual(['a', 'b']);
+  });
+
+  it('sorts by handle name (reusing the title field)', () => {
+    const timelines: XTimelineSummary[] = [
+      { ...baseXTimeline, handle: 'zebra' },
+      { ...baseXTimeline, handle: 'apple' },
+    ];
+    expect(sortXTimelines(timelines, { field: 'title', direction: 'asc' }).map((t) => t.handle)).toEqual(['apple', 'zebra']);
   });
 });
