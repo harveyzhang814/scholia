@@ -83,6 +83,25 @@ Scholia started (pid <pid>, port <port>). Logs: ~/.config/scholia/scholia.log
 
 用 `scholia stop` 停止。
 
+### `scholia restart`
+
+停止正在运行的实例（若有）后再重新在后台启动，等价于 `scholia stop` + `scholia start`。常用于修改 `config` 后让新配置生效。
+
+```
+scholia restart [--port <N>] [--open]
+```
+
+### `scholia status`
+
+查看当前是否有实例在运行。
+
+```
+scholia status
+```
+
+- 未运行：打印 `Scholia is not running.`
+- 已运行：打印 `Scholia is running (pid <pid>, port <port>): http://localhost:<port>?token=<token>`
+
 ### `scholia web`
 
 打开已在运行的 scholia 实例的浏览器页面（不带 `--open` 启动、或过后想再打开一次都可以用）。
@@ -116,6 +135,7 @@ scholia config set x-dir <path>         # 设置 X 时间线目录
 scholia config get work-dir             # 查看当前值
 scholia config get content-dir
 scholia config get x-dir
+scholia config list                     # 一次性列出所有配置项
 ```
 
 支持的配置键：
@@ -125,6 +145,13 @@ scholia config get x-dir
 | `work-dir` | VDL work 目录路径（包含各 taskId 子目录） |
 | `content-dir` | Markdown 文章目录路径 |
 | `x-dir` | X 时间线归档目录路径（按 handle 分文件的 JSON，如 sync-xtimeline 产出） |
+
+### `scholia --version` / `scholia --help`
+
+```
+scholia --version   # 或 -v，打印当前版本号
+scholia --help      # 或 -h，打印命令列表
+```
 
 ## 内容协议
 
