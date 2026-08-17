@@ -24,12 +24,21 @@ function Avatar({ handle, small }: { handle: string; small?: boolean }) {
   );
 }
 
-function TweetHead({ handle, time, small }: { handle: string; time: string; small?: boolean }) {
+function TweetHead({ handle, time, small, unread, onMarkUnread }: {
+  handle: string; time: string; small?: boolean; unread?: boolean; onMarkUnread?: () => void;
+}) {
   return (
     <div className="flex items-center gap-2 mb-2">
       <Avatar handle={handle} small={small} />
       <span className={small ? 'text-[12.5px] font-semibold' : 'text-[13.5px] font-semibold'} style={{ color: 'var(--text-primary)' }}>{handle}</span>
       <span className="ml-auto text-[11.5px] flex-shrink-0" style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>{formatTweetTime(time)}</span>
+      {unread ? (
+        <span aria-label="未读" className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--accent-9)' }} />
+      ) : onMarkUnread ? (
+        <button type="button" onClick={onMarkUnread} className="text-[11px] flex-shrink-0 hover:opacity-70" style={{ color: 'var(--text-tertiary)' }}>
+          标记未读
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -57,42 +66,18 @@ function TweetLink({ url }: { url: string }) {
   );
 }
 
-function BaseCard({ handle, time, text, translated, url, extraTop }: {
+function BaseCard({ handle, time, text, translated, url, extraTop, unread, onMarkUnread }: {
   handle: string; time: string; text: string; translated: string | null; url: string; extraTop?: ReactNode;
+  unread?: boolean; onMarkUnread?: () => void;
 }) {
   return (
     <div className="rounded-xl border" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)', padding: '16px 18px' }}>
       {extraTop}
-      <TweetHead handle={handle} time={time} />
+      <TweetHead handle={handle} time={time} unread={unread} onMarkUnread={onMarkUnread} />
       <TweetBody text={text} translated={translated} />
       <TweetLink url={url} />
     </div>
   );
-}
-
-function ReadMarker({ unread, onMarkUnread }: { unread?: boolean; onMarkUnread?: () => void }) {
-  if (unread) {
-    return (
-      <span
-        aria-label="未读"
-        className="absolute top-3 right-3 w-2 h-2 rounded-full"
-        style={{ background: 'var(--accent-9)' }}
-      />
-    );
-  }
-  if (onMarkUnread) {
-    return (
-      <button
-        type="button"
-        onClick={onMarkUnread}
-        className="absolute top-3 right-3 text-[11px] hover:opacity-70"
-        style={{ color: 'var(--text-tertiary)' }}
-      >
-        标记未读
-      </button>
-    );
-  }
-  return null;
 }
 
 export function TweetCard({ tweet, ownerHandle, unread, onMarkUnread }: {
@@ -100,44 +85,51 @@ export function TweetCard({ tweet, ownerHandle, unread, onMarkUnread }: {
 }) {
   const type = tweet.type === 'reply' || tweet.type === 'quote' || tweet.type === 'repost' ? tweet.type : 'post';
 
-  const card = type === 'reply' ? (
-    <BaseCard
-      handle={tweet.author_handle}
-      time={tweet.timestamp}
-      text={tweet.text}
-      translated={tweet.translated}
-      url={tweet.url}
-      extraTop={
-        <div className="flex items-center gap-1.5 text-xs mb-2" style={{ color: 'var(--text-tertiary)' }}>
-          <span>↩</span>回复 {tweet.reply_to_handle}
+  if (type === 'reply') {
+    return (
+      <BaseCard
+        handle={tweet.author_handle}
+        time={tweet.timestamp}
+        text={tweet.text}
+        translated={tweet.translated}
+        url={tweet.url}
+        unread={unread}
+        onMarkUnread={onMarkUnread}
+        extraTop={
+          <div className="flex items-center gap-1.5 text-xs mb-2" style={{ color: 'var(--text-tertiary)' }}>
+            <span>↩</span>回复 {tweet.reply_to_handle}
+          </div>
+        }
+      />
+    );
+  }
+
+  if (type === 'quote') {
+    return (
+      <div className="rounded-xl border" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)', padding: '16px 18px' }}>
+        <TweetHead handle={tweet.author_handle} time={tweet.timestamp} unread={unread} onMarkUnread={onMarkUnread} />
+        <TweetBody text={tweet.text} translated={tweet.translated} />
+        <div className="mt-2.5 rounded-r-lg" style={{ padding: '10px 12px', borderLeft: '2px solid var(--border-strong)', background: 'var(--bg-elevated)' }}>
+          <TweetHead handle={tweet.quoted_author ?? ''} time={tweet.quoted_timestamp ?? ''} small />
+          <p className="text-[13px]" style={{ color: 'var(--text-secondary)', margin: 0 }}>{tweet.quoted_text}</p>
         </div>
-      }
-    />
-  ) : type === 'quote' ? (
-    <div className="rounded-xl border" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-surface)', padding: '16px 18px' }}>
-      <TweetHead handle={tweet.author_handle} time={tweet.timestamp} />
-      <TweetBody text={tweet.text} translated={tweet.translated} />
-      <div className="mt-2.5 rounded-r-lg" style={{ padding: '10px 12px', borderLeft: '2px solid var(--border-strong)', background: 'var(--bg-elevated)' }}>
-        <TweetHead handle={tweet.quoted_author ?? ''} time={tweet.quoted_timestamp ?? ''} small />
-        <p className="text-[13px]" style={{ color: 'var(--text-secondary)', margin: 0 }}>{tweet.quoted_text}</p>
+        <TweetLink url={tweet.url} />
       </div>
-      <TweetLink url={tweet.url} />
-    </div>
-  ) : type === 'repost' ? (
-    <div className="rounded-xl border" style={{ padding: 10, background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}>
-      <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-tertiary)', margin: '0 0 8px 4px' }}>
-        <span>↻</span>@{ownerHandle} 转推了
+    );
+  }
+
+  if (type === 'repost') {
+    return (
+      <div className="rounded-xl border" style={{ padding: 10, background: 'var(--bg-elevated)', borderColor: 'var(--border-subtle)' }}>
+        <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-tertiary)', margin: '0 0 8px 4px' }}>
+          <span>↻</span>@{ownerHandle} 转推了
+        </div>
+        <BaseCard handle={tweet.author_handle} time={tweet.timestamp} text={tweet.text} translated={tweet.translated} url={tweet.url} unread={unread} onMarkUnread={onMarkUnread} />
       </div>
-      <BaseCard handle={tweet.author_handle} time={tweet.timestamp} text={tweet.text} translated={tweet.translated} url={tweet.url} />
-    </div>
-  ) : (
-    <BaseCard handle={tweet.author_handle} time={tweet.timestamp} text={tweet.text} translated={tweet.translated} url={tweet.url} />
-  );
+    );
+  }
 
   return (
-    <div className="relative">
-      <ReadMarker unread={unread} onMarkUnread={onMarkUnread} />
-      {card}
-    </div>
+    <BaseCard handle={tweet.author_handle} time={tweet.timestamp} text={tweet.text} translated={tweet.translated} url={tweet.url} unread={unread} onMarkUnread={onMarkUnread} />
   );
 }
