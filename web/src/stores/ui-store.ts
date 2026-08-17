@@ -47,6 +47,8 @@ interface UiState {
   setVideoSort: (sort: SortState) => void;
   articleSort: SortState;
   setArticleSort: (sort: SortState) => void;
+  xSort: SortState;
+  setXSort: (sort: SortState) => void;
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
@@ -78,5 +80,10 @@ export const useUiStore = create<UiState>((set, get) => ({
   setArticleSort: (articleSort) => {
     localStorage.setItem('home-sort-article', JSON.stringify(articleSort));
     set({ articleSort });
+  },
+  xSort: readSortState('home-sort-x', ['date', 'title']),
+  setXSort: (xSort) => {
+    localStorage.setItem('home-sort-x', JSON.stringify(xSort));
+    set({ xSort });
   },
 }));
