@@ -1,4 +1,4 @@
-import type { Task, Article } from './api';
+import type { Task, Article, XTimelineSummary } from './api';
 
 export type SortField = 'date' | 'title' | 'author';
 export type SortDirection = 'asc' | 'desc';
@@ -59,4 +59,13 @@ function getArticleSortValue(field: SortField, article: Article): string | numbe
 
 export function sortArticles(articles: Article[], sort: SortState): Article[] {
   return [...articles].sort((a, b) => compareBy(a, b, (item) => getArticleSortValue(sort.field, item), sort.direction));
+}
+
+function getXTimelineSortValue(field: SortField, timeline: XTimelineSummary): string | number | undefined {
+  if (field === 'date') return timeline.latestAt ? Date.parse(timeline.latestAt) : undefined;
+  return timeline.handle;
+}
+
+export function sortXTimelines(timelines: XTimelineSummary[], sort: SortState): XTimelineSummary[] {
+  return [...timelines].sort((a, b) => compareBy(a, b, (item) => getXTimelineSortValue(sort.field, item), sort.direction));
 }

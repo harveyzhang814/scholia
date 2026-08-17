@@ -26,6 +26,7 @@ scholia serve --open
 npm run release:local        # npm pack + global install + cleanup
 scholia config set work-dir ~/vdl-work
 scholia config get work-dir
+scholia config set x-dir ~/.hskill/sync-xtimeline/tweets
 ```
 
 Config persists to `~/.config/scholia/settings.conf`.
@@ -50,6 +51,7 @@ This is a **local-first annotation tool** with three layers:
 - **Videos** — VDL format: `<workDir>/<taskId>/{meta.json, article.md, subtitles.json, media/video.mp4}`. Scholia writes `highlights.json` and `notes.json` alongside.
 - **Articles** — Any Markdown directory (`contentDir`). Slugs derived from relative path (`2024/react-tips.md` → `article-2024-react-tips`). Annotations are co-located with the source file: a same-named sibling directory inside `contentDir` (`2024/react-tips/{highlights.json,notes.json}`). Scholia only ever creates/reads/writes those two file names inside that directory — everything else there (e.g. an existing Obsidian attachment folder of the same name) is left untouched.
 - **Bilingual reading entries** — a `contentDir` subdirectory containing `meta.json` (e.g. written by the `extract-url` skill) is treated as one article, not walked as plain markdown: `<hash>/{meta.json, Origin/*.md, Translation/*.md, Image/}`. Only `Translation/*.md` is exposed, falling back to `Origin/*.md` if no translation exists yet — `Origin` is never listed alongside it. The slug is the hash dirname itself (not the nested file path). Title/date fall back to `meta.json`'s `title`/`fetched_at` when the article's own frontmatter omits them. See `findArticleEntries` / `resolveTitleAndDate` in `server/article-source.js`.
+- **X timelines** — Read-only, `<xDir>/<handle>.json` (per-handle archive from an external tool, e.g. sync-xtimeline). Each entry is one of 11 fixed fields (`tweet_id`/`url`/`text`/`timestamp`/`author_handle`/`type`/`reply_to_handle`/`quoted_author`/`quoted_text`/`quoted_timestamp`/`translated`); `type` is `post`/`repost`/`quote`/`reply`. Sorted by `tweet_id` descending (BigInt comparison — `tweet_id` exceeds `Number.MAX_SAFE_INTEGER`). No annotations (no highlights/notes), fully decoupled from the `isArticleId`/`/api/tasks/:taskId` dispatch used by video/article. See `server/x-source.js`.
 
 ### Key invariants
 - Article task IDs are prefixed `article-` (`isArticleId` in `server/article-source.js` is the discriminator used everywhere).

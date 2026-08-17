@@ -151,3 +151,24 @@ describe('ui-store articleSort', () => {
     expect(useUiStore.getState().videoSort).toEqual({ field: 'date', direction: 'desc' });
   });
 });
+
+describe('ui-store xSort', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useUiStore.setState({
+      videoSort: { field: 'date', direction: 'desc' },
+      xSort: { field: 'date', direction: 'desc' }
+    });
+  });
+
+  it('defaults to date descending', () => {
+    expect(useUiStore.getState().xSort).toEqual({ field: 'date', direction: 'desc' });
+  });
+
+  it('setXSort updates state and persists independently of videoSort', () => {
+    useUiStore.getState().setXSort({ field: 'title', direction: 'asc' });
+    expect(useUiStore.getState().xSort).toEqual({ field: 'title', direction: 'asc' });
+    expect(localStorage.getItem('home-sort-x')).toBe(JSON.stringify({ field: 'title', direction: 'asc' }));
+    expect(useUiStore.getState().videoSort).toEqual({ field: 'date', direction: 'desc' });
+  });
+});

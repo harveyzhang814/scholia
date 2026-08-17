@@ -74,4 +74,14 @@ describe('ArticleCard', () => {
     renderCard({ ...baseArticle, date: undefined, updatedAt: Date.now() });
     expect(screen.getByText('刚刚')).toBeInTheDocument();
   });
+
+  it('shows an unread dot when unread is true', () => {
+    const { container } = render(<MemoryRouter><ArticleCard article={baseArticle} unread /></MemoryRouter>);
+    expect(container.querySelector('[aria-label="未读"]')).toBeTruthy();
+  });
+
+  it('shows no unread dot when unread is false or omitted', () => {
+    const { container } = renderCard(baseArticle);
+    expect(container.querySelector('[aria-label="未读"]')).toBeNull();
+  });
 });

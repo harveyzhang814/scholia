@@ -178,6 +178,33 @@ export interface MediaInfo {
   audio: { exists: boolean };
 }
 
+export interface XTweet {
+  tweet_id: string;
+  url: string;
+  text: string;
+  timestamp: string;
+  author_handle: string;
+  type: string; // 'post' | 'repost' | 'quote' | 'reply', kept as string for forward-compat with unknown values
+  reply_to_handle: string | null;
+  quoted_author: string | null;
+  quoted_text: string | null;
+  quoted_timestamp: string | null;
+  translated: string | null;
+}
+
+export interface XTimelineSummary {
+  handle: string;
+  tweetCount: number;
+  latestAt?: string;
+  latestPreview?: string;
+  hasUnread?: boolean;
+}
+
+export interface XTimeline {
+  handle: string;
+  tweets: XTweet[];
+}
+
 export const api = {
   listTasks: async (_limit = 200): Promise<{ tasks: Task[] }> => {
     const raw = await request<BackendListTask[]>(`/api/tasks`);
@@ -237,6 +264,13 @@ export const api = {
     request<void>(`/api/tasks/${taskId}/highlights/${hlId}`, { method: 'DELETE' }),
 
   listArticles: () => request<Article[]>('/api/articles'),
+
+  listXTimelines: () => request<XTimelineSummary[]>('/api/x-timelines'),
+  getXTimeline: (handle: string) => request<XTimeline>(`/api/x-timelines/${handle}`),
+
+  listReadIds: () => request<string[]>('/api/read-state'),
+  markRead: (id: string) => request<void>(`/api/read-state/${encodeURIComponent(id)}`, { method: 'POST' }),
+  markUnread: (id: string) => request<void>(`/api/read-state/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   token: () => TOKEN
 };

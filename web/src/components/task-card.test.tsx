@@ -47,4 +47,14 @@ describe('TaskCard', () => {
     expect(screen.queryByText(/处高亮/)).toBeNull();
     expect(screen.queryByText(/条笔记/)).toBeNull();
   });
+
+  it('shows an unread dot when unread is true', () => {
+    const { container } = render(<MemoryRouter><TaskCard task={baseTask} unread /></MemoryRouter>);
+    expect(container.querySelector('[aria-label="未读"]')).toBeTruthy();
+  });
+
+  it('shows no unread dot when unread is false or omitted', () => {
+    const { container } = renderCard(baseTask);
+    expect(container.querySelector('[aria-label="未读"]')).toBeNull();
+  });
 });

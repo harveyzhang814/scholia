@@ -19,20 +19,73 @@ function isProcessAlive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
+function spawnDaemon(startArgs) {
+  const logPath = path.join(path.dirname(getConfigPath()), 'scholia.log');
+  fs.mkdirSync(path.dirname(logPath), { recursive: true });
+  const logFd = fs.openSync(logPath, 'a');
+
+  const child = spawn(process.execPath, [__filename, 'serve', ...startArgs], {
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+  });
+  child.unref();
+
+  const deadline = Date.now() + 5000;
+  (function check() {
+    const info = readRunningInfo();
+    if (info && info.pid === child.pid) {
+      console.log(`Scholia started (pid ${info.pid}, port ${info.port}). Logs: ${logPath}`);
+      process.exit(0);
+    }
+    if (!isProcessAlive(child.pid)) {
+      console.error(`Scholia failed to start. Check logs: ${logPath}`);
+      process.exit(1);
+    }
+    if (Date.now() > deadline) {
+      console.error(`Timed out waiting for scholia to start. Check logs: ${logPath}`);
+      process.exit(1);
+    }
+    setTimeout(check, 100);
+  })();
+}
+
+const USAGE = `Usage:
+  scholia serve [--port N] [--open]
+  scholia start [--port N] [--open]
+  scholia restart [--port N] [--open]
+  scholia stop
+  scholia status
+  scholia web
+  scholia config set <key> <value>
+  scholia config get <key>
+  scholia config list
+  scholia --version
+  scholia --help`;
+
 const args = process.argv.slice(2);
 const [cmd, ...rest] = args;
 
-if (!cmd || cmd === 'serve') {
+if (cmd === '--version' || cmd === '-v') {
+  const { version } = require('../package.json');
+  console.log(version);
+
+} else if (cmd === '--help' || cmd === '-h') {
+  console.log(USAGE);
+
+} else if (!cmd || cmd === 'serve') {
   const portIdx = rest.findIndex(a => a === '--port');
   const port = parseInt(portIdx !== -1 ? rest[portIdx + 1] : (rest.find(a => a.startsWith('--port='))?.split('=')[1] || '7654'), 10);
   const shouldOpen = rest.includes('--open');
 
   const config = readConfig();
   const staticDir = path.join(__dirname, '..', 'web', 'dist');
+  const readStatePath = path.join(path.dirname(getConfigPath()), 'read-state.json');
   const { app, token } = createApp({
     workDir: config.workDir,
     contentDir: config.contentDir,
+    xDir: config.xDir,
     staticDir,
+    readStatePath,
   });
 
   const server = http.createServer(app.callback());
@@ -77,34 +130,25 @@ if (!cmd || cmd === 'serve') {
     console.error(`Scholia is already running (pid ${existing.pid}, port ${existing.port}). Run "scholia stop" first.`);
     process.exit(1);
   }
+  spawnDaemon(rest);
 
-  const logPath = path.join(path.dirname(getConfigPath()), 'scholia.log');
-  fs.mkdirSync(path.dirname(logPath), { recursive: true });
-  const logFd = fs.openSync(logPath, 'a');
+} else if (cmd === 'restart') {
+  const existing = readRunningInfo();
+  if (existing && isProcessAlive(existing.pid)) {
+    process.kill(existing.pid, 'SIGTERM');
+    clearRunningInfo();
+  }
+  spawnDaemon(rest);
 
-  const child = spawn(process.execPath, [__filename, 'serve', ...rest], {
-    detached: true,
-    stdio: ['ignore', logFd, logFd],
-  });
-  child.unref();
-
-  const deadline = Date.now() + 5000;
-  (function check() {
-    const info = readRunningInfo();
-    if (info && info.pid === child.pid) {
-      console.log(`Scholia started (pid ${info.pid}, port ${info.port}). Logs: ${logPath}`);
-      process.exit(0);
-    }
-    if (!isProcessAlive(child.pid)) {
-      console.error(`Scholia failed to start. Check logs: ${logPath}`);
-      process.exit(1);
-    }
-    if (Date.now() > deadline) {
-      console.error(`Timed out waiting for scholia to start. Check logs: ${logPath}`);
-      process.exit(1);
-    }
-    setTimeout(check, 100);
-  })();
+} else if (cmd === 'status') {
+  const info = readRunningInfo();
+  if (!info || !isProcessAlive(info.pid)) {
+    if (info) clearRunningInfo();
+    console.log('Scholia is not running.');
+    process.exit(0);
+  }
+  console.log(`Scholia is running (pid ${info.pid}, port ${info.port}): http://localhost:${info.port}?token=${info.token}`);
+  process.exit(0);
 
 } else if (cmd === 'web') {
   const info = readRunningInfo();
@@ -117,12 +161,12 @@ if (!cmd || cmd === 'serve') {
   openBrowser(url);
 
 } else if (cmd === 'config') {
-  const KEY_MAP = { 'work-dir': 'WORK_DIR', 'content-dir': 'CONTENT_DIR' };
+  const KEY_MAP = { 'work-dir': 'WORK_DIR', 'content-dir': 'CONTENT_DIR', 'x-dir': 'X_DIR' };
   const [subCmd, key, value] = rest;
 
   if (subCmd === 'set') {
     const configKey = KEY_MAP[key];
-    if (!configKey) { console.error(`Unknown key: ${key}\nKnown keys: work-dir, content-dir`); process.exit(1); }
+    if (!configKey) { console.error(`Unknown key: ${key}\nKnown keys: work-dir, content-dir, x-dir`); process.exit(1); }
     writeValue(configKey, value);
     console.log(`${key} = ${value}`);
 
@@ -132,8 +176,13 @@ if (!cmd || cmd === 'serve') {
     const val = readValue(configKey);
     console.log(val ?? '(not set)');
 
+  } else if (subCmd === 'list') {
+    for (const [displayKey, configKey] of Object.entries(KEY_MAP)) {
+      console.log(`${displayKey} = ${readValue(configKey) ?? '(not set)'}`);
+    }
+
   } else {
-    console.error(`Usage: scholia config set|get <work-dir|content-dir> [value]`);
+    console.error(`Usage: scholia config set|get|list <work-dir|content-dir|x-dir> [value]`);
     process.exit(1);
   }
 
@@ -154,6 +203,6 @@ if (!cmd || cmd === 'serve') {
   process.exit(0);
 
 } else {
-  console.error(`Unknown command: ${cmd}\nUsage:\n  scholia serve [--port N] [--open]\n  scholia start [--port N] [--open]\n  scholia web\n  scholia stop\n  scholia config set <key> <value>\n  scholia config get <key>`);
+  console.error(`Unknown command: ${cmd}\n${USAGE}`);
   process.exit(1);
 }

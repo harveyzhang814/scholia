@@ -39,6 +39,21 @@ async function test(name, fn) {
     assert.equal(cfg.contentDir, '/tmp/content');
   });
 
+  await test('readConfig returns xDir', () => {
+    const { readConfig, writeValue } = require('../cli/config');
+    writeValue('X_DIR', '/tmp/xdir', cfgPath);
+    const cfg = readConfig(cfgPath);
+    assert.equal(cfg.xDir, '/tmp/xdir');
+  });
+
+  await test('readConfig returns null xDir when unset', () => {
+    const { readConfig } = require('../cli/config');
+    const emptyPath = path.join(tmp, 'empty-xdir.conf');
+    fs.writeFileSync(emptyPath, '');
+    const cfg = readConfig(emptyPath);
+    assert.equal(cfg.xDir, null);
+  });
+
   await test('readConfig returns null for missing keys', () => {
     const { readConfig } = require('../cli/config');
     const emptyPath = path.join(tmp, 'empty.conf');

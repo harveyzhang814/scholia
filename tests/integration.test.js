@@ -45,6 +45,22 @@ function waitForServer(url, timeout, resolve, reject, start = Date.now()) {
     assert.equal(out.trim(), workDir);
   });
 
+  await test('scholia config set and get x-dir', async () => {
+    const xDir = path.join(tmp, 'tweets');
+    const set = spawn(process.execPath, [CLI, 'config', 'set', 'x-dir', xDir], {
+      env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+    });
+    const setCode = await new Promise(r => set.on('close', r));
+    assert.equal(setCode, 0, 'config set should exit 0');
+    const get = spawn(process.execPath, [CLI, 'config', 'get', 'x-dir'], {
+      env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },
+    });
+    let out = '';
+    get.stdout.on('data', d => { out += d; });
+    await new Promise(r => get.on('close', r));
+    assert.equal(out.trim(), xDir);
+  });
+
   await test('scholia serve starts and responds to /healthz', async () => {
     const srv = spawn(process.execPath, [CLI, 'serve', '--port', '17654'], {
       env: { ...process.env, SCHOLIA_CONFIG_FILE: cfgPath },

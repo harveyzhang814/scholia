@@ -2,12 +2,15 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router';
 import { useTasks } from '@/hooks/use-tasks';
+import { useXTimelines } from '@/hooks/use-x-timelines';
 import { TaskCard } from '@/components/task-card';
 import { ArticleCard } from '@/components/article-card';
+import { XCard } from '@/components/x-card';
 import { SortSelect } from '@/components/sort-select';
 import { api } from '@/lib/api';
-import { sortTasks, sortArticles, type SortField } from '@/lib/sort';
+import { sortTasks, sortArticles, sortXTimelines, type SortField } from '@/lib/sort';
 import { useUiStore } from '@/stores/ui-store';
+import { useReadIds } from '@/hooks/use-read-state';
 
 const VIDEO_SORT_FIELDS: { value: SortField; label: string }[] = [
   { value: 'date', label: '日期' },
@@ -20,6 +23,11 @@ const ARTICLE_SORT_FIELDS: { value: SortField; label: string }[] = [
   { value: 'title', label: '标题' },
 ];
 
+const X_SORT_FIELDS: { value: SortField; label: string }[] = [
+  { value: 'date', label: '最近更新' },
+  { value: 'title', label: 'Handle' },
+];
+
 function useArticles() {
   return useQuery({
     queryKey: ['articles'],
@@ -29,9 +37,12 @@ function useArticles() {
 }
 
 export default function Home() {
-  const tab = useLocation().pathname === '/articles' ? 'article' : 'video';
+  const pathname = useLocation().pathname;
+  const tab = pathname === '/articles' ? 'article' : pathname === '/x' ? 'x' : 'video';
   const { data: tasks = [], isLoading: tasksLoading } = useTasks();
   const { data: articles = [], isLoading: articlesLoading } = useArticles();
+  const { data: xTimelines = [], isLoading: xLoading } = useXTimelines();
+  const { data: readIds } = useReadIds();
   const [searchQuery, setSearchQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -47,13 +58,22 @@ export default function Home() {
     return a.title.toLowerCase().includes(q) || a.slug.includes(q);
   });
 
+  const filteredX = xTimelines.filter((x) => {
+    const q = searchQuery.toLowerCase();
+    if (!q) return true;
+    return x.handle.toLowerCase().includes(q) || (x.latestPreview ?? '').toLowerCase().includes(q);
+  });
+
   const videoSort = useUiStore((s) => s.videoSort);
   const setVideoSort = useUiStore((s) => s.setVideoSort);
   const articleSort = useUiStore((s) => s.articleSort);
   const setArticleSort = useUiStore((s) => s.setArticleSort);
+  const xSort = useUiStore((s) => s.xSort);
+  const setXSort = useUiStore((s) => s.setXSort);
 
   const sortedTasks = sortTasks(filteredTasks, videoSort);
   const sortedArticles = sortArticles(filteredArticles, articleSort);
+  const sortedX = sortXTimelines(filteredX, xSort);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -67,7 +87,7 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  const isLoading = tab === 'video' ? tasksLoading : articlesLoading;
+  const isLoading = tab === 'video' ? tasksLoading : tab === 'article' ? articlesLoading : xLoading;
 
   return (
     <div className="px-8 pt-16 pb-24">
@@ -75,10 +95,10 @@ export default function Home() {
       <header className="flex items-center gap-6 mb-6">
         <h1 className="text-lg font-semibold tracking-tight">Scholia</h1>
         <nav className="flex items-center gap-1">
-          {(['video', 'article'] as const).map((t) => (
+          {(['video', 'article', 'x'] as const).map((t) => (
             <Link
               key={t}
-              to={t === 'video' ? '/videos' : '/articles'}
+              to={t === 'video' ? '/videos' : t === 'article' ? '/articles' : '/x'}
               className="px-2.5 py-1 rounded-md text-sm transition-colors"
               style={{
                 color: tab === t ? 'var(--text-primary)' : 'var(--text-tertiary)',
@@ -86,7 +106,7 @@ export default function Home() {
                 fontWeight: tab === t ? 500 : 400,
               }}
             >
-              {t === 'video' ? '视频' : '文章'}
+              {t === 'video' ? '视频' : t === 'article' ? '文章' : 'X'}
             </Link>
           ))}
         </nav>
@@ -113,9 +133,9 @@ export default function Home() {
           </kbd>
         </div>
         <SortSelect
-          value={tab === 'video' ? videoSort : articleSort}
-          onChange={tab === 'video' ? setVideoSort : setArticleSort}
-          fields={tab === 'video' ? VIDEO_SORT_FIELDS : ARTICLE_SORT_FIELDS}
+          value={tab === 'video' ? videoSort : tab === 'article' ? articleSort : xSort}
+          onChange={tab === 'video' ? setVideoSort : tab === 'article' ? setArticleSort : setXSort}
+          fields={tab === 'video' ? VIDEO_SORT_FIELDS : tab === 'article' ? ARTICLE_SORT_FIELDS : X_SORT_FIELDS}
         />
       </div>
 
@@ -132,10 +152,10 @@ export default function Home() {
           <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>无匹配结果</div>
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 480px))' }}>
-            {sortedTasks.map((t) => <TaskCard key={t.id} task={t} />)}
+            {sortedTasks.map((t) => <TaskCard key={t.id} task={t} unread={!readIds?.has(t.id)} />)}
           </div>
         )
-      ) : (
+      ) : tab === 'article' ? (
         articles.length === 0 ? (
           <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>
             暂无文章<br />
@@ -145,7 +165,20 @@ export default function Home() {
           <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>无匹配结果</div>
         ) : (
           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 480px))' }}>
-            {sortedArticles.map((a) => <ArticleCard key={a.id} article={a} />)}
+            {sortedArticles.map((a) => <ArticleCard key={a.id} article={a} unread={!readIds?.has(a.id)} />)}
+          </div>
+        )
+      ) : (
+        xTimelines.length === 0 ? (
+          <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>
+            暂无 X 时间线<br />
+            配置数据目录：<code style={{ color: 'var(--accent-11)', fontFamily: 'var(--font-mono)' }}>scholia config set x-dir ~/.hskill/sync-xtimeline/tweets</code>
+          </div>
+        ) : filteredX.length === 0 ? (
+          <div className="text-sm py-16 text-center" style={{ color: 'var(--text-tertiary)' }}>无匹配结果</div>
+        ) : (
+          <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 480px))' }}>
+            {sortedX.map((x) => <XCard key={x.handle} timeline={x} />)}
           </div>
         )
       )}

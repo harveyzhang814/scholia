@@ -71,8 +71,26 @@ async function req(port, method, urlPath, body) {
   fs.writeFileSync(path.join(contentDir, 'hash1', 'Image', 'pic.png'), 'fake-png-bytes');
   fs.writeFileSync(path.join(tmp, 'outside.png'), 'outside-bytes');
 
+  const xDir = path.join(tmp, 'tweets');
+  fs.mkdirSync(xDir, { recursive: true });
+  fs.writeFileSync(path.join(xDir, 'trq212.json'), JSON.stringify([
+    {
+      tweet_id: '2087258093499695106', url: 'https://x.com/trq212/status/2087258093499695106',
+      text: 'oldest post', timestamp: '2026-08-11T19:21:23.000Z', author_handle: '@trq212',
+      type: 'post', reply_to_handle: null, quoted_author: null, quoted_text: null,
+      quoted_timestamp: null, translated: '最旧的一条',
+    },
+    {
+      tweet_id: '2088298127346536578', url: 'https://x.com/lydiahallie/status/2088298127346536578',
+      text: 'newest repost content', timestamp: '2026-08-14T16:14:06.000Z', author_handle: '@lydiahallie',
+      type: 'repost', reply_to_handle: null, quoted_author: null, quoted_text: null,
+      quoted_timestamp: null, translated: '最新的转推内容',
+    },
+  ]));
+
+  const readStatePath = path.join(tmp, 'read-state.json');
   const { createApp } = require('../server');
-  const { app, token: _t } = createApp({ workDir, contentDir, token: TOKEN });
+  const { app, token: _t } = createApp({ workDir, contentDir, xDir, token: TOKEN, readStatePath });
   const server = http.createServer(app.callback());
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const port = server.address().port;
@@ -317,6 +335,85 @@ async function req(port, method, urlPath, body) {
 
   await test('401 without token', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/tasks`);
+    assert.equal(res.status, 401);
+  });
+
+  await test('GET /api/x-timelines returns a summary per handle', async () => {
+    const r = await req(port, 'GET', '/api/x-timelines');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.length, 1);
+    assert.equal(r.body[0].handle, 'trq212');
+    assert.equal(r.body[0].tweetCount, 2);
+    assert.equal(r.body[0].latestAt, '2026-08-14T16:14:06.000Z');
+  });
+
+  await test('GET /api/x-timelines/:handle returns tweets sorted newest-first', async () => {
+    const r = await req(port, 'GET', '/api/x-timelines/trq212');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.handle, 'trq212');
+    assert.deepEqual(r.body.tweets.map((t) => t.tweet_id), ['2088298127346536578', '2087258093499695106']);
+  });
+
+  await test('GET /api/x-timelines/:handle 404s for an unknown handle', async () => {
+    const r = await req(port, 'GET', '/api/x-timelines/nobody');
+    assert.equal(r.status, 404);
+  });
+
+  await test('GET /api/x-timelines/:handle 404s for a handle with path separators', async () => {
+    const r = await req(port, 'GET', `/api/x-timelines/${encodeURIComponent('../trq212')}`);
+    assert.equal(r.status, 404);
+  });
+
+  await test('GET /api/x-timelines requires auth like other routes', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/x-timelines`);
+    assert.equal(res.status, 401);
+  });
+
+  // Read state
+  await test('GET /api/read-state starts empty', async () => {
+    const r = await req(port, 'GET', '/api/read-state');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body, []);
+  });
+
+  await test('GET /api/x-timelines reports hasUnread before anything is marked read', async () => {
+    const r = await req(port, 'GET', '/api/x-timelines');
+    assert.equal(r.body[0].hasUnread, true);
+  });
+
+  await test('POST /api/read-state/:id marks an id read', async () => {
+    const r = await req(port, 'POST', `/api/read-state/${encodeURIComponent(taskId)}`);
+    assert.equal(r.status, 204);
+    const r2 = await req(port, 'GET', '/api/read-state');
+    assert.ok(r2.body.includes(taskId));
+  });
+
+  await test('marking every tweet in a handle read flips hasUnread to false', async () => {
+    await req(port, 'POST', `/api/read-state/${encodeURIComponent('tweet-2087258093499695106')}`);
+    await req(port, 'POST', `/api/read-state/${encodeURIComponent('tweet-2088298127346536578')}`);
+    const r = await req(port, 'GET', '/api/x-timelines');
+    assert.equal(r.body[0].hasUnread, false);
+  });
+
+  await test('DELETE /api/read-state/:id unmarks an id, flipping hasUnread back to true', async () => {
+    const r = await req(port, 'DELETE', `/api/read-state/${encodeURIComponent('tweet-2087258093499695106')}`);
+    assert.equal(r.status, 204);
+    const r2 = await req(port, 'GET', '/api/read-state');
+    assert.ok(!r2.body.includes('tweet-2087258093499695106'));
+    const r3 = await req(port, 'GET', '/api/x-timelines');
+    assert.equal(r3.body[0].hasUnread, true);
+  });
+
+  await test('concurrent POSTs to /api/read-state all succeed and persist (no lost updates)', async () => {
+    const ids = ['tweet-race-1', 'tweet-race-2', 'tweet-race-3', 'tweet-race-4', 'tweet-race-5'];
+    const results = await Promise.all(ids.map((id) => req(port, 'POST', `/api/read-state/${id}`)));
+    for (const r of results) assert.equal(r.status, 204);
+    const r2 = await req(port, 'GET', '/api/read-state');
+    for (const id of ids) assert.ok(r2.body.includes(id), `expected ${id} to be persisted`);
+  });
+
+  await test('read-state routes require auth like other routes', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/read-state`);
     assert.equal(res.status, 401);
   });
 

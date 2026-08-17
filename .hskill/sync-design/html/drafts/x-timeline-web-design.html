@@ -1,0 +1,392 @@
+<meta charset="utf-8">
+<title>首页 · X Tab（时间线列表）— 设计稿</title>
+<style>
+  :root {
+    --bg-canvas:     #F9F8F4;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #F1EFE9;
+    --border-subtle: #E5E2DA;
+    --border-strong: #CFCBC0;
+    --text-primary:   #2C2A24;
+    --text-secondary: #67645E;
+    --text-tertiary:  #6E6961;
+    --accent-3:  #EBF1E8;
+    --accent-9:  #5A8A5A;
+    --accent-10: #466F46;
+    --accent-11: #3D5E3D;
+    --accent-12: #243B24;
+    --status-ok:   #4A8A5A;
+    --status-err:  #B05050;
+    --status-busy: #C28A3D;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-canvas:     #1A1A18;
+      --bg-surface:    #232322;
+      --bg-elevated:   #2A2A28;
+      --border-subtle: #2E2E2B;
+      --border-strong: #3D3E3B;
+      --text-primary:   #E8E8E6;
+      --text-secondary: #9A9B98;
+      --text-tertiary:  #868782;
+      --accent-3:  #2A3A2A;
+      --accent-9:  #7DAE7D;
+      --accent-10: #6FA06F;
+      --accent-11: #9BC79B;
+      --accent-12: #C8E0C8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 24px;
+    line-height: 1.6;
+    max-width: 900px;
+  }
+
+  .page-sub code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .state-switch {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .state-btn {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, color 120ms;
+  }
+  .state-btn:hover { background: var(--bg-elevated); }
+  .state-btn.active {
+    border-color: var(--accent-9);
+    color: var(--accent-10);
+    background: var(--accent-3);
+    font-weight: 500;
+  }
+
+  /* ── 首页外壳（复用 web/src/routes/_index.tsx 的 header + toolbar 骨架，本稿新增第三个 tab：X） ── */
+  .home-frame {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-canvas);
+  }
+
+  .home-inner {
+    padding: 40px 32px 64px;
+    min-height: 480px;
+  }
+
+  .home-header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+  .home-h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  .home-nav {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .nav-link {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--text-tertiary);
+    cursor: default;
+    transition: background 120ms, color 120ms;
+  }
+  .nav-link.active {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    font-weight: 500;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 9px 14px;
+  }
+  .search-input {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    width: 260px;
+  }
+  .kbd {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-elevated);
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+  .sort-select {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 9px 14px;
+  }
+  .sort-field { font-size: 14px; color: var(--text-primary); }
+  .sort-caret { font-size: 10px; color: var(--text-tertiary); }
+  .sort-dir {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    padding-left: 6px;
+    border-left: 1px solid var(--border-subtle);
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 480px));
+    gap: 16px;
+  }
+
+  /* ── X 卡片（新增，仿 article-card 结构：block 链接、圆角 12px、内边距 16px） ── */
+  .x-card {
+    display: block;
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: 16px;
+    transition: background 120ms, box-shadow 120ms;
+  }
+  .x-card:hover {
+    background: var(--bg-elevated);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .x-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .x-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent-3);
+    color: var(--accent-11);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .x-handle {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .x-preview {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0 0 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .x-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 64px 0;
+    font-size: 13px;
+    color: var(--text-tertiary);
+    line-height: 1.8;
+  }
+  .empty-state code {
+    font-family: var(--font-mono);
+    color: var(--accent-11);
+  }
+
+  .caption {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.7;
+    max-width: 900px;
+  }
+  .caption code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+</style>
+
+<div class="page">
+  <h1 class="page-title">首页 · X 时间线 Tab（设计稿）</h1>
+  <p class="page-sub">
+    对应实现：<code>web/src/routes/_index.tsx</code>（新增第三个 tab，路由 <code>/x</code>）+ 新组件 <code>web/src/components/x-card.tsx</code>。
+    卡片结构直接复用 <code>article-card.tsx</code> 的视觉规格（圆角 12px、内边距 16px、hover 变 <code>--bg-elevated</code>）：不新增调色板、不新增圆角/间距 token。
+    每张卡片对应一个被追踪的 X handle：小圆点头像（复用 <code>Pill</code> 的 tag 配色 <code>--accent-3</code> / <code>--accent-11</code>，不是新颜色）+ handle 名 + 最新一条推文预览（<code>translated ?? text</code>，两行截断）+ 推文总数与最近更新时间。
+  </p>
+
+  <div class="state-switch">
+    <button class="state-btn active" data-state="populated">状态 1 — X Tab（有数据）</button>
+    <button class="state-btn" data-state="empty">状态 2 — 空状态（未配置 x-dir）</button>
+  </div>
+
+  <div class="home-frame">
+    <div class="home-inner">
+      <div class="home-header">
+        <h1 class="home-h1">Scholia</h1>
+        <nav class="home-nav">
+          <span class="nav-link">视频</span>
+          <span class="nav-link">文章</span>
+          <span class="nav-link active">X</span>
+        </nav>
+      </div>
+
+      <div class="toolbar">
+        <div class="search-box">
+          <span class="search-input">搜索…</span>
+          <span class="kbd">⌘K</span>
+        </div>
+        <div class="sort-select">
+          <span class="sort-field">最近更新</span>
+          <span class="sort-caret">⌄</span>
+          <span class="sort-dir">↓</span>
+        </div>
+      </div>
+
+      <!-- 状态 1：有数据 -->
+      <div id="panel-populated">
+        <div class="card-grid">
+          <a class="x-card">
+            <div class="x-card-head">
+              <span class="x-avatar">TR</span>
+              <span class="x-handle">@trq212</span>
+            </div>
+            <p class="x-preview">everything truly is code</p>
+            <div class="x-meta-row"><span>20 条推文</span><span>3 小时前</span></div>
+          </a>
+          <a class="x-card">
+            <div class="x-card-head">
+              <span class="x-avatar">LH</span>
+              <span class="x-handle">@lydiahallie</span>
+            </div>
+            <p class="x-preview">在 Claude Code 里，有没有什么你希望能自定义、但 hooks、权限设置、自定义 subagent 等现有机制还满足不了的？你会用来做什么？</p>
+            <div class="x-meta-row"><span>142 条推文</span><span>昨天</span></div>
+          </a>
+          <a class="x-card">
+            <div class="x-card-head">
+              <span class="x-avatar">MA</span>
+              <span class="x-handle">@mannay</span>
+            </div>
+            <p class="x-preview">You can just draw faces with javascript // coding doodles</p>
+            <div class="x-meta-row"><span>58 条推文</span><span>2026-08-10</span></div>
+          </a>
+          <a class="x-card">
+            <div class="x-card-head">
+              <span class="x-avatar">SW</span>
+              <span class="x-handle">@swyx</span>
+            </div>
+            <p class="x-preview">最新一条推文暂无译文时，预览区直接回退显示原文，不额外提示"无翻译"，保持文案克制。</p>
+            <div class="x-meta-row"><span>301 条推文</span><span>2026-07-28</span></div>
+          </a>
+        </div>
+      </div>
+
+      <!-- 状态 2：空状态 -->
+      <div id="panel-empty" style="display:none;">
+        <div class="empty-state">
+          暂无 X 时间线<br>
+          配置数据目录：<code>scholia config set x-dir ~/.hskill/sync-xtimeline/tweets</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">
+    头像用 handle 首字母缩写的圆形色块，不接入任何头像图片服务（归档数据里没有头像 URL 字段，也不引入外部网络请求）——复用 <code>Pill</code> tag 变体已有的 <code>--accent-3</code>/<code>--accent-11</code> 配色，不新增色相。
+    卡片右下角计数与相对时间的排版（<code>font-mono</code>、<code>text-tertiary</code>、两端对齐）与 <code>article-card.tsx</code> 的 <code>.article-meta</code>/日期行完全一致。
+    空状态文案沿用现有"暂无 X / 配置命令提示"模式，不使用图标，不做 happy-talk 文案。
+  </p>
+</div>
+
+<script>
+  var stateBtns = document.querySelectorAll('.state-btn');
+  var panels = {
+    populated: document.getElementById('panel-populated'),
+    empty: document.getElementById('panel-empty'),
+  };
+  stateBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      stateBtns.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var target = btn.getAttribute('data-state');
+      Object.keys(panels).forEach(function (key) {
+        panels[key].style.display = key === target ? 'block' : 'none';
+      });
+    });
+  });
+</script>

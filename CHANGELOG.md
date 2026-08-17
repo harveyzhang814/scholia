@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-17
+
+### Added
+
+- X timelines: read-only view of synced X (Twitter) account archives — new home tab, `/x/:handle` detail route, tweet/quote/reply cards, and an `x-dir` config key.
+- Read/unread state tracking for videos, articles, and tweets, with unread indicators on X timeline handles.
+- CLI: `status`, `restart`, `config list`, and `version`/`help` commands.
+
+### Fixed
+
+- Tweet read-marker overlap and a read-state write race under concurrent requests.
+
 ## [0.4.2] - 2026-07-31
 
 ### Fixed

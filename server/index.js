@@ -4,11 +4,13 @@ const Router = require('@koa/router');
 const bodyParser = require('koa-bodyparser');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const crypto = require('crypto');
 
 const { getVideoDirs, getArticleAnnotationDirs } = require('./paths');
 const { listVideos, getVideoTask, getVideoMediaInfo, getVideoSubtitles, getVideoContent } = require('./video-source');
 const { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent, resolveArticleFile } = require('./article-source');
+const { listXTimelines, getXTimeline } = require('./x-source');
 const { createStaticServe } = require('./static-serve');
 
 const ASSET_MIME = {
@@ -61,7 +63,24 @@ async function countAnnotations(paths) {
 function createApp(options = {}) {
   const WORK_DIR = options.workDir || null;
   const CONTENT_DIR = options.contentDir || null;
+  const X_DIR = options.xDir || null;
+  const READ_STATE_PATH = options.readStatePath || path.join(os.homedir(), '.config', 'scholia', 'read-state.json');
   const token = options.token || crypto.randomBytes(24).toString('hex');
+
+  // Serializes read-modify-write cycles on READ_STATE_PATH. Concurrent tweets
+  // entering the viewport at once (e.g. after a scroll) fire POSTs together;
+  // without this, their writeJson calls race on the shared .tmp path and
+  // clobber each other's updates.
+  let readStateQueue = Promise.resolve();
+  function updateReadState(mutate) {
+    const result = readStateQueue.then(async () => {
+      const state = await readJson(READ_STATE_PATH, {});
+      mutate(state);
+      await writeJson(READ_STATE_PATH, state);
+    });
+    readStateQueue = result.catch(() => {});
+    return result;
+  }
 
   const app = new Koa();
   const rootRouter = new Router();
@@ -100,6 +119,44 @@ function createApp(options = {}) {
       }));
     }
     catch (err) { ctx.status = 500; ctx.body = { error: err.message }; }
+  });
+
+  // List X timelines
+  router.get('/x-timelines', async (ctx) => {
+    if (!X_DIR) { ctx.body = []; return; }
+    try {
+      const readState = await readJson(READ_STATE_PATH, {});
+      ctx.body = await listXTimelines(X_DIR, new Set(Object.keys(readState)));
+    } catch (err) {
+      ctx.status = 500; ctx.body = { error: err.message };
+    }
+  });
+
+  // Read state (opened videos/articles, viewport-visible tweets)
+  router.get('/read-state', async (ctx) => {
+    const state = await readJson(READ_STATE_PATH, {});
+    ctx.body = Object.keys(state);
+  });
+
+  router.post('/read-state/:id', async (ctx) => {
+    const { id } = ctx.params;
+    await updateReadState((state) => { state[id] = Date.now(); });
+    ctx.status = 204;
+  });
+
+  router.delete('/read-state/:id', async (ctx) => {
+    const { id } = ctx.params;
+    await updateReadState((state) => { delete state[id]; });
+    ctx.status = 204;
+  });
+
+  // Get a single X timeline's full tweet stream
+  router.get('/x-timelines/:handle', async (ctx) => {
+    const { handle } = ctx.params;
+    if (!X_DIR) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    const timeline = await getXTimeline(handle, X_DIR);
+    if (!timeline) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    ctx.body = timeline;
   });
 
   // Get task (video or article)

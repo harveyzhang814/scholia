@@ -6,6 +6,7 @@ import RootLayout from './routes/_layout';
 import Home from './routes/_index';
 import TaskDetail from './routes/tasks.$id';
 import GanttPage from './routes/tasks.$id.gantt';
+import XTimelineDetail from './routes/x.$handle';
 import './styles/globals.css';
 
 const queryClient = new QueryClient({
@@ -19,8 +20,10 @@ const router = createBrowserRouter([
       { path: '/', element: <Navigate to="/videos" replace /> },
       { path: '/videos', element: <Home /> },
       { path: '/articles', element: <Home /> },
+      { path: '/x', element: <Home /> },
       { path: '/tasks/:id', element: <TaskDetail /> },
-      { path: '/tasks/:id/gantt', element: <GanttPage /> }
+      { path: '/tasks/:id/gantt', element: <GanttPage /> },
+      { path: '/x/:handle', element: <XTimelineDetail /> }
     ]
   }
 ]);
