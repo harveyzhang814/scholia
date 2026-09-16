@@ -28,6 +28,7 @@ export interface Task {
   url: string;
   title?: string;
   uploader?: string;
+  uploader_id?: string;
   upload_date?: string;
   duration_seconds?: number;
   mode: TaskMode;
@@ -60,7 +61,7 @@ export interface Step {
 // ── Backend response shapes (real API) ──────────────────────────────────────
 
 interface BackendListTask {
-  id: string; url: string; title?: string; uploader?: string; upload_date?: string;
+  id: string; url: string; title?: string; uploader?: string; uploader_id?: string; upload_date?: string;
   duration?: string; mode?: string; output_lang?: string; focus?: string;
   created_at?: string; updated_at?: string;
   width?: number; height?: number; file_size?: number; bit_rate?: number;
@@ -71,7 +72,7 @@ interface BackendTask {
   task_id: string;
   status?: string;
   meta?: {
-    url?: string; title?: string; uploader?: string; upload_date?: string; duration?: string;
+    url?: string; title?: string; uploader?: string; uploader_id?: string; upload_date?: string; duration?: string;
     output_lang?: string; focus?: string; mode?: string;
     ts?: string; created_at?: string;
     transcript_done?: boolean; article_done?: boolean; summary_done?: boolean;
@@ -106,6 +107,7 @@ function normalizeListTask(t: BackendListTask): Task {
     url: t.url,
     title: t.title,
     uploader: t.uploader,
+    uploader_id: t.uploader_id,
     upload_date: t.upload_date || undefined,
     duration_seconds: t.duration ? parseInt(t.duration, 10) || undefined : undefined,
     mode: mapMode(t.mode),
@@ -130,6 +132,7 @@ function normalizeTask(raw: BackendTask): Task {
     url: m.url ?? '',
     title: m.title,
     uploader: m.uploader,
+    uploader_id: m.uploader_id,
     upload_date: m.upload_date || undefined,
     duration_seconds: m.duration ? parseInt(m.duration, 10) || undefined : undefined,
     mode: mapMode(m.mode),

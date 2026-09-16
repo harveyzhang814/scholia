@@ -19,7 +19,7 @@ async function test(name, fn) {
   const task1 = 'abc123def456';
   const task2 = 'zzz999qqq111';
   for (const [id, meta] of [
-    [task1, { id: task1, url: 'https://yt.com/1', title: 'First Video', uploader: 'Chan A', upload_date: '20240101', duration: '300', mode: 'media', ts: '2024-01-01T00:00:00.000Z' }],
+    [task1, { id: task1, url: 'https://yt.com/1', title: 'First Video', uploader: 'Chan A', uploader_id: '@chan_a', upload_date: '20240101', duration: '300', mode: 'media', ts: '2024-01-01T00:00:00.000Z' }],
     [task2, { id: task2, url: 'https://yt.com/2', title: 'Second Video', uploader: 'Chan B', duration: '600', mode: 'audio', ts: '2024-02-01T00:00:00.000Z' }],
   ]) {
     fs.mkdirSync(path.join(workDir, id, 'writing'), { recursive: true });
@@ -84,6 +84,17 @@ async function test(name, fn) {
     assert.equal(t.meta.title, 'First Video');
     assert.equal(t.meta.url, 'https://yt.com/1');
     assert.equal(t.meta.mode, 'media');
+  });
+
+  await test('listVideos includes uploader_id', async () => {
+    const videos = await listVideos(workDir);
+    const v1 = videos.find((v) => v.id === task1);
+    assert.equal(v1.uploader_id, '@chan_a');
+  });
+
+  await test('getVideoTask includes uploader_id in meta', async () => {
+    const t = await getVideoTask(task1, workDir);
+    assert.equal(t.meta.uploader_id, '@chan_a');
   });
 
   await test('getVideoTask returns null for missing task', async () => {
