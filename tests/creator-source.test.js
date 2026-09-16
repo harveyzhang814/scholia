@@ -125,6 +125,26 @@ async function test(name, fn) {
     assert.deepEqual(viaOldKey.videos.map((v) => v.task_id), ['t2', 't1']);
   });
 
+  await test('getCreator resolves watched=true via channel_id when the registry only has a raw channel id as handle', async () => {
+    // A channel added via a /channel/UCxxxxx/ URL (rather than an @handle
+    // URL) can end up with its raw channel_id stored in `handle`. That
+    // can never match by normalized-handle comparison, so getCreator must
+    // fall back to comparing against the creators.json entry's channel_id.
+    writeCreatorsIndex([
+      { key: 'raw_channel_creator', display_name: 'Raw Channel Creator', channel_id: 'UC1234567890',
+        uploader_url: 'https://youtube.com/channel/UC1234567890',
+        videos: [{ task_id: 'rc1', title: 'RC Video', upload_date: '2026-02-01', duration: '90' }] },
+    ]);
+    writeRegistry([
+      { id: 'raw_channel_creator', display_name: 'Raw Channel Creator', aliases: [], placeholder: false, added_at: '2026-09-15',
+        channels: [{ platform: 'youtube', handle: 'UC1234567890', url: 'https://youtube.com/channel/UC1234567890' }] },
+    ]);
+    const result = await getCreator('raw_channel_creator', workDir);
+    assert.ok(result);
+    assert.equal(result.watched, true);
+    assert.equal(result.creator_id, 'raw_channel_creator');
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 })();

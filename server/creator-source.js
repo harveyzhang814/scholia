@@ -27,14 +27,21 @@ function registryPath() {
 // Finds the registry record (if any) whose YouTube channels include this
 // normalized handle, and returns every other YouTube handle that same
 // record owns — covers a merged-handle lookup either way (criterion #6).
-function resolveRegistryMatch(key) {
+//
+// A channel added via a /channel/UC.../, /c/Name/, or /user/Name/ URL may
+// have its raw channel_id (or a path-derived string) stored in `handle`
+// instead of a proper @handle, so it can never match by normalized-handle
+// comparison. Falls back to a raw comparison against the creator's
+// channel_id (already a stable, case-sensitive UCxxxxx identifier — no
+// normalization needed).
+function resolveRegistryMatch(key, channelId) {
   const registry = readJsonSync(registryPath());
   if (!registry || !Array.isArray(registry.creators)) return null;
   for (const creator of registry.creators) {
-    const youtubeHandles = (creator.channels || [])
-      .filter((c) => c.platform === 'youtube')
-      .map((c) => normalizeHandle(c.handle));
-    if (youtubeHandles.includes(key)) {
+    const youtubeChannels = (creator.channels || []).filter((c) => c.platform === 'youtube');
+    const youtubeHandles = youtubeChannels.map((c) => normalizeHandle(c.handle));
+    const matchesByChannelId = Boolean(channelId) && youtubeChannels.some((c) => c.handle === channelId);
+    if (youtubeHandles.includes(key) || matchesByChannelId) {
       return { creatorId: creator.id, youtubeHandles };
     }
   }
@@ -50,7 +57,7 @@ async function getCreator(key, workDir) {
   const primary = byKey.get(normalizedKey);
   if (!primary) return null;
 
-  const match = resolveRegistryMatch(normalizedKey);
+  const match = resolveRegistryMatch(normalizedKey, primary.channel_id);
   let videos = primary.videos.slice();
   let channelId = primary.channel_id;
   let uploaderUrl = primary.uploader_url;
