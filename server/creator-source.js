@@ -58,7 +58,7 @@ async function getCreator(key, workDir) {
   if (!primary) return null;
 
   const match = resolveRegistryMatch(normalizedKey, primary.channel_id);
-  let videos = primary.videos.slice();
+  let videos = (primary.videos || []).slice();
   let channelId = primary.channel_id;
   let uploaderUrl = primary.uploader_url;
 

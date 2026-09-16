@@ -145,6 +145,16 @@ async function test(name, fn) {
     assert.equal(result.creator_id, 'raw_channel_creator');
   });
 
+  await test('getCreator does not throw on a malformed entry missing videos', async () => {
+    writeCreatorsIndex([
+      { key: 'malformed_creator', display_name: 'Malformed Creator', channel_id: 'UC_BAD', uploader_url: 'https://youtube.com/@malformed_creator' },
+    ]);
+    writeRegistry([]);
+    const result = await getCreator('malformed_creator', workDir);
+    assert.ok(result);
+    assert.deepEqual(result.videos, []);
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 })();
