@@ -11,6 +11,7 @@ const { getVideoDirs, getArticleAnnotationDirs } = require('./paths');
 const { listVideos, getVideoTask, getVideoMediaInfo, getVideoSubtitles, getVideoContent } = require('./video-source');
 const { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent, resolveArticleFile } = require('./article-source');
 const { listXTimelines, getXTimeline } = require('./x-source');
+const { getCreator } = require('./creator-source');
 const { createStaticServe } = require('./static-serve');
 
 const ASSET_MIME = {
@@ -157,6 +158,15 @@ function createApp(options = {}) {
     const timeline = await getXTimeline(handle, X_DIR);
     if (!timeline) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
     ctx.body = timeline;
+  });
+
+  // Get a creator's aggregated video list + roster watch status
+  router.get('/creator/:key', async (ctx) => {
+    const { key } = ctx.params;
+    if (!WORK_DIR) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    const creator = await getCreator(key, WORK_DIR);
+    if (!creator) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    ctx.body = creator;
   });
 
   // Get task (video or article)
