@@ -45,6 +45,19 @@ async function test(name, fn) {
     assert.equal(normalizeHandle('alejandro_ao'), 'alejandro_ao');
   });
 
+  await test('getCreator is case-insensitive on the incoming key (mirrors a mixed-case lookup)', async () => {
+    writeCreatorsIndex([
+      { key: 'mattpockuk', display_name: 'Matt Pocock', channel_id: 'UC_MP', uploader_url: 'https://youtube.com/@mattpockuk',
+        videos: [{ task_id: 'm1', title: 'MV1', upload_date: '2026-05-01', duration: '150' }] },
+    ]);
+    writeRegistry([]);
+    const lower = await getCreator('mattpockuk', workDir);
+    const mixed = await getCreator('MattPockUK', workDir);
+    assert.ok(lower);
+    assert.deepEqual(mixed, lower);
+    assert.equal(mixed.key, 'mattpockuk');
+  });
+
   await test('getCreator returns null when the key is not in the index', async () => {
     writeCreatorsIndex([]);
     writeRegistry([]);

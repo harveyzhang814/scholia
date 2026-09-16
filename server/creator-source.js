@@ -4,7 +4,7 @@ const path = require('path');
 const os = require('os');
 
 function normalizeHandle(handle) {
-  return String(handle || '').replace(/^@/, '').trim().toLowerCase();
+  return String(handle || '').trim().replace(/^@/, '').toLowerCase();
 }
 
 function readJsonSync(filePath) {
@@ -42,21 +42,22 @@ function resolveRegistryMatch(key) {
 }
 
 async function getCreator(key, workDir) {
+  const normalizedKey = normalizeHandle(key);
   const index = readJsonSync(creatorsIndexPath(workDir));
   if (!index || !Array.isArray(index.creators)) return null;
 
   const byKey = new Map(index.creators.map((c) => [c.key, c]));
-  const primary = byKey.get(key);
+  const primary = byKey.get(normalizedKey);
   if (!primary) return null;
 
-  const match = resolveRegistryMatch(key);
+  const match = resolveRegistryMatch(normalizedKey);
   let videos = primary.videos.slice();
   let channelId = primary.channel_id;
   let uploaderUrl = primary.uploader_url;
 
   if (match) {
     for (const handle of match.youtubeHandles) {
-      if (handle === key) continue;
+      if (handle === normalizedKey) continue;
       const other = byKey.get(handle);
       if (!other) continue;
       videos = videos.concat(other.videos);
@@ -66,7 +67,7 @@ async function getCreator(key, workDir) {
   }
 
   return {
-    key,
+    key: normalizedKey,
     display_name: primary.display_name,
     channel_id: channelId,
     uploader_url: uploaderUrl,
