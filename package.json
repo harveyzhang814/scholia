@@ -1,6 +1,6 @@
 {
   "name": "scholia",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Local-first knowledge annotation tool",
   "type": "commonjs",
   "main": "server/index.js",
@@ -19,7 +19,7 @@
     "web/src"
   ],
   "scripts": {
-    "test": "node tests/config.test.js && node tests/video-source.test.js && node tests/article-source.test.js && node tests/x-source.test.js && node tests/server.test.js && node tests/integration.test.js",
+    "test": "node tests/config.test.js && node tests/video-source.test.js && node tests/article-source.test.js && node tests/x-source.test.js && node tests/creator-source.test.js && node tests/server.test.js && node tests/integration.test.js",
     "web:build": "cd web && npm run build",
     "postinstall": "node -e \"require('fs').existsSync('web/.npmrc')||require('fs').writeFileSync('web/.npmrc','@harveyzhang814:registry=https://npm.pkg.github.com')\" && cd web && npm_config_global=false npm install && npm run build",
     "release:local": "npm pack && npm install -g scholia-$(node -p \"require('./package.json').version\").tgz && rm scholia-*.tgz"

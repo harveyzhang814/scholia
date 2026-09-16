@@ -94,6 +94,16 @@ export default function TaskDetail() {
         <div className="flex items-center gap-3">
           <ProseThemePicker />
           {mediaKind && <ModeSwitcher />}
+          {task.uploader_id && (
+            <Link
+              to={`/creator/${task.uploader_id.replace(/^@/, '').toLowerCase()}`}
+              title={`查看${task.uploader ? ` ${task.uploader} ` : ''}的其他视频`}
+              className="text-sm px-2 py-1 rounded hover:opacity-70 transition-opacity"
+              style={{ color: 'var(--text-tertiary)' }}
+            >
+              {task.uploader ?? '创作者'}
+            </Link>
+          )}
           {mediaKind && (
             <Link
               to={`/tasks/${id}/gantt`}

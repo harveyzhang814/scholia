@@ -71,6 +71,33 @@ async function req(port, method, urlPath, body) {
   fs.writeFileSync(path.join(contentDir, 'hash1', 'Image', 'pic.png'), 'fake-png-bytes');
   fs.writeFileSync(path.join(tmp, 'outside.png'), 'outside-bytes');
 
+  // Creator index + registry fixtures for /api/creator/:key. creators.json
+  // lives as a sibling of workDir (creator-source.js's creatorsIndexPath),
+  // and the registry is resolved via ~/.hskill/roster, so HOME is pointed
+  // at a scratch dir for the duration of this process (mirrors
+  // tests/creator-source.test.js).
+  const creatorHome = path.join(tmp, 'creator-home');
+  fs.mkdirSync(path.join(creatorHome, '.hskill', 'roster'), { recursive: true });
+  process.env.HOME = creatorHome;
+  fs.writeFileSync(path.join(tmp, 'creators.json'), JSON.stringify({
+    schema_version: 1, built_at: 'x', scanned: { entities: 0 },
+    creators: [
+      { key: 'creator_one', display_name: 'Creator One', channel_id: 'UC1', uploader_url: 'https://youtube.com/@creator_one',
+        videos: [{ task_id: 'cv1', title: 'Creator Video', upload_date: '2026-01-01', duration: '100' }] },
+    ],
+    unresolved: [],
+  }));
+  fs.writeFileSync(path.join(creatorHome, '.hskill', 'roster', 'registry.json'), JSON.stringify({
+    schema_version: 1,
+    creators: [
+      { id: 'creator_one', display_name: 'Creator One', aliases: [], placeholder: false, added_at: '2026-09-15',
+        channels: [{ platform: 'youtube', handle: '@creator_one', key: 'creator_one', url: 'https://youtube.com/@creator_one' }] },
+    ],
+  }));
+  fs.writeFileSync(path.join(creatorHome, '.hskill', 'roster', 'config.json'), JSON.stringify({
+    DATA_DIR: path.join(creatorHome, '.hskill', 'roster'),
+  }));
+
   const xDir = path.join(tmp, 'tweets');
   fs.mkdirSync(xDir, { recursive: true });
   fs.writeFileSync(path.join(xDir, 'trq212.json'), JSON.stringify([
@@ -366,6 +393,27 @@ async function req(port, method, urlPath, body) {
 
   await test('GET /api/x-timelines requires auth like other routes', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/x-timelines`);
+    assert.equal(res.status, 401);
+  });
+
+  await test('GET /api/creator/:key returns the creator with videos and watch status', async () => {
+    const r = await req(port, 'GET', '/api/creator/creator_one');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.key, 'creator_one');
+    assert.equal(r.body.display_name, 'Creator One');
+    assert.equal(r.body.watched, true);
+    assert.equal(r.body.creator_id, 'creator_one');
+    assert.equal(r.body.videos.length, 1);
+    assert.equal(r.body.videos[0].task_id, 'cv1');
+  });
+
+  await test('GET /api/creator/:key 404s for an unknown key', async () => {
+    const r = await req(port, 'GET', '/api/creator/nobody');
+    assert.equal(r.status, 404);
+  });
+
+  await test('GET /api/creator/:key requires auth like other routes', async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/creator/creator_one`);
     assert.equal(res.status, 401);
   });
 
