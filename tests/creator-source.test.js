@@ -84,7 +84,7 @@ async function test(name, fn) {
     ]);
     writeRegistry([
       { id: 'alejandro_ao', display_name: 'Alejandro AO', aliases: [], placeholder: false, added_at: '2026-09-15',
-        channels: [{ platform: 'youtube', handle: '@alejandro_ao', url: 'https://youtube.com/@alejandro_ao' }] },
+        channels: [{ platform: 'youtube', handle: '@alejandro_ao', key: 'alejandro_ao', url: 'https://youtube.com/@alejandro_ao' }] },
     ]);
     const result = await getCreator('alejandro_ao', workDir);
     assert.equal(result.watched, true);
@@ -104,8 +104,8 @@ async function test(name, fn) {
     writeRegistry([
       { id: 'new_handle', display_name: 'New Name', aliases: ['old_handle'], placeholder: false, added_at: '2026-09-15',
         channels: [
-          { platform: 'youtube', handle: '@new_handle', url: 'https://youtube.com/@new_handle' },
-          { platform: 'youtube', handle: '@old_handle', url: 'https://youtube.com/@old_handle' },
+          { platform: 'youtube', handle: '@new_handle', key: 'new_handle', url: 'https://youtube.com/@new_handle' },
+          { platform: 'youtube', handle: '@old_handle', key: 'old_handle', url: 'https://youtube.com/@old_handle' },
         ] },
     ]);
 

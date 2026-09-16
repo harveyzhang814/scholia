@@ -91,7 +91,7 @@ async function req(port, method, urlPath, body) {
     schema_version: 1,
     creators: [
       { id: 'creator_one', display_name: 'Creator One', aliases: [], placeholder: false, added_at: '2026-09-15',
-        channels: [{ platform: 'youtube', handle: '@creator_one', url: 'https://youtube.com/@creator_one' }] },
+        channels: [{ platform: 'youtube', handle: '@creator_one', key: 'creator_one', url: 'https://youtube.com/@creator_one' }] },
     ],
   }));
   fs.writeFileSync(path.join(creatorHome, '.hskill', 'roster', 'config.json'), JSON.stringify({

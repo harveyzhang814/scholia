@@ -39,7 +39,7 @@ function resolveRegistryMatch(key, channelId) {
   if (!registry || !Array.isArray(registry.creators)) return null;
   for (const creator of registry.creators) {
     const youtubeChannels = (creator.channels || []).filter((c) => c.platform === 'youtube');
-    const youtubeHandles = youtubeChannels.map((c) => normalizeHandle(c.handle));
+    const youtubeHandles = youtubeChannels.map((c) => c.key);
     const matchesByChannelId = Boolean(channelId) && youtubeChannels.some((c) => c.handle === channelId);
     if (youtubeHandles.includes(key) || matchesByChannelId) {
       return { creatorId: creator.id, youtubeHandles };
