@@ -7,5 +7,6 @@ export function useCreator(key: string | undefined) {
     queryFn: () => api.getCreator(key!),
     enabled: Boolean(key),
     staleTime: 30_000,
+    retry: false,
   });
 }
