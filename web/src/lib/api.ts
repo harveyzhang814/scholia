@@ -208,6 +208,23 @@ export interface XTimeline {
   tweets: XTweet[];
 }
 
+export interface CreatorVideo {
+  task_id: string;
+  title: string;
+  upload_date: string;
+  duration: string;
+}
+
+export interface CreatorDetail {
+  key: string;
+  display_name: string;
+  channel_id: string;
+  uploader_url: string;
+  videos: CreatorVideo[];
+  watched: boolean;
+  creator_id: string | null;
+}
+
 export const api = {
   listTasks: async (_limit = 200): Promise<{ tasks: Task[] }> => {
     const raw = await request<BackendListTask[]>(`/api/tasks`);
@@ -270,6 +287,7 @@ export const api = {
 
   listXTimelines: () => request<XTimelineSummary[]>('/api/x-timelines'),
   getXTimeline: (handle: string) => request<XTimeline>(`/api/x-timelines/${handle}`),
+  getCreator: (key: string) => request<CreatorDetail>(`/api/creator/${key}`),
 
   listReadIds: () => request<string[]>('/api/read-state'),
   markRead: (id: string) => request<void>(`/api/read-state/${encodeURIComponent(id)}`, { method: 'POST' }),
