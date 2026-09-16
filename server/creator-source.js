@@ -66,6 +66,17 @@ async function getCreator(key, workDir) {
     }
   }
 
+  // Concatenation order otherwise depends on which merged handle happens to
+  // be primary, so sort newest-first by upload_date (a plain ISO
+  // YYYY-MM-DD string — a straight string comparison sorts it correctly).
+  // Missing/empty upload_date sorts last.
+  videos.sort((a, b) => {
+    const da = (a && a.upload_date) || '';
+    const db = (b && b.upload_date) || '';
+    if (da === db) return 0;
+    return da < db ? 1 : -1;
+  });
+
   return {
     key: normalizedKey,
     display_name: primary.display_name,

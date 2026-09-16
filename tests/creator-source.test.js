@@ -118,6 +118,11 @@ async function test(name, fn) {
     assert.equal(viaOldKey.watched, true);
     assert.equal(viaOldKey.creator_id, 'new_handle');
     assert.deepEqual(new Set(viaOldKey.videos.map((v) => v.task_id)), new Set(['t1', 't2']));
+
+    // Same order regardless of which merged handle is primary — sorted by
+    // upload_date, newest first (t2 is 2026-01-01, t1 is 2025-01-01).
+    assert.deepEqual(viaSurvivingKey.videos.map((v) => v.task_id), ['t2', 't1']);
+    assert.deepEqual(viaOldKey.videos.map((v) => v.task_id), ['t2', 't1']);
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);
