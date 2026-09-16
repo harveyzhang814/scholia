@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-16
+
+### Added
+
+- Creator detail page at `/creator/:key` (web) and `GET /api/creator/:key` (server) — a creator's combined video list, sorted by `upload_date`.
+- Video: surface `uploader_id` through the API and video detail page.
+
+### Changed
+
+- Server: registry channels are now joined by pre-normalized key.
+
+### Fixed
+
+- Creator key lookup is now case-insensitive.
+- Creator matching falls back to `channel_id` when the registry entry lacks one.
+- Server degrades gracefully when a `creators.json` entry lacks videos.
+- Web: creator query page no longer retries on 404.
+
 ## [0.5.0] - 2026-08-17
 
 ### Added
