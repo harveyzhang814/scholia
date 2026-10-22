@@ -382,3 +382,20 @@ describe('Reader inline card slots', () => {
     }
   });
 });
+
+describe('Reader sc markers', () => {
+  it('renders sc markers as hidden ui spans, not literal text', () => {
+    const { container } = render(<Reader content={'hello <!-- sc:3f9a2b1c -->world<!-- /sc:3f9a2b1c -->'} />);
+    const spans = container.querySelectorAll('span[data-sc-marker="3f9a2b1c"]');
+    expect(spans).toHaveLength(2);
+    expect(spans[0].getAttribute('data-sc-edge')).toBe('open');
+    expect(spans[1].getAttribute('data-sc-edge')).toBe('close');
+    expect(spans[0].hasAttribute('data-sc-ui')).toBe(true);
+    expect(container.textContent).toBe('hello world');
+  });
+
+  it('leaves other html comments as before', () => {
+    const { container } = render(<Reader content={'a <!-- note --> b'} />);
+    expect(container.textContent).toContain('<!-- note -->');
+  });
+});

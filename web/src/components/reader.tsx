@@ -8,6 +8,10 @@ import { api, type Highlight, type Note, type NoteAnchor, type NoteDoc } from '@
 import { buildTextIndex, caretRangeAt, offsetToPoint, rangeToOffsets, SLOT_ATTR, UI_ATTR, type TextIndex } from '@/lib/text-index';
 import { captureAnchor, locateAnchor, type Located } from '@/lib/anchor';
 import { groupSlots, placeSlot } from '@/lib/inline-slots';
+import { remarkScMarkers } from '@/lib/sc-marker';
+
+// Module-level so the reference stays stable across renders.
+const REMARK_PLUGINS = [remarkScMarkers];
 
 // Id under which the in-progress comment's anchor is grouped into a slot (it never gets a mark).
 export const DRAFT_ID = '__draft__';
@@ -357,6 +361,7 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
           <MarkdownPreview
             key={md}
             content={md}
+            remarkPlugins={REMARK_PLUGINS}
             rehypePlugins={[rehypeHighlight]}
             components={mdComponents}
           />
