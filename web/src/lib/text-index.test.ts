@@ -85,6 +85,19 @@ describe('text-index', () => {
     expect(boundaryToOffset(ix, icon.firstChild!, 1)).toBe(1);
   });
 
+  describe('boundary inside a point icon maps to the icon position', () => {
+    const ICON = '<span data-sc-ui><svg><path></path></svg></span>';
+    const at = (html: string) => {
+      root.innerHTML = html;
+      const ix = buildTextIndex(root);
+      return boundaryToOffset(ix, root.querySelector('[data-sc-ui]')!, 0);
+    };
+    it('mid-paragraph', () => expect(at(`<p>甲乙${ICON}丙</p><p>丁</p>`)).toBe(2));
+    it('end of a non-last block', () => expect(at(`<p>甲乙${ICON}</p><p>丁</p>`)).toBe(2));
+    it('start of a block', () => expect(at(`<p>甲乙</p><p>${ICON}丁</p>`)).toBe(3));
+    it('end of the last block', () => expect(at(`<p>甲</p><p>丁戊${ICON}</p>`)).toBe(4));
+  });
+
   it('boundary on an element maps to the next indexed text node', () => {
     root.innerHTML = '<p>甲</p><p>乙</p>';
     const ix = buildTextIndex(root);

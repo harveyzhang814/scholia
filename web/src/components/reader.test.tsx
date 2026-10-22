@@ -128,6 +128,42 @@ describe('Reader comment entry points', () => {
     fireEvent.click(getByText('在此处评论'));
     expect(onCommentDraft).toHaveBeenCalledWith({ anchor: '', prefix: '第一段有', suffix: '个观点在这里。', position: 4 });
   });
+  it('right-click on a point icon at the end of a paragraph stays in that paragraph', () => {
+    const onCommentDraft = vi.fn();
+    const notes = [{ id: 'p', anchor: '', prefix: '观点在这里。', suffix: '', position: 11 }];
+    const { container, getByText } = render(
+      <Reader content={'第一段有个观点在这里。\n\n第二段。'} notes={notes} onCommentDraft={onCommentDraft} />,
+    );
+    const icon = container.querySelector('span.vdl-note-point')!;
+    expect(icon.parentElement!.textContent).toBe('第一段有个观点在这里。');
+    document.caretRangeFromPoint = () => { const r = document.createRange(); r.setStart(icon, 0); r.collapse(true); return r; };
+    fireEvent.contextMenu(icon, { clientX: 10, clientY: 10 });
+    fireEvent.click(getByText('在此处评论'));
+    expect(onCommentDraft).toHaveBeenCalledWith({ anchor: '', prefix: '第一段有个观点在这里。', suffix: '', position: 11 });
+  });
+  it('right-click uses the selection from before mousedown, not a word the browser selects', () => {
+    const onCommentDraft = vi.fn();
+    const { container, getByText } = render(<Reader content={content} onCommentDraft={onCommentDraft} />);
+    const t = bodyText(container);
+    document.caretRangeFromPoint = () => { const r = document.createRange(); r.setStart(t, 4); r.collapse(true); return r; };
+    getSelection()!.collapse(t, 4);
+    fireEvent.mouseDown(t.parentElement!, { button: 2 });
+    getSelection()!.setBaseAndExtent(t, 3, t, 6);   // macOS selects the word under the cursor
+    fireEvent.contextMenu(t.parentElement!, { clientX: 10, clientY: 10 });
+    fireEvent.click(getByText('在此处评论'));
+    expect(onCommentDraft).toHaveBeenCalledWith(expect.objectContaining({ anchor: '', position: 4 }));
+  });
+  it('right-click inside a selection made before mousedown comments on it', () => {
+    const onCommentDraft = vi.fn();
+    const { container, getByText } = render(<Reader content={content} onCommentDraft={onCommentDraft} />);
+    const t = bodyText(container);
+    document.caretRangeFromPoint = () => { const r = document.createRange(); r.setStart(t, 4); r.collapse(true); return r; };
+    getSelection()!.setBaseAndExtent(t, 3, t, 6);
+    fireEvent.mouseDown(t.parentElement!, { button: 2 });
+    fireEvent.contextMenu(t.parentElement!, { clientX: 10, clientY: 10 });
+    fireEvent.click(getByText('在此处评论'));
+    expect(onCommentDraft).toHaveBeenCalledWith(expect.objectContaining({ anchor: '有个观', position: 3 }));
+  });
   it('shift+right-click is not intercepted', () => {
     const { container } = render(<Reader content={content} onCommentDraft={vi.fn()} />);
     const ev = createEvent.contextMenu(bodyText(container).parentElement!, { shiftKey: true });

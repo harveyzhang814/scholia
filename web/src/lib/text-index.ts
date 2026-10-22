@@ -17,21 +17,29 @@ function isBlockLevel(node: Node | null): boolean {
   return !node || (node.nodeType === Node.ELEMENT_NODE && BLOCK_LEVEL.has((node as Element).tagName));
 }
 
-function blockOf(node: Text, root: HTMLElement): HTMLElement {
+function blockOf(node: Node, root: HTMLElement): HTMLElement {
   for (let el = node.parentElement; el && el !== root; el = el.parentElement) {
     if (BLOCK.has(el.tagName)) return el;
   }
   return root;
 }
 
+function isSkipped(el: Element): boolean {
+  return el.hasAttribute(UI_ATTR) || el.tagName.toLowerCase() === 'svg';
+}
+
+function skippedAncestor(node: Node, root: HTMLElement): Element | null {
+  for (let n: Node | null = node; n && n !== root; n = n.parentNode) {
+    if (n.nodeType === Node.ELEMENT_NODE && isSkipped(n as Element)) return n as Element;
+  }
+  return null;
+}
+
 export function buildTextIndex(root: HTMLElement): TextIndex {
   const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
     acceptNode(n) {
       if (n.nodeType === Node.ELEMENT_NODE) {
-        const el = n as Element;
-        return el.hasAttribute(UI_ATTR) || el.tagName.toLowerCase() === 'svg'
-          ? NodeFilter.FILTER_REJECT
-          : NodeFilter.FILTER_SKIP;
+        return isSkipped(n as Element) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
       }
       const parent = n.parentElement;
       if (
@@ -80,12 +88,22 @@ export function boundaryToOffset(index: TextIndex, container: Node, offset: numb
   const own = index.segments.find((s) => s.node === container);
   if (own) return own.start + Math.min(offset, own.node.data.length);
 
-  // Element boundary or skipped content: snap to the first indexed text node after it.
   const probe = index.root.ownerDocument.createRange();
   probe.setStart(container, offset);
   probe.collapse(true);
-  const next = index.segments.find((s) => probe.comparePoint(s.node, 0) >= 0);
-  return next ? next.start : index.text.length;
+  const i = index.segments.findIndex((s) => probe.comparePoint(s.node, 0) >= 0);
+  const nextAt = i === -1 ? index.segments.length : i;
+
+  // Inside skipped content (e.g. a point icon): it adds no text, so its position is the end of the
+  // indexed text right before it — as long as that text is in the same block (else the next block's start).
+  const skipped = skippedAncestor(container, index.root);
+  const prev = index.segments[nextAt - 1];
+  if (skipped && prev && blockOf(prev.node, index.root) === blockOf(skipped, index.root)) {
+    return prev.start + prev.node.data.length;
+  }
+
+  // Element boundary or skipped content at a block start: snap to the first indexed text node after it.
+  return nextAt < index.segments.length ? index.segments[nextAt].start : index.text.length;
 }
 
 export function rangeToOffsets(index: TextIndex, range: Range): { start: number; end: number } | null {

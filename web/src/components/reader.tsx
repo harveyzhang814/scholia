@@ -4,7 +4,7 @@ import type { Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import { ArticleMetaBar } from './article-meta-bar';
 import { api, type Highlight, type Note, type NoteAnchor, type NoteDoc } from '@/lib/api';
-import { buildTextIndex, caretRangeAt, offsetToPoint, rangeToOffsets, UI_ATTR } from '@/lib/text-index';
+import { buildTextIndex, caretRangeAt, offsetToPoint, rangeToOffsets, UI_ATTR, type TextIndex } from '@/lib/text-index';
 import { captureAnchor, locateAnchor, type Located } from '@/lib/anchor';
 
 interface ReaderProps {
@@ -88,6 +88,12 @@ function injectAnchorMarks<T extends AnchorMarkItem>(
   }
 }
 
+// Offsets of the current non-empty selection, or null if there is none or it leaves the indexed root.
+function selectionOffsets(index: TextIndex): { start: number; end: number } | null {
+  const sel = window.getSelection();
+  return sel && !sel.isCollapsed && sel.rangeCount ? rangeToOffsets(index, sel.getRangeAt(0)) : null;
+}
+
 export function Reader({ taskId, content, frontmatter, highlights, doc, notes, onNotesLocated, onCommentDraft, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
   const md = useMemo(() => content ?? '', [content]);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -156,20 +162,29 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
   // ── Context menu: comment here / delete highlight ────────────
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; hlId: string; draft?: NoteAnchor } | null>(null);
 
+  // Selection as it was at the right-button mousedown, before macOS selects the word under the cursor.
+  const preClickSelRef = useRef<{ sel: { start: number; end: number } | null } | null>(null);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    const body = bodyRef.current;
+    preClickSelRef.current = e.button === 2 && body ? { sel: selectionOffsets(buildTextIndex(body)) } : null;
+  }, []);
+
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    const snapshot = preClickSelRef.current;
+    preClickSelRef.current = null;
     if (e.shiftKey) return;  // Shift+right-click keeps the native menu
     const target = e.target as Element;
     const mark = target.closest('mark.vdl-hl') as HTMLElement | null;
     const body = bodyRef.current;
     let draft: NoteAnchor | undefined;
     if (onCommentDraft && body?.contains(target)) {
-      // Right-click inside the current selection comments on it; anywhere else, on the caret point.
-      const caret = caretRangeAt(e.clientX, e.clientY);
-      const sel = window.getSelection();
-      const selRange = sel && !sel.isCollapsed && sel.rangeCount ? sel.getRangeAt(0) : null;
-      const range = selRange && caret && selRange.isPointInRange(caret.startContainer, caret.startOffset) ? selRange : caret;
+      // Right-click inside a non-empty selection comments on it; anywhere else, on the caret point.
       const index = buildTextIndex(body);
-      const offsets = range && rangeToOffsets(index, range);
+      const caretRange = caretRangeAt(e.clientX, e.clientY);
+      const caret = caretRange && rangeToOffsets(index, caretRange);
+      const sel = snapshot ? snapshot.sel : selectionOffsets(index);
+      const offsets = sel && caret && sel.start < sel.end && caret.start >= sel.start && caret.start <= sel.end ? sel : caret;
       if (offsets) draft = captureAnchor(index, offsets.start, offsets.end, doc);
     }
     if (!mark && !draft) return;
@@ -293,7 +308,7 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
 
   return (
     <>
-      <article className="prose-cn" onMouseUp={handleMouseUp} onContextMenu={handleContextMenu}>
+      <article className="prose-cn" onMouseDown={handleMouseDown} onMouseUp={handleMouseUp} onContextMenu={handleContextMenu}>
         <ArticleMetaBar frontmatter={frontmatter} />
         <div data-sc-body ref={bodyRef}>
           <MarkdownPreview
