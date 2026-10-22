@@ -50,7 +50,7 @@ describe('Toc heading id assignment', () => {
   });
 });
 
-describe('extractToc with sc markers', () => {
+describe('toc', () => {
   it('ignores sc markers in headings', () => {
     expect(extractToc(stripScMarkers('## 标题<!-- sc:3f9a2b1c -->一'))[0].text).toBe('标题一');
   });
