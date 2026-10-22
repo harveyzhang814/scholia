@@ -1,5 +1,5 @@
 ---
-status: 待执行
+status: 执行中
 date: 2026-10-22
 author_model: claude-opus-5-5
 acceptance: hard
@@ -8,7 +8,7 @@ branch: feature/inline-comments-p2
 worktree: /Users/harveyzhang96/Projects/scholia/.claude/worktrees/feature+inline-comments-p2
 base_commit: 3d449a0d0a8097f1865e2c8cbf319e5e758164aa
 source_node: b6d0caf8-242a-4d0a-b925-8d01a895ae5f
-target_node:
+target_node: 3b27cb4a-5455-416e-872d-ab9779743465
 ---
 
 # 交接：实施正文内嵌评论第 2 期（内嵌卡片视图）
