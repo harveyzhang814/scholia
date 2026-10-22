@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, fireEvent, createEvent } from '@testing-library/react';
 import { Reader } from './reader';
 import type { Highlight } from '@/lib/api';
 import { afterEach } from 'vitest';
@@ -107,6 +107,61 @@ describe('Reader unified anchors', () => {
   it('frontmatter meta bar text is not matchable', () => {
     const { container } = render(<Reader content="正文" frontmatter={{ author: '作者名' }} notes={[{ id: 'm', anchor: '作者名' }]} />);
     expect(container.querySelector('mark.vdl-note-anchor')).toBeNull();
+  });
+});
+
+describe('Reader comment entry points', () => {
+  afterEach(() => {
+    delete (document as Partial<Document>).caretRangeFromPoint;
+    getSelection()?.removeAllRanges();
+  });
+
+  const content = '第一段有个观点在这里。';
+  const bodyText = (c: HTMLElement) => c.querySelector('[data-sc-body] p')!.firstChild as Text;
+
+  it('right-click shows 在此处评论 and yields a point draft', async () => {
+    const onCommentDraft = vi.fn();
+    const { container, getByText } = render(<Reader content={content} onCommentDraft={onCommentDraft} />);
+    const t = bodyText(container);
+    document.caretRangeFromPoint = () => { const r = document.createRange(); r.setStart(t, 4); r.collapse(true); return r; };
+    fireEvent.contextMenu(t.parentElement!, { clientX: 10, clientY: 10 });
+    fireEvent.click(getByText('在此处评论'));
+    expect(onCommentDraft).toHaveBeenCalledWith({ anchor: '', prefix: '第一段有', suffix: '个观点在这里。', position: 4 });
+  });
+  it('shift+right-click is not intercepted', () => {
+    const { container } = render(<Reader content={content} onCommentDraft={vi.fn()} />);
+    const ev = createEvent.contextMenu(bodyText(container).parentElement!, { shiftKey: true });
+    fireEvent(bodyText(container).parentElement!, ev);
+    expect(ev.defaultPrevented).toBe(false);
+  });
+  it('c with caret creates point draft', () => {
+    const onCommentDraft = vi.fn();
+    const { container } = render(<Reader content={content} onCommentDraft={onCommentDraft} />);
+    getSelection()!.collapse(bodyText(container), 4);
+    fireEvent.keyDown(document.body, { key: 'c' });
+    expect(onCommentDraft).toHaveBeenCalledWith(expect.objectContaining({ anchor: '', position: 4 }));
+  });
+  it('c with a selection creates range draft', () => {
+    const onCommentDraft = vi.fn();
+    const { container } = render(<Reader content={content} onCommentDraft={onCommentDraft} />);
+    getSelection()!.setBaseAndExtent(bodyText(container), 4, bodyText(container), 6);
+    fireEvent.keyDown(document.body, { key: 'c' });
+    expect(onCommentDraft).toHaveBeenCalledWith(expect.objectContaining({ anchor: '个观' }));
+  });
+  it('c inside a textarea does nothing', () => {
+    const onCommentDraft = vi.fn();
+    const { container } = render(<><Reader content={content} onCommentDraft={onCommentDraft} /><textarea /></>);
+    getSelection()!.collapse(bodyText(container), 4);
+    fireEvent.keyDown(container.querySelector('textarea')!, { key: 'c' });
+    expect(onCommentDraft).not.toHaveBeenCalled();
+  });
+  it('selection starting outside body yields no draft', () => {
+    const onCommentDraft = vi.fn();
+    const { container } = render(<Reader content={content} frontmatter={{ author: '作者' }} onCommentDraft={onCommentDraft} />);
+    const meta = container.querySelector('article > :first-child')!;   // ArticleMetaBar 根元素，位于 data-sc-body 之外
+    getSelection()!.setBaseAndExtent(meta, 0, bodyText(container), 3);
+    fireEvent.keyDown(document.body, { key: 'c' });
+    expect(onCommentDraft).not.toHaveBeenCalled();
   });
 });
 

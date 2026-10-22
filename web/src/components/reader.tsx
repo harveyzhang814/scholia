@@ -4,8 +4,8 @@ import type { Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import { ArticleMetaBar } from './article-meta-bar';
 import { api, type Highlight, type Note, type NoteAnchor, type NoteDoc } from '@/lib/api';
-import { buildTextIndex, offsetToPoint, UI_ATTR } from '@/lib/text-index';
-import { locateAnchor, type Located } from '@/lib/anchor';
+import { buildTextIndex, caretRangeAt, offsetToPoint, rangeToOffsets, UI_ATTR } from '@/lib/text-index';
+import { captureAnchor, locateAnchor, type Located } from '@/lib/anchor';
 
 interface ReaderProps {
   taskId?: string;
@@ -18,7 +18,7 @@ interface ReaderProps {
   hoveredNoteId?: string | null;
   onNoteHover?: (id: string | null) => void;
   onNoteAnchorClick?: (id: string) => void;
-  onAnchorSelect?: (anchor: string) => void;
+  onCommentDraft?: (a: NoteAnchor) => void;
   onAddHighlight?: (anchor: string, color: 'yellow' | 'green' | 'red' | 'blue') => void;
   onDeleteHighlight?: (id: string) => void;
 }
@@ -88,9 +88,8 @@ function injectAnchorMarks<T extends AnchorMarkItem>(
   }
 }
 
-export function Reader({ taskId, content, frontmatter, highlights, doc, notes, onNotesLocated, onAnchorSelect, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
+export function Reader({ taskId, content, frontmatter, highlights, doc, notes, onNotesLocated, onCommentDraft, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
   const md = useMemo(() => content ?? '', [content]);
-  const articleRef = useRef<HTMLElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   // Latest callback, kept out of the injection effect's deps: callers may pass
   // a fresh function each render, which would otherwise re-inject (and loop).
@@ -109,7 +108,7 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
   }), [isArticleTask, taskId]);
 
   // ── Selection bubble ────────────────────────────────────────
-  const [bubble, setBubble] = useState<{ x: number; y: number; anchor: string } | null>(null);
+  const [bubble, setBubble] = useState<{ x: number; y: number; anchor: string; start: number; end: number } | null>(null);
 
   const handleMouseUp = useCallback(() => {
     const sel = window.getSelection();
@@ -117,10 +116,12 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
     const text = sel.toString().trim();
     if (!text) return;
     const range = sel.getRangeAt(0);
-    if (!articleRef.current?.contains(range.commonAncestorContainer)) return;
+    const body = bodyRef.current;
+    const offsets = body && rangeToOffsets(buildTextIndex(body), range);
+    if (!offsets) return;
     const rect = range.getBoundingClientRect();
     const anchor = text.slice(0, 200);
-    setBubble({ x: rect.left + rect.width / 2, y: rect.top, anchor });
+    setBubble({ x: rect.left + rect.width / 2, y: rect.top, anchor, ...offsets });
   }, []);
 
   useEffect(() => {
@@ -146,23 +147,37 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
   };
 
   const handleNoteClick = () => {
-    if (!bubble) return;
-    onAnchorSelect?.(bubble.anchor);
+    if (!bubble || !bodyRef.current) return;
+    onCommentDraft?.(captureAnchor(buildTextIndex(bodyRef.current), bubble.start, bubble.end, doc));
     window.getSelection()?.removeAllRanges();
     setBubble(null);
   };
 
-  // ── Context-menu delete overlay ──────────────────────────────
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; hlId: string } | null>(null);
+  // ── Context menu: comment here / delete highlight ────────────
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; hlId: string; draft?: NoteAnchor } | null>(null);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    const mark = (e.target as Element).closest('mark.vdl-hl') as HTMLElement | null;
-    if (!mark) return;
+    if (e.shiftKey) return;  // Shift+right-click keeps the native menu
+    const target = e.target as Element;
+    const mark = target.closest('mark.vdl-hl') as HTMLElement | null;
+    const body = bodyRef.current;
+    let draft: NoteAnchor | undefined;
+    if (onCommentDraft && body?.contains(target)) {
+      // Right-click inside the current selection comments on it; anywhere else, on the caret point.
+      const caret = caretRangeAt(e.clientX, e.clientY);
+      const sel = window.getSelection();
+      const selRange = sel && !sel.isCollapsed && sel.rangeCount ? sel.getRangeAt(0) : null;
+      const range = selRange && caret && selRange.isPointInRange(caret.startContainer, caret.startOffset) ? selRange : caret;
+      const index = buildTextIndex(body);
+      const offsets = range && rangeToOffsets(index, range);
+      if (offsets) draft = captureAnchor(index, offsets.start, offsets.end, doc);
+    }
+    if (!mark && !draft) return;
     e.preventDefault();
-    const hlId = mark.dataset.hlId ?? '';
-    if (!hlId) return;
-    setCtxMenu({ x: e.clientX, y: e.clientY, hlId });
-  }, []);
+    const hlId = mark?.dataset.hlId ?? '';
+    if (!hlId && !draft) return;
+    setCtxMenu({ x: e.clientX, y: e.clientY, hlId, draft });
+  }, [onCommentDraft, doc]);
 
   useEffect(() => {
     if (!ctxMenu) return;
@@ -175,11 +190,37 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
     };
   }, [ctxMenu]);
 
+  const handleCommentHere = () => {
+    if (!ctxMenu?.draft) return;
+    onCommentDraft?.(ctxMenu.draft);
+    setCtxMenu(null);
+  };
+
   const handleDeleteHighlight = () => {
     if (!ctxMenu) return;
     onDeleteHighlight?.(ctxMenu.hlId);
     setCtxMenu(null);
   };
+
+  // ── `c` key: comment on the current selection or caret ───────
+  useEffect(() => {
+    if (!onCommentDraft) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'c' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement;
+      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
+      const sel = window.getSelection();
+      const body = bodyRef.current;
+      if (!body || !sel?.rangeCount) return;
+      const index = buildTextIndex(body);
+      const offsets = rangeToOffsets(index, sel.getRangeAt(0));
+      if (!offsets) return;
+      e.preventDefault();
+      onCommentDraft(captureAnchor(index, offsets.start, offsets.end, doc));
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onCommentDraft, doc]);
 
   // ── Post-render highlight injection ─────────────────────────
   useEffect(() => {
@@ -252,7 +293,7 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
 
   return (
     <>
-      <article ref={articleRef} className="prose-cn" onMouseUp={handleMouseUp} onContextMenu={handleContextMenu}>
+      <article className="prose-cn" onMouseUp={handleMouseUp} onContextMenu={handleContextMenu}>
         <ArticleMetaBar frontmatter={frontmatter} />
         <div data-sc-body ref={bodyRef}>
           <MarkdownPreview
@@ -308,12 +349,12 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
             </button>
           ))}
 
-          {onAnchorSelect && (
+          {onCommentDraft && (
             <>
               <div style={{ width: 1, height: 14, background: 'var(--border-subtle)', margin: '0 2px' }} />
               <button
                 onClick={handleNoteClick}
-                title="添加笔记"
+                title="评论"
                 style={{
                   width: 22, height: 22,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -331,7 +372,7 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
         </div>
       )}
 
-      {/* Context-menu delete overlay */}
+      {/* Context menu */}
       {ctxMenu && (
         <div
           style={{
@@ -347,18 +388,34 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={handleDeleteHighlight}
-            style={{
-              display: 'block', width: '100%',
-              padding: '7px 14px',
-              fontSize: 13, textAlign: 'left',
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--status-err)',
-            }}
-          >
-            删除高亮
-          </button>
+          {ctxMenu.draft && (
+            <button
+              onClick={handleCommentHere}
+              style={{
+                display: 'block', width: '100%',
+                padding: '7px 14px',
+                fontSize: 13, textAlign: 'left',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text-primary)',
+              }}
+            >
+              在此处评论
+            </button>
+          )}
+          {ctxMenu.hlId && (
+            <button
+              onClick={handleDeleteHighlight}
+              style={{
+                display: 'block', width: '100%',
+                padding: '7px 14px',
+                fontSize: 13, textAlign: 'left',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--status-err)',
+              }}
+            >
+              删除高亮
+            </button>
+          )}
         </div>
       )}
     </>
