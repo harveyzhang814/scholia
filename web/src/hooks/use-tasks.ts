@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type Task, type Note, type NoteAnchor, type Highlight } from '@/lib/api';
+import { anchorKind } from '@/lib/anchor';
+import { writeMarker } from '@/lib/marker-write';
 
 export function useMediaInfo(id: string | undefined) {
   return useQuery({
@@ -79,7 +81,20 @@ export function useAddNote(taskId: string) {
   return useMutation({
     mutationFn: (data: Partial<NoteAnchor> & { mediaTimestamp?: number; body: string }) =>
       api.addNote(taskId, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['task', taskId, 'notes'] }),
+    onSuccess: (note) => {
+      qc.invalidateQueries({ queryKey: ['task', taskId, 'notes'] });
+      // Fire-and-forget: a missing marker only means the comment falls back to text locating.
+      if (anchorKind(note) === 'none') return;
+      if (!taskId.startsWith('article-') && !note.doc) return;  // video transcript notes have no source file
+      const contentKey = ['task', taskId, 'content', note.doc ?? 'article'];
+      const md = qc.getQueryData<string>(contentKey);
+      if (!md) return;
+      void writeMarker(taskId, note, md).then((ok) => {
+        if (!ok) return;
+        qc.invalidateQueries({ queryKey: contentKey });
+        qc.invalidateQueries({ queryKey: ['task', taskId, 'notes'] });
+      });
+    },
   });
 }
 
