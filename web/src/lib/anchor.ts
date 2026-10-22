@@ -38,7 +38,7 @@ export function captureAnchor(index: PlainIndex, start: number, end: number, doc
 type Dir = -1 | 1;  // -1: context before `at` (prefix), 1: after (suffix)
 
 // Stored context sits right next to `at` inside at's block; an empty side fits only on the block edge.
-function fits(index: PlainIndex, side: string, at: number, dir: Dir): boolean {
+export function fits(index: PlainIndex, side: string, at: number, dir: Dir): boolean {
   const b = blockAt(index, at);
   if (!b) return false;
   if (!side) return at === (dir < 0 ? b.start : b.end);
@@ -56,7 +56,7 @@ function score(index: PlainIndex, side: string, at: number, dir: Dir): number {
   return edge ? 1.5 : 1;
 }
 
-function occurrences(text: string, s: string): number[] {
+export function occurrences(text: string, s: string): number[] {
   const out: number[] = [];
   for (let i = text.indexOf(s); i !== -1; i = text.indexOf(s, i + 1)) out.push(i);
   return out;

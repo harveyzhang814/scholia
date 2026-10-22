@@ -21,6 +21,14 @@ function range(md: string, anchor: string): NoteAnchor {
   return captureAnchor(index, s, s + anchor.length);
 }
 
+// Range note on the last occurrence of `anchor`.
+function rangeLast(md: string, anchor: string): NoteAnchor {
+  const index = renderedIndex(md);
+  const s = index.text.lastIndexOf(anchor);
+  expect(s).not.toBe(-1);
+  return captureAnchor(index, s, s + anchor.length);
+}
+
 // Point note right after the first occurrence of `before`.
 function pointAfter(md: string, before: string): NoteAnchor {
   const index = renderedIndex(md);
@@ -156,6 +164,29 @@ describe('planMarkerInsertions', () => {
   it('anchorless note → null', () => {
     expect(planMarkerInsertions('第一段文字。', { anchor: '' })).toBeNull();
     expect(planMarkerInsertions('第一段文字。', { anchor: '', prefix: '', suffix: '', position: 0 })).toBeNull();
+  });
+
+  it('aborts when the text occurs more than once with the same context', () => {
+    const table = '| 项 | 结果 |\n|---|---|\n| 甲 | 是 |\n| 乙 | 是 |';
+    expect(planMarkerInsertions(table, rangeLast(table, '是'))).toBeNull();
+    const list = '- 同一项\n- 同一项';
+    expect(planMarkerInsertions(list, rangeLast(list, '同一项'))).toBeNull();
+    const para = '前文甲乙后文\n\n前文甲乙后文';
+    expect(planMarkerInsertions(para, rangeLast(para, '甲乙'))).toBeNull();
+    expect(planMarkerInsertions(para, pointAfter(para, '甲'))).toBeNull();
+  });
+
+  it('still marks repeated text when its context is unique', () => {
+    const md = '甲说：好。\n\n乙说：好。';
+    const s = md.lastIndexOf('好');
+    expect(planMarkerInsertions(md, rangeLast(md, '好'))).toEqual([{ offset: s, edge: 'start' }, { offset: s + 1, edge: 'end' }]);
+    // A whole-cell anchor (empty context on both sides) next to the same text inside a longer cell.
+    const table = '| 项 | 结果 |\n|---|---|\n| 是否 | 是 |';
+    const c = table.lastIndexOf('是');
+    expect(planMarkerInsertions(table, rangeLast(table, '是'))).toEqual([{ offset: c, edge: 'start' }, { offset: c + 1, edge: 'end' }]);
+    const para = '前文甲乙后文\n\n前文甲丙后文';
+    const p = para.indexOf('甲') + 1;
+    expect(planMarkerInsertions(para, pointAfter(para, '甲'))).toEqual([{ offset: p, edge: 'point' }]);
   });
 
   it('keeps existing sc markers of other notes out of the way', () => {

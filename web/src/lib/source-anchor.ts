@@ -6,7 +6,7 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import type { MarkerEdge, MarkerInsertion, NoteAnchor } from './api';
-import { anchorKind, locateAnchor } from './anchor';
+import { anchorKind, fits, locateAnchor, occurrences, type AnchorKind } from './anchor';
 import { SC_MARKER_RE } from './sc-marker';
 import type { PlainIndex } from './text-index';
 
@@ -116,12 +116,35 @@ function insertMarkers(md: string, plan: MarkerInsertion[], id: string): string 
   return out;
 }
 
+// The source index is not always identical to the rendered one (task-list items, footnotes, mermaid
+// blocks differ), so when the same text and context occur twice, the locator's position tie-break can
+// pick the other copy here than on the page. Only accept a match the stored context singles out.
+// "Fits" is the locator's own rule: an empty side (captured at a block edge) only fits at a block
+// edge, so empty context never matches mid-block copies of the text and can't make a unique anchor
+// look repeated. Legacy notes without context are held to the same rule.
+function isUniqueMatch(index: SourceIndex, note: NoteAnchor, kind: AnchorKind, at: number): boolean {
+  const prefix = note.prefix ?? '';
+  const suffix = note.suffix ?? '';
+  const len = kind === 'range' ? note.anchor.length : 0;
+  const candidates = kind === 'range'
+    ? occurrences(index.text, note.anchor)
+    : [...new Set([
+        ...(prefix ? occurrences(index.text, prefix).map((i) => i + prefix.length) : []),
+        ...(suffix ? occurrences(index.text, suffix) : []),
+      ])];
+  const full = candidates.filter((p) => fits(index, prefix, p, -1) && fits(index, suffix, p + len, 1));
+  if (full.length) return full.length === 1 && full[0] === at;
+  // No copy carries the full context (it was captured from slightly different text): trust the
+  // match only if the text itself occurs nowhere else.
+  return candidates.length === 1 && candidates[0] === at;
+}
+
 export function planMarkerInsertions(md: string, note: NoteAnchor): MarkerInsertion[] | null {
   const kind = anchorKind(note);
   if (kind === 'none') return null;
   const index = buildSourceIndex(md);
   const loc = locateAnchor(index, note);
-  if (!loc || loc.grade !== 'exact') return null;
+  if (!loc || loc.grade !== 'exact' || !isUniqueMatch(index, note, kind, loc.start)) return null;
 
   const wanted: MarkerInsertion[] = kind === 'point'
     ? [{ offset: loc.start, edge: 'point' }]
