@@ -1,6 +1,8 @@
 // Block-aware plain-text index over rendered Markdown DOM, with offset <-> DOM mapping.
 
 export const UI_ATTR = 'data-sc-ui';
+// Inline comment card container; unlike other UI nodes, positions inside it don't map to text offsets.
+export const SLOT_ATTR = 'data-sc-slot';
 
 export interface TextBlock { start: number; end: number; el: HTMLElement }  // [start, end) in text, excluding separator
 export interface TextIndex { root: HTMLElement; text: string; blocks: TextBlock[]; segments: { node: Text; start: number }[] }
@@ -85,6 +87,8 @@ export function offsetToPoint(index: TextIndex, offset: number): { node: Text; o
 
 export function boundaryToOffset(index: TextIndex, container: Node, offset: number): number | null {
   if (!index.root.contains(container)) return null;
+  const slot = (container.nodeType === Node.ELEMENT_NODE ? container as Element : container.parentElement)?.closest(`[${SLOT_ATTR}]`);
+  if (slot && slot !== index.root && index.root.contains(slot)) return null;
   const own = index.segments.find((s) => s.node === container);
   if (own) return own.start + Math.min(offset, own.node.data.length);
 

@@ -6,6 +6,7 @@ import {
   boundaryToOffset,
   rangeToOffsets,
   caretRangeAt,
+  SLOT_ATTR,
 } from './text-index';
 
 describe('text-index', () => {
@@ -96,6 +97,21 @@ describe('text-index', () => {
     it('end of a non-last block', () => expect(at(`<p>甲乙${ICON}</p><p>丁</p>`)).toBe(2));
     it('start of a block', () => expect(at(`<p>甲乙</p><p>${ICON}丁</p>`)).toBe(3));
     it('end of the last block', () => expect(at(`<p>甲</p><p>丁戊${ICON}</p>`)).toBe(4));
+  });
+
+  it('range inside a slot maps to null', () => {
+    root.innerHTML = `<p>正文</p><div data-sc-ui ${SLOT_ATTR}="1"><p>卡片文字</p></div>`;
+    const ix = buildTextIndex(root);
+    const slot = root.querySelector(`[${SLOT_ATTR}]`)!;
+    const cardText = slot.querySelector('p')!.firstChild!;
+    expect(boundaryToOffset(ix, cardText, 1)).toBeNull();
+    expect(boundaryToOffset(ix, slot, 0)).toBeNull();
+    const r = document.createRange();
+    r.setStart(root.querySelector('p')!.firstChild!, 0);
+    r.setEnd(cardText, 1);
+    expect(rangeToOffsets(ix, r)).toBeNull();
+    // the slot's position among its siblings is outside it, so it still maps
+    expect(boundaryToOffset(ix, root, 2)).toBe(ix.text.length);
   });
 
   it('boundary on an element maps to the next indexed text node', () => {

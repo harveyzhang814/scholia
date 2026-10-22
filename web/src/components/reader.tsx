@@ -1,11 +1,16 @@
-import { useMemo, useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
+import { useMemo, useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { MarkdownPreview } from '@harveyzhang814/markdown-preview-core';
 import type { Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import { ArticleMetaBar } from './article-meta-bar';
 import { api, type Highlight, type Note, type NoteAnchor, type NoteDoc } from '@/lib/api';
-import { buildTextIndex, caretRangeAt, offsetToPoint, rangeToOffsets, UI_ATTR, type TextIndex } from '@/lib/text-index';
+import { buildTextIndex, caretRangeAt, offsetToPoint, rangeToOffsets, SLOT_ATTR, UI_ATTR, type TextIndex } from '@/lib/text-index';
 import { captureAnchor, locateAnchor, type Located } from '@/lib/anchor';
+import { groupSlots, placeSlot } from '@/lib/inline-slots';
+
+// Id under which the in-progress comment's anchor is grouped into a slot (it never gets a mark).
+export const DRAFT_ID = '__draft__';
 
 interface ReaderProps {
   taskId?: string;
@@ -15,6 +20,8 @@ interface ReaderProps {
   doc?: NoteDoc;
   notes?: (Pick<Note, 'id'> & NoteAnchor)[];
   onNotesLocated?: (located: Record<string, Located>) => void;
+  draft?: NoteAnchor | null;
+  renderInline?: (ids: string[]) => ReactNode;   // given: inline view, cards render in slots under their blocks
   hoveredNoteId?: string | null;
   onNoteHover?: (id: string | null) => void;
   onNoteAnchorClick?: (id: string) => void;
@@ -94,7 +101,7 @@ function selectionOffsets(index: TextIndex): { start: number; end: number } | nu
   return sel && !sel.isCollapsed && sel.rangeCount ? rangeToOffsets(index, sel.getRangeAt(0)) : null;
 }
 
-export function Reader({ taskId, content, frontmatter, highlights, doc, notes, onNotesLocated, onCommentDraft, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
+export function Reader({ taskId, content, frontmatter, highlights, doc, notes, onNotesLocated, draft, renderInline, onCommentDraft, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
   const md = useMemo(() => content ?? '', [content]);
   const bodyRef = useRef<HTMLDivElement>(null);
   // Latest callback, kept out of the injection effect's deps: callers may pass
@@ -116,7 +123,8 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
   // ── Selection bubble ────────────────────────────────────────
   const [bubble, setBubble] = useState<{ x: number; y: number; anchor: string; start: number; end: number } | null>(null);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if ((e.target as Element).closest(`[${SLOT_ATTR}]`)) return;
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !sel.rangeCount) return;
     const text = sel.toString().trim();
@@ -166,11 +174,13 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
   const preClickSelRef = useRef<{ sel: { start: number; end: number } | null } | null>(null);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if ((e.target as Element).closest(`[${SLOT_ATTR}]`)) return;
     const body = bodyRef.current;
     preClickSelRef.current = e.button === 2 && body ? { sel: selectionOffsets(buildTextIndex(body)) } : null;
   }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    if ((e.target as Element).closest(`[${SLOT_ATTR}]`)) return;  // native menu inside cards
     const snapshot = preClickSelRef.current;
     preClickSelRef.current = null;
     if (e.shiftKey) return;  // Shift+right-click keeps the native menu
@@ -224,6 +234,7 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
       if (e.key !== 'c' || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement;
       if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
+      if (t.closest(`[${SLOT_ATTR}]`)) return;
       const sel = window.getSelection();
       const body = bodyRef.current;
       if (!body || !sel?.rangeCount) return;
@@ -255,6 +266,11 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
   }, [highlights, md]);
 
   // ── Post-render note-anchor injection ────────────────────────
+  // renderInline stays out of the effect deps (callers pass a fresh function each render); only its presence matters here.
+  const hasInline = !!renderInline;
+  const slotElsRef = useRef(new Map<HTMLElement, HTMLElement>());  // host block -> its slot
+  const slotSeqRef = useRef(0);
+  const [slots, setSlots] = useState<{ el: HTMLElement; key: string; ids: string[] }[]>([]);
   useEffect(() => {
     const body = bodyRef.current;
     if (!body) return;
@@ -293,8 +309,33 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
     }
     injectAnchorMarks(body, items.filter((it) => it.start < it.end), 'vdl-note-anchor', decorate);
 
+    // Inline view: one slot per host block, after marks and icons are in place. Slots are reused per
+    // host (the map) so a card being edited in a portal isn't remounted when other notes change.
+    const draftLoc = hasInline && draft && !(doc && draft.doc && draft.doc !== doc) ? locateAnchor(index, draft) : null;
+    const groups = hasInline
+      ? groupSlots(index, draftLoc ? [...items, { id: DRAFT_ID, start: draftLoc.start, end: draftLoc.end }] : items)
+      : [];
+    const next = groups.map(({ host, ids }) => {
+      let el = slotElsRef.current.get(host);
+      if (!el) {
+        el = document.createElement('div');
+        el.setAttribute(UI_ATTR, '');
+        el.setAttribute(SLOT_ATTR, String(++slotSeqRef.current));
+        slotElsRef.current.set(host, el);
+      }
+      placeSlot(el, host, body);
+      return { el, key: el.getAttribute(SLOT_ATTR)!, ids };
+    });
+    const used = new Set(next.map((s) => s.el));
+    body.querySelectorAll(`[${SLOT_ATTR}]`).forEach((el) => { if (!used.has(el as HTMLElement)) el.remove(); });
+    for (const [host, el] of slotElsRef.current) if (!used.has(el)) slotElsRef.current.delete(host);
+    setSlots((prev) => (
+      prev.length === next.length && prev.every((s, i) => s.el === next[i].el && s.ids.join('\n') === next[i].ids.join('\n'))
+        ? prev : next
+    ));
+
     onNotesLocatedRef.current?.(located);
-  }, [notes, doc, md, onNoteHover, onNoteAnchorClick]);
+  }, [notes, doc, md, draft, hasInline, onNoteHover, onNoteAnchorClick]);
 
   // ── Reverse hover sync: sidebar card → article mark ──────────
   // NOTE: This effect depends on running AFTER the note-injection effect (deps [notes, doc, md, ...])
@@ -321,6 +362,8 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
           />
         </div>
       </article>
+
+      {renderInline && slots.map(({ el, key, ids }) => createPortal(renderInline(ids), el, key))}
 
       {/* Selection toolbar */}
       {bubble && (
