@@ -102,22 +102,53 @@ describe('planMarkerInsertions', () => {
   });
 
   it('line-start rules keep block structure', () => {
-    const cases: [md: string, anchor: string, start: number, end: number][] = [
-      ['段首文字', '段首', 1, 2],                                           // paragraph start
-      ['- 项目文字', '项目', 3, 4],                                         // list item content start
-      ['> 引用文字', '引用', 3, 4],                                         // blockquote content start
-      ['第一行\n第二行文字', '第二行', 5, 7],                               // after a soft line break
+    // A start marker that would land at a line start is not written at all (the note stays text-located).
+    const cases: [md: string, anchor: string][] = [
+      ['段首文字', '段首'],                                                 // paragraph start
+      ['- 项目文字', '项目'],                                               // list item content start
+      ['> 引用文字', '引用'],                                               // blockquote content start
+      ['第一行\n第二行文字', '第二行'],                                     // after a soft line break
     ];
-    for (const [md, anchor, start, end] of cases) {
-      const plan = planMarkerInsertions(md, range(md, anchor));
-      expect(plan).toEqual([{ offset: start, edge: 'start' }, { offset: end, edge: 'end' }]);
-      expect(checkReparse(md, insert(md, plan!), 2)).toBe(true);
+    for (const [md, anchor] of cases) {
+      expect(planMarkerInsertions(md, range(md, anchor))).toBeNull();
     }
-    // A point at the very start of a paragraph moves one character on.
+    // So is a point at the very start of a paragraph.
     const md = '甲\n\n乙丙';
-    const plan = planMarkerInsertions(md, { anchor: '', prefix: '', suffix: '乙丙', position: 2 });
-    expect(plan).toEqual([{ offset: 4, edge: 'point' }]);
-    expect(checkReparse(md, insert(md, plan!), 1)).toBe(true);
+    expect(planMarkerInsertions(md, { anchor: '', prefix: '', suffix: '乙丙', position: 2 })).toBeNull();
+  });
+
+  it('point note at a line start writes no marker', () => {
+    const cases: [md: string, firstChars: string][] = [
+      ['甲\n\n乙丙', '乙丙'],
+      ['- 项目文字', '项目'],
+      ['> 引用文字', '引用'],
+      ['第一行\n第二行文字', '第二行'],
+    ];
+    for (const [md, firstChars] of cases) {
+      const index = renderedIndex(md);
+      const at = index.text.indexOf(firstChars);
+      expect(at).toBeGreaterThan(-1);
+      expect(planMarkerInsertions(md, captureAnchor(index, at, at))).toBeNull();
+    }
+  });
+
+  it('a mid-line start with the end at a line start still moves the end back', () => {
+    const md = '第一行文字\n第二行文字';
+    const plan = planMarkerInsertions(md, range(md, '文字\n'));
+    // start stays mid-line; end sits at the end of the previous line, before its newline.
+    expect(plan).toEqual([{ offset: 3, edge: 'start' }, { offset: 5, edge: 'end' }]);
+    expect(checkReparse(md, insert(md, plan!), 2)).toBe(true);
+  });
+
+  it('mid-line range and point notes are unchanged', () => {
+    const md = '前文 **粗体字** 后文';
+    const plan = planMarkerInsertions(md, range(md, '体字'));
+    const s = md.indexOf('体字');
+    expect(plan).toEqual([{ offset: s, edge: 'start' }, { offset: s + 2, edge: 'end' }]);
+    expect(checkReparse(md, insert(md, plan!), 2)).toBe(true);
+    const pt = planMarkerInsertions(md, pointAfter(md, '前文'));
+    expect(pt).toEqual([{ offset: 2, edge: 'point' }]);
+    expect(checkReparse(md, insert(md, pt!), 1)).toBe(true);
   });
 
   it('aborts when the line-start shift empties a one-character range', () => {

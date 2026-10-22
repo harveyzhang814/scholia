@@ -91,9 +91,14 @@ function toSource(index: SourceIndex, offset: number, edge: MarkerEdge): number 
 // offset on its line — a marker there would open an html block instead of staying inline.
 const CONTAINER_PREFIX_RE = /^[ \t]*(?:(?:>|[-+*]|\d{1,9}[.)])[ \t]*)*$/;
 
+function isLineStart(md: string, offset: number): boolean {
+  const lineStart = md.lastIndexOf('\n', offset - 1) + 1;
+  return CONTAINER_PREFIX_RE.test(md.slice(lineStart, offset));
+}
+
 export function applyLineStartRule(md: string, offset: number, edge: MarkerEdge): number {
   const lineStart = md.lastIndexOf('\n', offset - 1) + 1;
-  if (!CONTAINER_PREFIX_RE.test(md.slice(lineStart, offset))) return offset;
+  if (!isLineStart(md, offset)) return offset;
   if (edge === 'end') {
     if (lineStart === 0) return offset;
     return md[lineStart - 2] === '\r' ? lineStart - 2 : lineStart - 1;
@@ -153,6 +158,8 @@ export function planMarkerInsertions(md: string, note: NoteAnchor): MarkerInsert
   for (const { offset, edge } of wanted) {
     const src = toSource(index, offset, edge);
     if (src === null) return null;
+    // A start/point marker at a line start is not written: the note stays text-located (a complete highlight).
+    if (edge !== 'end' && isLineStart(md, src)) return null;
     const at = applyLineStartRule(md, src, edge);
     // Still within (or at an edge of) a verbatim text node, and not between the halves of a surrogate pair.
     const verbatim = index.segments.some((s) => s.insertable && at >= s.srcStart && at <= s.srcStart + s.text.length);
