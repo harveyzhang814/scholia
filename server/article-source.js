@@ -147,4 +147,4 @@ async function getArticleContent(taskId, contentDir) {
   } catch { return null; }
 }
 
-module.exports = { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent, resolveArticleFile };
+module.exports = { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent, resolveArticleFile, parseFrontmatter };

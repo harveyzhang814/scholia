@@ -9,7 +9,8 @@ const crypto = require('crypto');
 
 const { getVideoDirs, getArticleAnnotationDirs } = require('./paths');
 const { listVideos, getVideoTask, getVideoMediaInfo, getVideoSubtitles, getVideoContent } = require('./video-source');
-const { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent, resolveArticleFile } = require('./article-source');
+const { isArticleId, slugFromId, listArticles, articleFileExists, getArticleTask, getArticleContent, resolveArticleFile, parseFrontmatter } = require('./article-source');
+const { sha256Hex, validateInsertions, applyInsertions, removeMarkers, newMarkerId, writeFileAtomic } = require('./markers');
 const { listXTimelines, getXTimeline } = require('./x-source');
 const { getCreator } = require('./creator-source');
 const { createStaticServe } = require('./static-serve');
@@ -81,6 +82,33 @@ function createApp(options = {}) {
     });
     readStateQueue = result.catch(() => {});
     return result;
+  }
+
+  // Marker writes rewrite users' source files; serialize them so the
+  // hash check and the write in one request can't interleave with another.
+  let markerQueue = Promise.resolve();
+  function withMarkerLock(fn) {
+    const result = markerQueue.then(fn);
+    markerQueue = result.catch(() => {});
+    return result;
+  }
+
+  // Source file a note's markers live in: the article file, or
+  // <workDir>/<taskId>/writing/<note.doc>.md for videos. null if none.
+  async function noteSourceFile(taskId, note) {
+    if (isArticleId(taskId)) {
+      return CONTENT_DIR ? resolveArticleFile(CONTENT_DIR, slugFromId(taskId)) : null;
+    }
+    if (!WORK_DIR || (note.doc !== 'summary' && note.doc !== 'article')) return null;
+    return path.join(WORK_DIR, taskId, 'writing', `${note.doc}.md`);
+  }
+
+  // Splits a source file into the part notes' offsets refer to (body) and
+  // its frontmatter length (articles only).
+  function splitSource(taskId, raw) {
+    if (!isArticleId(taskId)) return { body: raw, base: 0 };
+    const { body } = parseFrontmatter(raw);
+    return { body, base: raw.length - body.length };
   }
 
   const app = new Koa();
@@ -373,15 +401,62 @@ function createApp(options = {}) {
     ctx.body = ns[idx];
   });
 
+  router.post('/tasks/:taskId/notes/:noteId/marker', async (ctx) => {
+    const { taskId, noteId } = ctx.params;
+    // Only baseHash and insertions are read; marker text is generated server-side.
+    const { baseHash, insertions } = ctx.request.body || {};
+    await withMarkerLock(async () => {
+      const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
+      if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+      const ns = await readJson(paths.notes, []);
+      const note = ns.find((n) => n.id === noteId);
+      if (!note) { ctx.status = 404; ctx.body = { error: 'note not found' }; return; }
+      if (note.markerId) { ctx.status = 409; ctx.body = { error: 'already marked' }; return; }
+      const file = await noteSourceFile(taskId, note);
+      if (!file) {
+        if (isArticleId(taskId)) { ctx.status = 404; ctx.body = { error: 'not found' }; }
+        else { ctx.status = 400; ctx.body = { error: 'note has no doc' }; }
+        return;
+      }
+      let raw;
+      try { raw = await fs.promises.readFile(file, 'utf8'); }
+      catch (e) { if (e.code === 'ENOENT') { ctx.status = 404; ctx.body = { error: 'source file not found' }; return; } throw e; }
+      const { body, base } = splitSource(taskId, raw);
+      if (typeof baseHash !== 'string' || baseHash !== sha256Hex(body)) { ctx.status = 409; ctx.body = { error: 'stale' }; return; }
+      const invalid = validateInsertions(insertions, body.length);
+      if (invalid) { ctx.status = 400; ctx.body = { error: invalid }; return; }
+      const markerId = newMarkerId(raw);
+      const next = applyInsertions(raw, insertions, markerId, base);
+      await writeFileAtomic(file, next);
+      note.markerId = markerId;
+      await writeJson(paths.notes, ns);
+      ctx.body = { markerId, hash: sha256Hex(next.slice(base)) };
+    });
+  });
+
   router.delete('/tasks/:taskId/notes/:noteId', async (ctx) => {
     const { taskId, noteId } = ctx.params;
-    const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
-    if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
-    const ns = await readJson(paths.notes, []);
-    const filtered = ns.filter((n) => n.id !== noteId);
-    if (filtered.length === ns.length) { ctx.status = 404; ctx.body = { error: 'note not found' }; return; }
-    await writeJson(paths.notes, filtered);
-    ctx.status = 204;
+    await withMarkerLock(async () => {
+      const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
+      if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+      const ns = await readJson(paths.notes, []);
+      const note = ns.find((n) => n.id === noteId);
+      if (!note) { ctx.status = 404; ctx.body = { error: 'note not found' }; return; }
+      if (note.markerId) {
+        const file = await noteSourceFile(taskId, note);
+        if (file) {
+          let raw = null;
+          try { raw = await fs.promises.readFile(file, 'utf8'); }
+          catch (e) { if (e.code !== 'ENOENT') throw e; }
+          if (raw !== null) {
+            const cleaned = removeMarkers(raw, note.markerId);
+            if (cleaned !== raw) await writeFileAtomic(file, cleaned);
+          }
+        }
+      }
+      await writeJson(paths.notes, ns.filter((n) => n.id !== noteId));
+      ctx.status = 204;
+    });
   });
 
   if (options.staticDir) {
