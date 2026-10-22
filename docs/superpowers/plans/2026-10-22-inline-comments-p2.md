@@ -214,7 +214,7 @@ it('sidebar point card quotes 插入点, anchorless card quotes nothing', () => 
   const none = render(<NoteCard variant="sidebar" note={base} isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);
   expect(none.container.querySelector('[data-quote]')).toBeNull();
 });
-it('collapsed inline card shows only the header with a body preview', () => {
+it('collapsed inline card is one line with a body preview', () => {
   const toggle = vi.fn();
   const { container, getByLabelText } = render(<NoteCard variant="inline" note={{ ...base, body: '第一行\n第二行' }} collapsed
     onToggleCollapsed={toggle} isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);

@@ -8,6 +8,8 @@ import { Player } from '@/components/player';
 import { NotesPanel } from '@/components/notes-panel';
 import { ModeSwitcher } from '@/components/mode-switcher';
 import { ProseThemePicker } from '@/components/prose-theme-picker';
+import { CommentViewToggle } from '@/components/comment-view-toggle';
+import { InlineCards, UnlocatedZone } from '@/components/inline-notes';
 import { useUiStore } from '@/stores/ui-store';
 import type { LayoutMode } from '@/stores/ui-store';
 import { usePlayerStore } from '@/stores/player-store';
@@ -57,6 +59,17 @@ export default function TaskDetail() {
   const { data: notes = [] } = useNotes(id);
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
+  const commentView = useUiStore((s) => s.commentView);
+  const inline = commentView === 'inline';
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggleCollapsed = useCallback((noteId: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(noteId)) next.add(noteId);
+      return next;
+    });
+  }, []);
+  const allCollapsed = notes.every((n) => collapsed.has(n.id));
   const articleRef = useRef<HTMLDivElement>(null);
   const resetPlayer = usePlayerStore((s) => s.reset);
   const markRead = useMarkRead();
@@ -105,6 +118,7 @@ export default function TaskDetail() {
         </div>
         <div className="flex items-center gap-3">
           <ProseThemePicker />
+          <CommentViewToggle />
           {mediaKind && <ModeSwitcher />}
           {task.uploader_id && (
             <Link
@@ -194,6 +208,13 @@ export default function TaskDetail() {
                   ))}
                 </div>
                 <div className="flex items-center gap-3 py-3 text-xs">
+                  {inline && notes.length > 0 && (
+                    <button onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(notes.map((n) => n.id)))}
+                            style={{ color: 'var(--text-tertiary)' }}
+                            className="hover:text-[var(--text-secondary)] cursor-pointer">
+                      {allCollapsed ? '全部展开' : '全部收起'}
+                    </button>
+                  )}
                   <button onClick={onCopy} style={{ color: 'var(--text-tertiary)' }}
                           className="hover:text-[var(--text-secondary)] cursor-pointer">复制</button>
                   <button onClick={onReveal} style={{ color: 'var(--text-tertiary)' }}
@@ -205,6 +226,17 @@ export default function TaskDetail() {
               <div className="flex-1 overflow-y-auto">
                 <div className="article-notes-row">
                   <div className="article-col" ref={articleRef}>
+                    {inline && (
+                      <UnlocatedZone
+                        taskId={id}
+                        hasMedia={!!mediaKind}
+                        notes={notes.filter((n) => !located[n.id])}
+                        collapsed={collapsed}
+                        onToggle={toggleCollapsed}
+                        hoveredNoteId={hoveredNoteId}
+                        onHover={setHoveredNoteId}
+                      />
+                    )}
                     <Reader
                       taskId={id}
                       content={content}
@@ -213,29 +245,47 @@ export default function TaskDetail() {
                       doc={isArticleTask ? undefined : tab}
                       notes={notes}
                       onNotesLocated={onNotesLocated}
-                      onCommentDraft={layoutMode === 'A' ? undefined : setDraft}
+                      draft={inline ? draft : undefined}
+                      renderInline={inline ? (ids) => (
+                        <InlineCards
+                          taskId={id}
+                          hasMedia={!!mediaKind}
+                          ids={ids}
+                          notes={notes}
+                          located={located}
+                          draft={draft}
+                          onDraftDone={() => setDraft(null)}
+                          collapsed={collapsed}
+                          onToggle={toggleCollapsed}
+                          hoveredNoteId={hoveredNoteId}
+                          onHover={setHoveredNoteId}
+                        />
+                      ) : undefined}
+                      onCommentDraft={layoutMode === 'A' && !inline ? undefined : setDraft}
                       onAddHighlight={(anchor, color) => addHighlight.mutate({ anchor, color })}
                       onDeleteHighlight={(hlId) => deleteHighlight.mutate(hlId)}
                       hoveredNoteId={hoveredNoteId}
                       onNoteHover={setHoveredNoteId}
-                      onNoteAnchorClick={setFocusNoteId}
+                      onNoteAnchorClick={inline ? toggleCollapsed : setFocusNoteId}
                     />
                   </div>
                   <Toc items={toc} />
-                  <aside className="notes-col">
-                    <NotesPanel
-                      taskId={id}
-                      hasMedia={!!mediaKind}
-                      pendingAnchor={draft}
-                      onAnchorConsumed={() => setDraft(null)}
-                      articleRef={articleRef}
-                      located={located}
-                      hoveredNoteId={hoveredNoteId}
-                      onNoteHover={setHoveredNoteId}
-                      focusNoteId={focusNoteId}
-                      onFocusConsumed={() => setFocusNoteId(null)}
-                    />
-                  </aside>
+                  {!inline && (
+                    <aside className="notes-col">
+                      <NotesPanel
+                        taskId={id}
+                        hasMedia={!!mediaKind}
+                        pendingAnchor={draft}
+                        onAnchorConsumed={() => setDraft(null)}
+                        articleRef={articleRef}
+                        located={located}
+                        hoveredNoteId={hoveredNoteId}
+                        onNoteHover={setHoveredNoteId}
+                        focusNoteId={focusNoteId}
+                        onFocusConsumed={() => setFocusNoteId(null)}
+                      />
+                    </aside>
+                  )}
                 </div>
               </div>
             </section>

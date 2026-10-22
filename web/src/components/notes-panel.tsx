@@ -5,7 +5,8 @@ import { useNotes, useAddNote, useUpdateNote, useDeleteNote } from '@/hooks/use-
 import { computePositions } from '@/lib/anchor-layout';
 import { anchorKind, type Located } from '@/lib/anchor';
 import { BLOCK } from '@/lib/text-index';
-import type { Note, NoteAnchor } from '@/lib/api';
+import { NoteCard } from '@/components/note-card';
+import type { NoteAnchor } from '@/lib/api';
 
 interface NotesPanelProps {
   taskId: string;
@@ -35,135 +36,6 @@ function noteMarkY(noteId: string, articleEl: HTMLElement): number | null {
 function anchorLabel(a: NoteAnchor): string {
   if (anchorKind(a) === 'range') return `锚点：${a.anchor.slice(0, 40)}${a.anchor.length > 40 ? '…' : ''}`;
   return a.prefix ? `插入点：…${a.prefix.slice(-12)}` : `插入点：${(a.suffix ?? '').slice(0, 12)}…`;
-}
-
-export function NoteItem({
-  note,
-  onUpdate,
-  onDelete,
-  onHeightChange,
-  isLinked,
-  onHover,
-  autoEdit,
-  onAutoEditConsumed,
-  approximate,
-}: {
-  note: Note;
-  onUpdate: (body: string) => void;
-  onDelete: () => void;
-  onHeightChange: (id: string, h: number) => void;
-  isLinked: boolean;
-  onHover: (id: string | null) => void;
-  autoEdit: boolean;
-  onAutoEditConsumed: () => void;
-  approximate?: boolean;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(note.body);
-  const liRef = useRef<HTMLLIElement>(null);
-
-  useEffect(() => {
-    if (!liRef.current) return;
-    const li = liRef.current;
-    const ro = new ResizeObserver(() => {
-      onHeightChange(note.id, li.offsetHeight);
-    });
-    ro.observe(li);
-    return () => ro.disconnect();
-  }, [note.id, onHeightChange]);
-
-  useEffect(() => {
-    if (!autoEdit) return;
-    setEditing(true);
-    liRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    onAutoEditConsumed();
-  }, [autoEdit, onAutoEditConsumed]);
-
-  useEffect(() => {
-    if (!isLinked) return;
-    liRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, [isLinked]);
-
-  const save = () => {
-    if (draft.trim() && draft.trim() !== note.body) onUpdate(draft.trim());
-    setEditing(false);
-  };
-  const cancel = () => { setDraft(note.body); setEditing(false); };
-
-  return (
-    <li
-      ref={liRef}
-      className="px-4 py-3 group"
-      style={{
-        borderBottom: '1px solid var(--border-subtle)',
-        background: isLinked && !editing ? 'var(--accent-3)' : undefined,
-        boxShadow: isLinked && !editing ? 'inset 2px 0 0 var(--accent-9)' : undefined,
-        transition: 'background 120ms, box-shadow 120ms',
-      }}
-      onMouseEnter={() => onHover(note.id)}
-      onMouseLeave={() => onHover(null)}
-    >
-      {note.mediaTimestamp !== undefined && (
-        <div className="text-xs mb-1" style={{ color: 'var(--accent-9)', fontFamily: 'var(--font-mono)' }}>
-          @ {formatDuration(note.mediaTimestamp)}
-        </div>
-      )}
-
-      {approximate && (
-        <div className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>
-          原文已变化
-        </div>
-      )}
-
-      {editing ? (
-        <textarea
-          autoFocus
-          rows={3}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save();
-            if (e.key === 'Escape') cancel();
-          }}
-          onBlur={save}
-          className="w-full text-xs resize-none rounded p-2 outline-none"
-          style={{
-            background: 'var(--bg-elevated)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--accent-9)',
-            lineHeight: 1.6,
-          }}
-        />
-      ) : (
-        <p
-          className="text-xs leading-relaxed cursor-text"
-          style={{ color: 'var(--text-primary)' }}
-          onClick={() => setEditing(true)}
-        >
-          {note.body}
-        </p>
-      )}
-
-      {!editing && (
-        <div className="mt-1 flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => setEditing(true)}
-            className="text-xs cursor-pointer"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            编辑
-          </button>
-          <button
-            onClick={onDelete}
-            className="text-xs cursor-pointer"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            删除
-          </button>
-        </div>
-      )}
-    </li>
-  );
 }
 
 const ESTIMATED_HEIGHT = 72;
@@ -326,17 +198,19 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
             </li>
           )}
           {unplaced.map((note) => (
-            <NoteItem
-              key={note.id}
-              note={note}
-              onHeightChange={onHeightChange}
-              onUpdate={(body) => updateNote.mutate({ noteId: note.id, body })}
-              onDelete={() => deleteNote.mutate(note.id)}
-              isLinked={hoveredNoteId === note.id}
-              onHover={handleNoteHover}
-              autoEdit={focusNoteId === note.id}
-              onAutoEditConsumed={handleFocusConsumed}
-            />
+            <li key={note.id}>
+              <NoteCard
+                variant="sidebar"
+                note={note}
+                onHeightChange={onHeightChange}
+                onUpdate={(body) => updateNote.mutate({ noteId: note.id, body })}
+                onDelete={() => deleteNote.mutate(note.id)}
+                isLinked={hoveredNoteId === note.id}
+                onHover={handleNoteHover}
+                autoEdit={focusNoteId === note.id}
+                onAutoEditConsumed={handleFocusConsumed}
+              />
+            </li>
           ))}
         </ul>
       )}
@@ -356,17 +230,20 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
                 listStyle: 'none',
               }}
             >
-              <NoteItem
-                note={note}
-                onHeightChange={onHeightChange}
-                onUpdate={(body) => updateNote.mutate({ noteId: note.id, body })}
-                onDelete={() => deleteNote.mutate(note.id)}
-                isLinked={hoveredNoteId === note.id}
-                onHover={handleNoteHover}
-                autoEdit={focusNoteId === note.id}
-                onAutoEditConsumed={handleFocusConsumed}
-                approximate={located?.[note.id]?.grade === 'approximate'}
-              />
+              <li>
+                <NoteCard
+                  variant="sidebar"
+                  note={note}
+                  onHeightChange={onHeightChange}
+                  onUpdate={(body) => updateNote.mutate({ noteId: note.id, body })}
+                  onDelete={() => deleteNote.mutate(note.id)}
+                  isLinked={hoveredNoteId === note.id}
+                  onHover={handleNoteHover}
+                  autoEdit={focusNoteId === note.id}
+                  onAutoEditConsumed={handleFocusConsumed}
+                  approximate={located?.[note.id]?.grade === 'approximate'}
+                />
+              </li>
             </ul>
           ))}
         </div>

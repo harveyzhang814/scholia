@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent, createEvent } from '@testing-library/react';
-import { Reader } from './reader';
+import { Reader, DRAFT_ID } from './reader';
 import type { Highlight } from '@/lib/api';
 import { afterEach } from 'vitest';
 
@@ -228,5 +228,157 @@ describe('Reader mermaid rendering', () => {
     const content = '```mermaid\ngraph TD\n  A --> B\n```';
     const { container } = render(<Reader content={content} />);
     expect(container.querySelector('code.language-mermaid')).toBeNull();
+  });
+});
+
+describe('Reader inline card slots', () => {
+  const content = '第一段有个观点在这里。\n\n- 列表项一\n- 列表项二\n\n| a | b |\n|---|---|\n| 单元格 | x |';
+  const cards = (ids: string[]) => ids.map((id) => <i key={id} data-card={id} />);
+
+  afterEach(() => {
+    delete (document as Partial<Document>).caretRangeFromPoint;
+    getSelection()?.removeAllRanges();
+  });
+
+  it('inline view renders cards in slots under their blocks', () => {
+    const notes = [{ id: 'p', anchor: '观点' }, { id: 'l', anchor: '列表项二' }, { id: 't', anchor: '单元格' }];
+    const { container } = render(<Reader content={content} notes={notes} renderInline={cards} />);
+    expect(container.querySelector('p + [data-sc-slot] [data-card="p"]')).not.toBeNull();
+    expect(container.querySelector('li:last-child > [data-sc-slot]:last-child [data-card="l"]')).not.toBeNull();
+    expect(container.querySelector('table + [data-sc-slot] [data-card="t"]')).not.toBeNull();
+    expect(container.querySelector('td [data-sc-slot]')).toBeNull();
+  });
+
+  it('slots are UI nodes that do not enter the text index', () => {
+    const card = () => <b>卡片文字</b>;
+    const { container } = render(<Reader content={content} notes={[{ id: 'p', anchor: '观点' }]} renderInline={card} />);
+    const slot = container.querySelector('[data-sc-slot]')!;
+    expect(slot.hasAttribute('data-sc-ui')).toBe(true);
+    expect(slot.textContent).toBe('卡片文字');
+    // a note anchored on the card text (which is really in the DOM, inside a slot) must not be located
+    const onNotesLocated = vi.fn();
+    const p = { id: 'p', anchor: '观点' };
+    const { container: c2, rerender } = render(<Reader content={content} notes={[p]} renderInline={card} onNotesLocated={onNotesLocated} />);
+    expect(c2.querySelector('[data-sc-slot]')!.textContent).toBe('卡片文字');
+    rerender(<Reader content={content} notes={[p, { id: 'c', anchor: '卡片文字' }]} renderInline={card} onNotesLocated={onNotesLocated} />);
+    const located = onNotesLocated.mock.calls.at(-1)![0];
+    expect(located.p).toBeDefined();
+    expect(located.c).toBeUndefined();
+  });
+
+  it('no renderInline means no slots', () => {
+    const { container } = render(<Reader content={content} notes={[{ id: 'p', anchor: '观点' }]} />);
+    expect(container.querySelector('[data-sc-slot]')).toBeNull();
+  });
+
+  it('draft gets a slot but no mark', () => {
+    const draft = { anchor: '', prefix: '有个观点', suffix: '在这里。', position: 7 };
+    const onNotesLocated = vi.fn();
+    const { container } = render(<Reader content={content} notes={[]} draft={draft} renderInline={cards} onNotesLocated={onNotesLocated} />);
+    expect(container.querySelector(`p + [data-sc-slot] [data-card="${DRAFT_ID}"]`)).not.toBeNull();
+    expect(container.querySelector('.vdl-note-point, mark.vdl-note-anchor')).toBeNull();
+    expect(onNotesLocated.mock.calls.at(-1)![0]).toEqual({});
+  });
+
+  it('a draft and a note on the same block share one slot, ordered by position', () => {
+    const draft = { anchor: '', prefix: '第一段', suffix: '有个观点在这里。', position: 3 };
+    const { container } = render(<Reader content={content} notes={[{ id: 'p', anchor: '观点' }]} draft={draft} renderInline={cards} />);
+    const slots = container.querySelectorAll('[data-sc-slot]');
+    expect(slots).toHaveLength(1);
+    expect(Array.from(slots[0].children).map((c) => (c as HTMLElement).dataset.card)).toEqual([DRAFT_ID, 'p']);
+  });
+
+  it('reuses slot elements when notes change', () => {
+    const p = { id: 'p', anchor: '观点' };
+    const { container, rerender } = render(<Reader content={content} notes={[p]} renderInline={cards} />);
+    const slot = container.querySelector('[data-sc-slot]')!;
+    const card = slot.querySelector('[data-card="p"]')!;
+
+    rerender(<Reader content={content} notes={[p, { id: 'q', anchor: '这里' }]} renderInline={cards} />);
+    const slots = container.querySelectorAll('[data-sc-slot]');
+    expect(slots).toHaveLength(1);
+    expect(slots[0]).toBe(slot);
+    expect(slot.querySelectorAll('[data-card]')).toHaveLength(2);
+    expect(slot.querySelector('[data-card="p"]')).toBe(card);   // existing card not remounted
+  });
+
+  it('keeps the slot when only the renderInline function identity changes', () => {
+    const p = { id: 'p', anchor: '观点' };
+    const { container, rerender } = render(<Reader content={content} notes={[p]} renderInline={cards} />);
+    const slot = container.querySelector('[data-sc-slot]')!;
+    rerender(<Reader content={content} notes={[p]} renderInline={(ids) => cards(ids)} />);
+    expect(container.querySelector('[data-sc-slot]')).toBe(slot);
+    expect(container.querySelectorAll('[data-sc-slot]')).toHaveLength(1);
+  });
+
+  it('removes the slot of a block that no longer has notes', () => {
+    const both = [{ id: 'p', anchor: '观点' }, { id: 'l', anchor: '列表项二' }];
+    const { container, rerender } = render(<Reader content={content} notes={both} renderInline={cards} />);
+    expect(container.querySelectorAll('[data-sc-slot]')).toHaveLength(2);
+    const slot = container.querySelector('p + [data-sc-slot]')!;
+    const card = slot.querySelector('[data-card="p"]')!;
+    rerender(<Reader content={content} notes={[both[0]]} renderInline={cards} />);
+    expect(container.querySelectorAll('[data-sc-slot]')).toHaveLength(1);
+    expect(container.querySelector('[data-sc-slot]')).toBe(slot);
+    expect(slot.querySelector('[data-card="p"]')).toBe(card);
+    expect(container.querySelector('li [data-sc-slot]')).toBeNull();
+  });
+
+  it('removes all slots when renderInline is dropped', () => {
+    const notes = [{ id: 'p', anchor: '观点' }];
+    const { container, rerender } = render(<Reader content={content} notes={notes} renderInline={cards} />);
+    expect(container.querySelector('[data-sc-slot]')).not.toBeNull();
+    rerender(<Reader content={content} notes={notes} />);
+    expect(container.querySelector('[data-sc-slot]')).toBeNull();
+    expect(container.querySelector('[data-card]')).toBeNull();
+  });
+
+  it('content change leaves one slot per block', () => {
+    const notes = [{ id: 'p', anchor: '观点' }];
+    const { container, rerender } = render(<Reader content={content} notes={notes} renderInline={cards} />);
+    rerender(<Reader content={'全新的一段也有个观点。\n\n另一段。'} notes={notes} renderInline={cards} />);
+    const slots = container.querySelectorAll('[data-sc-slot]');
+    expect(slots).toHaveLength(1);
+    expect(slots[0].previousElementSibling!.textContent).toBe('全新的一段也有个观点。');
+    expect(slots[0].querySelectorAll('[data-card="p"]')).toHaveLength(1);
+  });
+
+  it('c inside a card does nothing', () => {
+    const onCommentDraft = vi.fn();
+    const { container } = render(
+      <Reader content={content} notes={[{ id: 'p', anchor: '观点' }]} onCommentDraft={onCommentDraft}
+        renderInline={() => <button>操作</button>} />,
+    );
+    getSelection()!.collapse(container.querySelector('[data-sc-body] p')!.firstChild!, 2);
+    fireEvent.keyDown(container.querySelector('[data-sc-slot] button')!, { key: 'c' });
+    expect(onCommentDraft).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.body, { key: 'c' });   // control: same selection outside a card does draft
+    expect(onCommentDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it('mouseup and right-click on a slot do not open the selection bubble or context menu', () => {
+    const { container, queryByText } = render(
+      <Reader content={content} notes={[{ id: 'p', anchor: '观点' }]} onCommentDraft={vi.fn()} renderInline={cards} />,
+    );
+    const t = container.querySelector('[data-sc-body] p')!.firstChild as Text;
+    const slot = container.querySelector('[data-sc-slot]')!;
+    getSelection()!.setBaseAndExtent(t, 1, t, 3);
+    fireEvent.mouseUp(slot);
+    expect(document.querySelector('.anchor-bubble')).toBeNull();
+
+    document.caretRangeFromPoint = () => { const r = document.createRange(); r.setStart(t, 2); r.collapse(true); return r; };
+    const ev = createEvent.contextMenu(slot, { clientX: 10, clientY: 10 });
+    fireEvent(slot, ev);
+    expect(ev.defaultPrevented).toBe(false);
+    expect(queryByText('在此处评论')).toBeNull();
+
+    // control: same selection on body text shows the bubble (jsdom has no layout, so stub the rect)
+    Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 10, 10);
+    try {
+      fireEvent.mouseUp(t.parentElement!);
+      expect(document.querySelector('.anchor-bubble')).not.toBeNull();
+    } finally {
+      delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+    }
   });
 });
