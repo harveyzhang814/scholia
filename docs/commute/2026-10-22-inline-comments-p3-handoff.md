@@ -92,3 +92,38 @@ target_node: f4866fd8-3c72-4ea4-be22-8e566b9b3da9
 
 - 机器校验：`validate-handoff.sh` 通过。
 - 冷读：分支、工作区、基线都已建好；计划里 Task 1 的 9 个后端用例名、Task 3–6 的 27 个前端用例名都可逐条核对；锚点 4–6 都是可直接判对错的命令。
+
+## 接手方自测记录（2026-10-22，进行中，锚点 8 待用户实测，尚未送验）
+
+被测提交：`54e82f1`（分支 `feature/inline-comments-p3`，基线 `d68135c`）。实现按 subagent-driven 完成：每个任务一名实现者加一名审查者，Task 1、6 各有一轮修复，另有整条分支审查加一轮修复。
+
+| 锚点 | 结果 | 实跑命令 / 依据 |
+|---|---|---|
+| 1 后端 | pass | `npm test` 退出码 0；`node tests/server.test.js` → `67 passed, 0 failed`，计划 Task 1 的 9 个用例名都以 `✓` 出现（逐个 `grep -F "✓ <名>"`） |
+| 2 前端 | pass | `cd web && npm test` 退出码 0（30 个文件、301 个测试通过）；用 `vitest --reporter=json` 取完整用例名（外层 `describe` 加 `it`）逐个比对计划的 27 个，全部存在且 passed。其中 `toc ignores sc markers in headings` 起初是 `extractToc with sc markers > ignores…`，已在 `54e82f1` 把 `describe` 改名为 `toc` 以完全一致；`web/src` 无 `.skip/.only/.todo/xit`；对 `d68135c` 的测试文件 diff 无被删除的 `it(`/`describe(` 行 |
+| 3 构建 | pass | `cd web && npm run build` 退出码 0（含 `tsc`，仅 chunk 体积警告） |
+| 4 依赖 | pass | `git diff d68135c..HEAD -- web/package.json package.json`：web 只多 `remark-gfm ^4.0.1`、`remark-parse ^11.0.0`、`unified ^11.0.5` 三行，根 `package.json` 无改动 |
+| 5 约定 | pass | `grep -c "never moved, renamed, or modified" CLAUDE.md` → 0；第 40 行有含 `<!-- sc:` 的新约定 |
+| 6 范围 | pass，附两个清单外文件 | `git diff --name-only d68135c..HEAD` 全部落在计划各任务 Files 清单内，加交接文档和 `web/package-lock.json`；另有两个清单外文件：`server/article-source.js`（仅导出 `parseFrontmatter`，路由要复用，brief 的 `git add` 清单漏列）、`web/src/hooks/use-tasks.test.tsx`（覆盖 `useAddNote` 接线的跳过条件和缓存失效） |
+| 7 手动检查 | pass，但见下方三点说明 | 6 项在临时目录副本上实跑，结果见下 |
+| 8 Obsidian 实测 | **未完成，待用户在本机实测** | spec「未确认项汇总」表对应行尚未回填 |
+
+**锚点 7（计划 Task 7 Step 2，临时目录 `/tmp/scholia-p3-manual`，`SCHOLIA_CONFIG_FILE` 重定向，未碰真实目录，`~/.config/scholia` 修改时间未变）**
+
+1. 选区加点评论：pass。`The first paragraph explains how <!-- sc:825762b4 -->hooks keep state<!-- /sc:825762b4 --> between…`；点评论得到单个 `<!-- sc:549e5091 -->`；页面无标记文字，定位 exact。
+2. 段首/列表项/引用块/标题：pass。剥掉全部标记后与原文逐字节相同，目录和复制出的内容无标记。已知现象：开头标记后移一个字，高亮少首字（`- A<!-- sc:e7747cf5 -->lpha item…`，页面高亮 "lpha item"）。
+3. 行内代码里的点评论：pass。源文件 `diff` 为空，评论无 `markerId`，按文字定位。
+4. 保留标记改正文后刷新：pass（仍 exact，无「原文已变化」）；删掉标记后刷新：退回文字定位，3 张改过文字的卡片显示「原文已变化」。
+5. 删除带标记的评论：pass。只少了它自己的标记，其他评论标记、frontmatter、`second.md` 不变（未覆盖：删除无标记的行内代码评论，由后端测试 `DELETE of an unmarked note…` 覆盖）。
+6. 视频总结 tab：pass。`...users <!-- sc:0273762a -->durable ownership<!-- /sc:0273762a --> of their data.` 写入 `writing/summary.md`，`article.md` 与原文 `cmp` 相同。
+
+锚点 7 的三点说明：
+- 浏览器工具无法拖选，选区由 JS 设置；其余走真实 UI（`c` 快捷键、点击、输入、Cmd+Enter），标记写入由应用自己完成。
+- **这些手动检查是在 `b51c792` 上跑的，整条分支审查的修复（`0ff0344`、`3fb4e7d`）之后没有重跑。** 修复只会让写标记的条件更严（非 UTF-8 拒写、重复文字不写、`notes.json` 加锁），不改变上面各项的位置计算。需要的话验收方可重跑。
+- 测试环境偶发显示旧页面、一次行内代码卡片在一次刷新后缺失、控制台每次一条 404 和 `[sse]` 提示，均未发现与本期有关，详见实现过程记录。
+
+**整条分支审查（最强模型）的结论与处理**
+- 修了：C1 非 UTF-8 文件会被不可逆改写（现拒写并跳过删除时的改写）；I1 `notes.json` 写竞争会丢评论（新建、修改评论也进同一把锁）；I2 重复文字下标记可能写到另一处（精确匹配后加唯一性检查）。每项先有红再绿，整条分支修复轮的 re-review 通过。
+- **未修，需计划方定（I3）**：行首规则让开头标记后移一个字，导致这类选区高亮少首字；用户若在编辑器里删掉这个首字，标记落到行首，整行被当作 HTML 块，页面显示字面的 `<!-- sc:… -->`。这是 plan 与 spec 两条规则叠加的后果。审查给的方案 A：只改前端 `anchor.ts` 第 0 步，起点贴到行首；方案 B：行首处只写结尾标记，需要改后端 `validateInsertions`。
+- 未修的 Minor：段尾的点评论不写标记（按 brief 规则）；带 BOM 的文件写不上标记；保存后正文大时主线程短暂卡顿；只读文件仍会被改写；双语条目的标记可能留在 `Origin`；重命名会替换 inode。
+- 其他：提交 `0ff0344`、`3fb4e7d` 的 trailer 署名为 `Claude Opus 5.5`，与会话约定的 `Claude Sonnet 5.5` 不一致，未重写历史。
