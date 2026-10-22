@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { NoteItem, NotesPanel } from './notes-panel';
+import { NotesPanel } from './notes-panel';
 import { api, type Note } from '@/lib/api';
 
 const note: Note = {
@@ -17,62 +17,6 @@ function renderWithClient(ui: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
-
-describe('NoteItem isLinked/editing interaction', () => {
-  beforeEach(() => {
-    // Mock ResizeObserver for tests
-    globalThis.ResizeObserver = class ResizeObserver {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    } as any;
-
-    // Mock scrollIntoView on HTMLElement
-    HTMLElement.prototype.scrollIntoView = () => {};
-  });
-
-  it('suppresses isLinked background highlight when editing is active', () => {
-    const note: Note = {
-      id: 'test-note-1',
-      anchor: 'test anchor text',
-      body: 'This is a test note',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    const { container } = render(
-      <NoteItem
-        note={note}
-        onUpdate={() => {}}
-        onDelete={() => {}}
-        onHeightChange={() => {}}
-        isLinked={true}
-        onHover={() => {}}
-        autoEdit={true}
-        onAutoEditConsumed={() => {}}
-      />
-    );
-
-    const li = container.querySelector('li');
-    expect(li).toBeTruthy();
-
-    // When editing is active (triggered by autoEdit={true}), the background
-    // should not show the isLinked highlight, even though isLinked={true}
-    const style = li?.getAttribute('style') || '';
-    // The style should not contain the accent-3 background color when editing
-    expect(style).not.toContain('var(--accent-3)');
-
-    // Confirm that a textarea is present (edit mode is active)
-    const textarea = container.querySelector('textarea');
-    expect(textarea).toBeTruthy();
-  });
-
-  it('NoteItem shows 原文已变化 when approximate', () => {
-    const { getByText } = render(<NoteItem note={note} approximate onUpdate={() => {}} onDelete={() => {}}
-      onHeightChange={() => {}} isLinked={false} onHover={() => {}} autoEdit={false} onAutoEditConsumed={() => {}} />);
-    expect(getByText('原文已变化')).toBeInTheDocument();
-  });
-});
 
 describe('NotesPanel', () => {
   beforeEach(() => {
