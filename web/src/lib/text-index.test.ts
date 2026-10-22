@@ -26,6 +26,24 @@ describe('text-index', () => {
     expect(buildTextIndex(root).text).toBe('a b c');
   });
 
+  it('keeps whitespace between inline siblings inside li/blockquote/div', () => {
+    root.innerHTML = '<ul><li><strong>a</strong> <em>b</em></li></ul>'
+      + '<blockquote><a>c</a> <code>d</code></blockquote>'
+      + '<div><span>e</span> <span>f</span></div>';
+    expect(buildTextIndex(root).text).toBe('a b\nc d\ne f');
+  });
+
+  it('skips whitespace padding around a block child of li', () => {
+    root.innerHTML = '<ul><li>\n<p>x</p>\n</li></ul>';
+    expect(buildTextIndex(root).text).toBe('x');
+  });
+
+  it('keeps the trailing whitespace of non-blank text before a nested list (a\\n\\nb)', () => {
+    // "a\n" is not whitespace-only, so it is indexed as-is; the block change adds its own \n
+    root.innerHTML = '<ul><li>a\n<ul><li>b</li></ul></li></ul>';
+    expect(buildTextIndex(root).text).toBe('a\n\nb');
+  });
+
   it('pre/code spans form one block', () => {
     root.innerHTML = '<pre><code><span>const</span> x = <span>1</span></code></pre><p>y</p>';
     const ix = buildTextIndex(root);

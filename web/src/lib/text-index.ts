@@ -6,8 +6,16 @@ export interface TextBlock { start: number; end: number; el: HTMLElement }  // [
 export interface TextIndex { root: HTMLElement; text: string; blocks: TextBlock[]; segments: { node: Text; start: number }[] }
 
 const BLOCK = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'PRE', 'TD', 'TH', 'DT', 'DD', 'FIGCAPTION']);
-// Whitespace-only text directly under these is formatting between blocks, not content.
+// Whitespace-only text directly under these is formatting between blocks, not content
+// (unless both neighbours are inline, e.g. `<li><b>a</b> <i>b</i></li>`).
 const FORMAT_WS_PARENT = new Set(['DIV', 'SECTION', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR']);
+
+// Elements that start/end a line of content; whitespace next to them is formatting, not text.
+const BLOCK_LEVEL = new Set([...BLOCK, ...FORMAT_WS_PARENT, 'HR', 'DL', 'FIGURE']);
+
+function isBlockLevel(node: Node | null): boolean {
+  return !node || (node.nodeType === Node.ELEMENT_NODE && BLOCK_LEVEL.has((node as Element).tagName));
+}
 
 function blockOf(node: Text, root: HTMLElement): HTMLElement {
   for (let el = node.parentElement; el && el !== root; el = el.parentElement) {
@@ -26,7 +34,10 @@ export function buildTextIndex(root: HTMLElement): TextIndex {
           : NodeFilter.FILTER_SKIP;
       }
       const parent = n.parentElement;
-      if (parent && FORMAT_WS_PARENT.has(parent.tagName) && !/\S/.test(n.nodeValue ?? '')) {
+      if (
+        parent && FORMAT_WS_PARENT.has(parent.tagName) && !/\S/.test(n.nodeValue ?? '')
+        && (isBlockLevel(n.previousSibling) || isBlockLevel(n.nextSibling))
+      ) {
         return NodeFilter.FILTER_SKIP;
       }
       return NodeFilter.FILTER_ACCEPT;
