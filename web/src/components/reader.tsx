@@ -3,14 +3,18 @@ import { MarkdownPreview } from '@harveyzhang814/markdown-preview-core';
 import type { Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import { ArticleMetaBar } from './article-meta-bar';
-import { api, type Highlight, type Note } from '@/lib/api';
+import { api, type Highlight, type Note, type NoteAnchor, type NoteDoc } from '@/lib/api';
+import { buildTextIndex, offsetToPoint, UI_ATTR } from '@/lib/text-index';
+import { locateAnchor, type Located } from '@/lib/anchor';
 
 interface ReaderProps {
   taskId?: string;
   content: string;
   frontmatter?: Record<string, unknown>;
   highlights?: Highlight[];
-  notes?: Pick<Note, 'id' | 'anchor'>[];
+  doc?: NoteDoc;
+  notes?: (Pick<Note, 'id'> & NoteAnchor)[];
+  onNotesLocated?: (located: Record<string, Located>) => void;
   hoveredNoteId?: string | null;
   onNoteHover?: (id: string | null) => void;
   onNoteAnchorClick?: (id: string) => void;
@@ -39,47 +43,39 @@ const COLORS: { key: 'yellow' | 'green' | 'red' | 'blue'; bg?: string; underline
 
 interface AnchorMarkItem {
   id: string;
-  anchor: string;
+  start: number;
+  end: number;
 }
 
+// Small speech-bubble icon for point notes; no text, so it stays out of the text index.
+const POINT_ICON_SVG =
+  '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">'
+  + '<path d="M2.5 3.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H7l-3 2.5V11h-.5a1 1 0 0 1-1-1z" '
+  + 'stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+
 function injectAnchorMarks<T extends AnchorMarkItem>(
-  article: HTMLElement,
+  root: HTMLElement,
   items: T[],
   markClass: string,
   decorate: (mark: HTMLElement, item: T) => void,
 ) {
   // Unwrap all previously injected marks of this class
-  article.querySelectorAll(`mark.${markClass}`).forEach((mark) => {
+  root.querySelectorAll(`mark.${markClass}`).forEach((mark) => {
     mark.replaceWith(...Array.from(mark.childNodes));
   });
 
   for (const item of items) {
-    // Search across the full concatenated text so an anchor that spans
-    // multiple text nodes (e.g. selection crossing into/out of a <strong>
-    // or <a>) can still be found — a single node's textContent won't
-    // contain it even though the anchor exists in the rendered text.
-    const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
-    const textNodes: Text[] = [];
-    let fullText = '';
-    let node: Text | null;
-    while ((node = walker.nextNode() as Text | null)) {
-      textNodes.push(node);
-      fullText += node.textContent ?? '';
-    }
-    const idx = fullText.indexOf(item.anchor);
-    if (idx === -1) continue;
-    const end = idx + item.anchor.length;
-
-    let pos = 0;
-    for (const tn of textNodes) {
-      const nodeStart = pos;
-      const nodeEnd = pos + (tn.textContent?.length ?? 0);
-      pos = nodeEnd;
-      if (nodeEnd <= idx || nodeStart >= end) continue;
+    // Wrapping splits text nodes but keeps the text, so offsets stay valid;
+    // re-index to map them onto the current nodes. A range may span several
+    // text nodes (e.g. into a <strong>, or across blocks) — wrap each slice.
+    const index = buildTextIndex(root);
+    for (const { node: tn, start: nodeStart } of index.segments) {
+      const nodeEnd = nodeStart + tn.data.length;
+      if (nodeEnd <= item.start || nodeStart >= item.end) continue;
 
       let target = tn;
-      const sliceStart = Math.max(0, idx - nodeStart);
-      const sliceEnd = Math.min(nodeEnd, end) - nodeStart;
+      const sliceStart = Math.max(0, item.start - nodeStart);
+      const sliceEnd = Math.min(nodeEnd, item.end) - nodeStart;
       if (sliceStart > 0) target = target.splitText(sliceStart);
       if (sliceEnd - sliceStart < (target.textContent?.length ?? 0)) target.splitText(sliceEnd - sliceStart);
 
@@ -92,9 +88,10 @@ function injectAnchorMarks<T extends AnchorMarkItem>(
   }
 }
 
-export function Reader({ taskId, content, frontmatter, highlights, notes, onAnchorSelect, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
+export function Reader({ taskId, content, frontmatter, highlights, doc, notes, onNotesLocated, onAnchorSelect, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
   const md = useMemo(() => content ?? '', [content]);
   const articleRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const isArticleTask = taskId?.startsWith('article-') ?? false;
 
   const mdComponents: Components = useMemo(() => ({
@@ -182,10 +179,16 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
 
   // ── Post-render highlight injection ─────────────────────────
   useEffect(() => {
-    const article = articleRef.current;
-    if (!article) return;
+    const body = bodyRef.current;
+    if (!body) return;
     const sorted = highlights?.length ? [...highlights].sort((a, b) => a.createdAt - b.createdAt) : [];
-    injectAnchorMarks(article, sorted, 'vdl-hl', (mark, hl) => {
+    // First occurrence of the quoted text, as before.
+    const { text } = buildTextIndex(body);
+    const ranged = sorted.flatMap((hl) => {
+      const start = text.indexOf(hl.anchor);
+      return start === -1 ? [] : [{ ...hl, start, end: start + hl.anchor.length }];
+    });
+    injectAnchorMarks(body, ranged, 'vdl-hl', (mark, hl) => {
       mark.dataset.hlId = hl.id;
       mark.dataset.color = hl.color;
     });
@@ -193,38 +196,68 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
 
   // ── Post-render note-anchor injection ────────────────────────
   useEffect(() => {
-    const article = articleRef.current;
-    if (!article) return;
-    const anchored = notes?.length ? notes.filter((n) => n.anchor) : [];
-    injectAnchorMarks(article, anchored, 'vdl-note-anchor', (mark, note) => {
-      mark.dataset.noteId = note.id;
-      mark.addEventListener('mouseenter', () => onNoteHover?.(note.id));
-      mark.addEventListener('mouseleave', () => onNoteHover?.(null));
-      mark.addEventListener('click', () => onNoteAnchorClick?.(note.id));
-    });
-  }, [notes, md, onNoteHover, onNoteAnchorClick]);
+    const body = bodyRef.current;
+    if (!body) return;
+    const index = buildTextIndex(body);
+    const located: Record<string, Located> = {};
+    for (const note of notes ?? []) {
+      if (doc && note.doc && note.doc !== doc) continue;
+      const loc = locateAnchor(index, note);
+      if (loc) located[note.id] = loc;
+    }
+    const items = Object.entries(located).map(([id, loc]) => ({ id, start: loc.start, end: loc.end }));
+
+    const decorate = (el: HTMLElement, note: { id: string }) => {
+      el.dataset.noteId = note.id;
+      el.addEventListener('mouseenter', () => onNoteHover?.(note.id));
+      el.addEventListener('mouseleave', () => onNoteHover?.(null));
+      el.addEventListener('click', () => onNoteAnchorClick?.(note.id));
+    };
+    // Point notes: an icon at the offset. offsetToPoint resolves a block-edge
+    // offset to a node inside that block, so the icon stays in its block.
+    // Icons go in before marks are (re)wrapped, so they never end up inside a mark.
+    body.querySelectorAll('span.vdl-note-point').forEach((el) => el.remove());
+    for (const item of items.filter((it) => it.start === it.end)) {
+      const pt = offsetToPoint(buildTextIndex(body), item.start);
+      if (!pt) continue;
+      const icon = document.createElement('span');
+      icon.className = 'vdl-note-point';
+      icon.setAttribute(UI_ATTR, '');
+      icon.innerHTML = POINT_ICON_SVG;
+      decorate(icon, item);
+      const { node, offset } = pt;
+      const before = offset === 0 ? node : offset < node.data.length ? node.splitText(offset) : node.nextSibling;
+      node.parentNode?.insertBefore(icon, before);
+    }
+    injectAnchorMarks(body, items.filter((it) => it.start < it.end), 'vdl-note-anchor', decorate);
+
+    onNotesLocated?.(located);
+  }, [notes, doc, md, onNoteHover, onNoteAnchorClick, onNotesLocated]);
 
   // ── Reverse hover sync: sidebar card → article mark ──────────
-  // NOTE: This effect depends on running AFTER the note-injection effect (deps [notes, md, ...])
+  // NOTE: This effect depends on running AFTER the note-injection effect (deps [notes, doc, md, ...])
   // to re-apply is-linked to the fresh marks. Relies on onNoteHover/onNoteAnchorClick being stable.
   useEffect(() => {
-    const article = articleRef.current;
-    if (!article) return;
-    article.querySelectorAll('mark.vdl-note-anchor').forEach((el) => {
+    const body = bodyRef.current;
+    if (!body) return;
+    body.querySelectorAll('mark.vdl-note-anchor, span.vdl-note-point').forEach((el) => {
       const markEl = el as HTMLElement;
       markEl.classList.toggle('is-linked', !!hoveredNoteId && markEl.dataset.noteId === hoveredNoteId);
     });
-  }, [hoveredNoteId, notes, md]);
+  }, [hoveredNoteId, notes, doc, md]);
 
   return (
     <>
       <article ref={articleRef} className="prose-cn" onMouseUp={handleMouseUp} onContextMenu={handleContextMenu}>
         <ArticleMetaBar frontmatter={frontmatter} />
-        <MarkdownPreview
-          content={md}
-          rehypePlugins={[rehypeHighlight]}
-          components={mdComponents}
-        />
+        <div data-sc-body ref={bodyRef}>
+          <MarkdownPreview
+            key={md}
+            content={md}
+            rehypePlugins={[rehypeHighlight]}
+            components={mdComponents}
+          />
+        </div>
       </article>
 
       {/* Selection toolbar */}

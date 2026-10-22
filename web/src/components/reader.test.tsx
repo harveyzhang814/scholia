@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { Reader } from './reader';
 import type { Highlight } from '@/lib/api';
@@ -46,6 +46,47 @@ describe('Reader note-anchor rendering', () => {
     const notes = [{ id: 'n1', anchor: '的 Never Gonna Give You Up，经典' }];
     const { container } = render(<Reader content={content} notes={notes} />);
     expect(container.querySelectorAll('mark.vdl-note-anchor').length).toBeGreaterThan(0);
+  });
+});
+
+describe('Reader unified anchors', () => {
+  const content = '第一段有个观点在这里。\n\n第二段。';
+  it('renders a point icon for a point note', () => {
+    const notes = [{ id: 'p1', anchor: '', prefix: '有个观点', suffix: '在这里。', position: 7 }];
+    const { container } = render(<Reader content={content} notes={notes} />);
+    const icon = container.querySelector('span.vdl-note-point[data-note-id="p1"]');
+    expect(icon).not.toBeNull();
+    expect(icon!.hasAttribute('data-sc-ui')).toBe(true);
+    expect(icon!.textContent).toBe('');
+  });
+  it('reports located results with grades', () => {
+    const onNotesLocated = vi.fn();
+    const notes = [
+      { id: 'a', anchor: '观点' },
+      { id: 'b', anchor: '找不到的文字' },
+    ];
+    render(<Reader content={content} notes={notes} onNotesLocated={onNotesLocated} />);
+    const last = onNotesLocated.mock.calls.at(-1)![0];
+    expect(last.a.grade).toBe('exact');
+    expect(last.b).toBeUndefined();
+  });
+  it('skips notes whose doc differs from current doc', () => {
+    const notes = [{ id: 'a', anchor: '观点', doc: 'summary' as const }];
+    const { container } = render(<Reader content={content} doc="article" notes={notes} />);
+    expect(container.querySelector('mark.vdl-note-anchor')).toBeNull();
+  });
+  it('legacy note without doc locates in any doc', () => {
+    const { container } = render(<Reader content={content} doc="summary" notes={[{ id: 'a', anchor: '观点' }]} />);
+    expect(container.querySelector('mark.vdl-note-anchor')).not.toBeNull();
+  });
+  it('marks a legacy cross-paragraph anchor', () => {
+    const notes = [{ id: 'x', anchor: '在这里。\n\n第二段' }];
+    const { container } = render(<Reader content={content} notes={notes} />);
+    expect(container.querySelectorAll('mark.vdl-note-anchor[data-note-id="x"]').length).toBeGreaterThan(0);
+  });
+  it('frontmatter meta bar text is not matchable', () => {
+    const { container } = render(<Reader content="正文" frontmatter={{ author: '作者名' }} notes={[{ id: 'm', anchor: '作者名' }]} />);
+    expect(container.querySelector('mark.vdl-note-anchor')).toBeNull();
   });
 });
 
