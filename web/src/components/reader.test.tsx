@@ -255,10 +255,15 @@ describe('Reader inline card slots', () => {
     const slot = container.querySelector('[data-sc-slot]')!;
     expect(slot.hasAttribute('data-sc-ui')).toBe(true);
     expect(slot.textContent).toBe('卡片文字');
-    // a note anchored on the card text must not be located
+    // a note anchored on the card text (which is really in the DOM, inside a slot) must not be located
     const onNotesLocated = vi.fn();
-    render(<Reader content={content} notes={[{ id: 'c', anchor: '卡片文字' }]} renderInline={card} onNotesLocated={onNotesLocated} />);
-    expect(onNotesLocated.mock.calls.at(-1)![0]).toEqual({});
+    const p = { id: 'p', anchor: '观点' };
+    const { container: c2, rerender } = render(<Reader content={content} notes={[p]} renderInline={card} onNotesLocated={onNotesLocated} />);
+    expect(c2.querySelector('[data-sc-slot]')!.textContent).toBe('卡片文字');
+    rerender(<Reader content={content} notes={[p, { id: 'c', anchor: '卡片文字' }]} renderInline={card} onNotesLocated={onNotesLocated} />);
+    const located = onNotesLocated.mock.calls.at(-1)![0];
+    expect(located.p).toBeDefined();
+    expect(located.c).toBeUndefined();
   });
 
   it('no renderInline means no slots', () => {
@@ -310,8 +315,12 @@ describe('Reader inline card slots', () => {
     const both = [{ id: 'p', anchor: '观点' }, { id: 'l', anchor: '列表项二' }];
     const { container, rerender } = render(<Reader content={content} notes={both} renderInline={cards} />);
     expect(container.querySelectorAll('[data-sc-slot]')).toHaveLength(2);
+    const slot = container.querySelector('p + [data-sc-slot]')!;
+    const card = slot.querySelector('[data-card="p"]')!;
     rerender(<Reader content={content} notes={[both[0]]} renderInline={cards} />);
     expect(container.querySelectorAll('[data-sc-slot]')).toHaveLength(1);
+    expect(container.querySelector('[data-sc-slot]')).toBe(slot);
+    expect(slot.querySelector('[data-card="p"]')).toBe(card);
     expect(container.querySelector('li [data-sc-slot]')).toBeNull();
   });
 

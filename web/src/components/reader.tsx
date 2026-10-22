@@ -347,7 +347,7 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
       const markEl = el as HTMLElement;
       markEl.classList.toggle('is-linked', !!hoveredNoteId && markEl.dataset.noteId === hoveredNoteId);
     });
-  }, [hoveredNoteId, notes, doc, md]);
+  }, [hoveredNoteId, notes, doc, md, draft, hasInline]);
 
   return (
     <>
