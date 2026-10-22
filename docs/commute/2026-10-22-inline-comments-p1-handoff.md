@@ -1,5 +1,5 @@
 ---
-status: 待验收
+status: 已验收
 date: 2026-10-22
 author_model: claude-opus-5-5
 acceptance: hard
@@ -141,3 +141,26 @@ target_node: 817aa4af-5c84-4459-9c71-b5e6d451bf20
 
 - Mode A 左栏的评论从"叠在位置 0"改为正常列表排列。
 - 以前跨段落写的旧评论，现在能标出来。
+
+## 原 session 验收记录（2026-10-22）
+
+在本工作区（分支 `feature/inline-comments-p1`，HEAD `70a68b4`）逐条重跑，不采信接手方结论。判成败的命令输出重定向到文件后取退出码，不接管道。
+
+| # | 锚点 | 结果 | 实跑证据 |
+|---|---|---|---|
+| 1 | 后端测试 | pass | `npm test` 退出码 0；7 个套件全部 `0 failed`（server 51 passed）；Task 2 三个用例均为 `✓` |
+| 2 | 前端测试 + 计划用例 | pass | `cd web && npm test` 退出码 0，21 个文件 188 个用例通过。脚本从计划 Task 3–7 取出 39 个 `it(...)` 名，在 `web/src/**/*.test.ts(x)` 中缺失 0 个；`web/src` 下没有 `.skip`/`.only`/`.todo`/`xit` |
+| 3 | 前端构建 | pass | `cd web && npm run build` 退出码 0（含 `tsc`） |
+| 4 | 旧接口清除 | pass | `grep -rn "onAnchorSelect\|resolveAnchorY" web/src` 无输出，退出码 1 |
+| 5 | 新依赖 | pass | `web/package.json` 的 `dependencies["approx-string-match"]` 为 `^2.0.1` |
+| 6 | 改动范围 | pass | `git diff --name-only 817494d..HEAD`（merge-base 即 `817494d`）共 19 个文件，逐个对照计划各 Task 的 Files 清单：均在清单内或属允许的例外；spec 的改动是 Task 1/8 要求的写回 |
+| 7 | 未确认项记录 | pass（验收时补齐） | 送验时 Safari 一栏缺失（接手方已如实标红送验）。验收时由用户在 Safari 里实测：单击不可编辑段落后 `getSelection().type` 为 `"Caret"`。已写入 spec 未确认项表。两个浏览器都可用，`c with caret creates point draft` 无需替换。性能一栏已有实测值（约 25 ms，低于 100 ms） |
+| 8 | 手动检查记录 | pass | 5 项均有结果与说明；第 3 项只验证到"不拦截原生菜单"，接手方已写明无头环境的限制 |
+
+**回归面核对**：改动面是 `server/index.js` 与 `web/src` 下的 reader、notes-panel、tasks.$id、lib、hooks、样式。被波及组件的既有测试就是锚点 1、2 已跑的后端全集和前端全集，没有遗漏的其他回归测试。
+
+**接手方报告的"右栏卡片区高度不断增长"**：对比分叉点 `817494d` 的 `notes-panel.tsx`，`ResizeObserver` + `setArticleHeight(el.scrollHeight)` 以及 `height: articleHeight` 容器逐行相同，本分支只在定位 effect 的依赖里加了 `located`。判断为既有问题，不打回。依据是代码对比，没有在分叉点上实测。建议另开 fix 分支处理；卡片整体偏低约 190px、跨任务草稿残留同属既有问题。
+
+**未在本轮验证、建议上线前手点**：macOS 真机右键是否得到点评论（而不是先选中单词）、Ctrl+点击。
+
+**结论：达成。** `status` 置为 `已验收`。
