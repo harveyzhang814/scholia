@@ -84,6 +84,26 @@ describe('Reader unified anchors', () => {
     const { container } = render(<Reader content={content} notes={notes} />);
     expect(container.querySelectorAll('mark.vdl-note-anchor[data-note-id="x"]').length).toBeGreaterThan(0);
   });
+  it('does not re-inject when only the onNotesLocated identity changes', () => {
+    const cb1 = vi.fn();
+    const cb2 = vi.fn();
+    const cb3 = vi.fn();
+    const notes = [{ id: 'a', anchor: '观点' }];
+    const { container, rerender } = render(<Reader content={content} notes={notes} onNotesLocated={cb1} />);
+    const mark = container.querySelector('mark.vdl-note-anchor');
+    expect(cb1).toHaveBeenCalledTimes(1);
+
+    rerender(<Reader content={content} notes={notes} onNotesLocated={cb2} />);
+    expect(mark!.isConnected).toBe(true);
+    expect(container.querySelector('mark.vdl-note-anchor')).toBe(mark);
+    expect(cb2).not.toHaveBeenCalled();
+
+    rerender(<Reader content={content} notes={[{ id: 'b', anchor: '第二段' }]} onNotesLocated={cb3} />);
+    expect(cb3).toHaveBeenCalledTimes(1);
+    expect(cb3.mock.calls[0][0].b.grade).toBe('exact');
+    expect(cb1).toHaveBeenCalledTimes(1);
+    expect(cb2).not.toHaveBeenCalled();
+  });
   it('frontmatter meta bar text is not matchable', () => {
     const { container } = render(<Reader content="正文" frontmatter={{ author: '作者名' }} notes={[{ id: 'm', anchor: '作者名' }]} />);
     expect(container.querySelector('mark.vdl-note-anchor')).toBeNull();

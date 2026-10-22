@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
+import { useMemo, useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import { MarkdownPreview } from '@harveyzhang814/markdown-preview-core';
 import type { Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
@@ -92,6 +92,10 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
   const md = useMemo(() => content ?? '', [content]);
   const articleRef = useRef<HTMLElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  // Latest callback, kept out of the injection effect's deps: callers may pass
+  // a fresh function each render, which would otherwise re-inject (and loop).
+  const onNotesLocatedRef = useRef(onNotesLocated);
+  useLayoutEffect(() => { onNotesLocatedRef.current = onNotesLocated; });
   const isArticleTask = taskId?.startsWith('article-') ?? false;
 
   const mdComponents: Components = useMemo(() => ({
@@ -231,8 +235,8 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
     }
     injectAnchorMarks(body, items.filter((it) => it.start < it.end), 'vdl-note-anchor', decorate);
 
-    onNotesLocated?.(located);
-  }, [notes, doc, md, onNoteHover, onNoteAnchorClick, onNotesLocated]);
+    onNotesLocatedRef.current?.(located);
+  }, [notes, doc, md, onNoteHover, onNoteAnchorClick]);
 
   // ── Reverse hover sync: sidebar card → article mark ──────────
   // NOTE: This effect depends on running AFTER the note-injection effect (deps [notes, doc, md, ...])
