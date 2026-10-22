@@ -27,7 +27,8 @@
 
 ## 关键决定（本计划细化，spec 未写死的部分）
 
-- **右栏卡片的样子不变**：`variant="sidebar"` 的渲染与现在的 `NoteItem` 一致（时间点、"原文已变化"、正文、悬停时显示编辑/删除），另加近似时的原文快照。收起箭头、类型图标、锚点摘录、创建时间只在内嵌卡片上出现。右栏不支持收起。
+- **引用原文只在右栏卡片上显示**（用户 2026-10-22 确认）：内嵌卡片紧贴在原文下方，不再重复显示锚点摘录；右栏卡片离原文远，在正文上方显示引用的原文（截断见 Task 2）。
+- **右栏卡片其余部分不变**：`variant="sidebar"` 除新增引用外，与现在的 `NoteItem` 一致（时间点、"原文已变化"、正文、悬停时显示编辑/删除），另加近似时的原文快照。收起箭头、类型图标、创建时间只在内嵌卡片上出现。右栏不支持收起。
 - **Mode A 在内嵌视图下打开评论入口**：第 1 期在 Mode A 不传 `onCommentDraft`，原因是草稿会进到看不见的右栏。内嵌视图下草稿卡片就在正文里，所以 Mode A + 内嵌视图恢复三个入口；Mode A + 右栏视图维持第 1 期的行为。
 - **内嵌视图不渲染右栏**：`notes-col` 整个不渲染，正文列按现有 flex 规则占满这块宽度（Mode E 的 72ch 上限仍在）。
 - **未定位区放在 `Reader` 之上**（在信息栏之前），只在内嵌视图出现，总是渲染（n 为 0 时也在，保证"添加评论"可用）。
@@ -142,16 +143,16 @@ git commit -m "feat(web): comment view state with inline/sidebar toggle"
     onAutoEditConsumed?: () => void;
   }
   export function NoteCard(props: NoteCardProps): JSX.Element;
-  export function anchorLabel(a: NoteAnchor): string;   // 从 notes-panel.tsx 原样搬来并导出，NotesPanel 改为导入它
   // 根元素：<div class="sc-note-card" data-note-card={note.id} data-variant={variant}>
   ```
 
 **行为：**
 - **外壳**负责：头部、近似快照、编辑状态、悬停联动、高度上报（`ResizeObserver`，有 `onHeightChange` 时才挂）、`autoEdit`；**条目**组件 `NoteEntry` 只负责显示或编辑一条文字。以后加回复、AI 回答只往 `noteEntries` 里加，要支持 Markdown 只改 `NoteEntry`。
-- **内嵌头部**（一行，从左到右）：收起箭头按钮（`aria-label` 为 `收起` 或 `展开`，文字 `▾` / `▸`）、类型图标（选区用 `❝`，点评论用 `‸`，无锚点不显示）、锚点摘录（选区：`anchor` 第一行，超过 40 字截断加 `…`；点评论：`插入点`）、时间点 `@ mm:ss`（有 `mediaTimestamp` 时）、`原文已变化`（近似时）、`formatRelativeTime(createdAt)`、`编辑`、`删除`。
-- **右栏**：与现在的 `NoteItem` 渲染一致（悬停才显示编辑/删除；`isLinked` 时滚动到可见并加底色，编辑中不加底色）。
+- **内嵌头部**（一行，从左到右）：收起箭头按钮（`aria-label` 为 `收起` 或 `展开`，文字 `▾` / `▸`）、类型图标（选区用 `❝`，点评论用 `‸`，无锚点不显示）、收起时的正文预览（见下方「收起」）、时间点 `@ mm:ss`（有 `mediaTimestamp` 时）、`原文已变化`（近似时）、`formatRelativeTime(createdAt)`、`编辑`、`删除`。
+- **内嵌卡片不显示锚点摘录**：原文就在卡片正上方。
+- **右栏**：正文上方新增一行引用（元素带 `data-quote` 和 class `sc-quote`）：选区评论显示 `anchor` 的第一行，`globals.css` 里 `.sc-quote` 限制最多两行（`display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden`），超出显示省略号；点评论显示 `插入点`；无锚点不显示。颜色 `var(--text-tertiary)`，字号 12px。其余与现在的 `NoteItem` 一致（悬停才显示编辑/删除；`isLinked` 时滚动到可见并加底色，编辑中不加底色）。
 - **近似快照**（两种 variant 都有，收起时不显示）：`prefix` + 加粗的 `anchor` + `suffix`；点评论在中间显示 `‸`。没有 `prefix/suffix` 的旧评论不显示快照。
-- **收起**（仅 inline）：只渲染头部这一行。
+- **收起**（仅 inline）：只渲染头部这一行，头部在类型图标之后显示评论正文的第一行（单行，`text-overflow: ellipsis`，元素带 `data-preview`）；展开时不显示这段预览。
 - **编辑**：⌘↵ 或失焦保存，Esc 放弃，规则与现在的 `NoteItem` 相同。
 - 内嵌卡片 `isLinked` 时加底色但**不**滚动。
 
@@ -176,25 +177,41 @@ it('NoteCard shows 原文已变化 when approximate', () => {
 it('noteEntries turns the body into one entry', () => {
   expect(noteEntries(base)).toEqual([{ id: 'n1', kind: 'body', text: '一条笔记' }]);
 });
-it('inline header shows excerpt, time point and actions', () => {
+it('inline card omits the anchor excerpt but shows time point and actions', () => {
   const n = { ...base, anchor: '第一行原文\n第二行', mediaTimestamp: 65 };
-  const { getByText } = render(<NoteCard variant="inline" note={n} isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);
-  expect(getByText('第一行原文')).toBeInTheDocument();
+  const { queryByText, getByText, container } = render(<NoteCard variant="inline" note={n} isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);
+  expect(queryByText(/第一行原文/)).toBeNull();
+  expect(container.querySelector('[data-quote]')).toBeNull();
   expect(getByText('@ 1:05')).toBeInTheDocument();
   expect(getByText('编辑')).toBeInTheDocument();
 });
-it('inline point card says 插入点', () => {
-  const { getByText } = render(<NoteCard variant="inline" note={{ ...base, prefix: '前文', suffix: '后文' }}
-    isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);
-  expect(getByText('插入点')).toBeInTheDocument();
+it('sidebar card quotes the first line of the anchor, clamped', () => {
+  const n = { ...base, anchor: '第一行原文\n第二行' };
+  const { container } = render(<NoteCard variant="sidebar" note={n} isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);
+  const quote = container.querySelector<HTMLElement>('[data-quote]')!;
+  expect(quote.textContent).toBe('第一行原文');
+  expect(quote).toHaveClass('sc-quote');  // 两行截断由 globals.css 的 .sc-quote 负责（jsdom 不认 -webkit-line-clamp）
 });
-it('collapsed inline card shows only the header', () => {
-  const toggle = vi.fn();
-  const { queryByText, getByLabelText } = render(<NoteCard variant="inline" note={base} collapsed onToggleCollapsed={toggle}
+it('sidebar point card quotes 插入点, anchorless card quotes nothing', () => {
+  const point = render(<NoteCard variant="sidebar" note={{ ...base, prefix: '前文', suffix: '后文' }}
     isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);
-  expect(queryByText('一条笔记')).toBeNull();
+  expect(point.container.querySelector('[data-quote]')!.textContent).toBe('插入点');
+  point.unmount();
+  const none = render(<NoteCard variant="sidebar" note={base} isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);
+  expect(none.container.querySelector('[data-quote]')).toBeNull();
+});
+it('collapsed inline card shows only the header with a body preview', () => {
+  const toggle = vi.fn();
+  const { container, getByLabelText } = render(<NoteCard variant="inline" note={{ ...base, body: '第一行\n第二行' }} collapsed
+    onToggleCollapsed={toggle} isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);
+  expect(container.querySelector('[data-preview]')!.textContent).toBe('第一行');
+  expect(container.textContent).not.toContain('第二行');
   fireEvent.click(getByLabelText('展开'));
   expect(toggle).toHaveBeenCalled();
+});
+it('expanded inline card has no preview', () => {
+  const { container } = render(<NoteCard variant="inline" note={base} isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);
+  expect(container.querySelector('[data-preview]')).toBeNull();
 });
 it('approximate card shows the snapshot', () => {
   const n = { ...base, anchor: '旧原文', prefix: '前文', suffix: '后文' };
@@ -381,7 +398,7 @@ git commit -m "feat(web): inline card slots under anchored blocks via portals"
   ```
 
 **行为：**
-- **`DraftCard`**：内嵌样式的卡片，头部显示锚点标签（规则同第 1 期右栏的 `anchorLabel`：选区 `锚点：…`、点评论 `插入点：…`，无锚点不显示），一个自动聚焦的 textarea，`保存` 按钮。⌘↵ 或点保存：正文非空时 `addNote.mutate({ ...anchor, body, ...(hasMedia && currentTime > 0 ? { mediaTimestamp: Math.floor(currentTime) } : {}) })`，然后 `onDone()`；Esc：`onDone()`。
+- **`DraftCard`**：内嵌样式的卡片（绿色描边），不显示锚点标签（位置就在正文里），一个自动聚焦的 textarea、提示 `⌘↵ 保存 · Esc 放弃`、`保存` 按钮。⌘↵ 或点保存：正文非空时 `addNote.mutate({ ...anchor, body, ...(hasMedia && currentTime > 0 ? { mediaTimestamp: Math.floor(currentTime) } : {}) })`，然后 `onDone()`；Esc：`onDone()`。
 - **`InlineCards`**：按 `ids` 顺序渲染；`DRAFT_ID` 渲染 `DraftCard`（`draft` 为 null 时跳过），其余渲染 `NoteCard variant="inline"`，`approximate` 取 `located[id]?.grade === 'approximate'`，`collapsed` 取 `collapsed.has(id)`。找不到对应 note 的 id 跳过。
 - **`UnlocatedZone`**：头部是一个切换按钮 `未定位评论（n）`（区域自身的展开状态，默认展开）和一个 `添加评论` 按钮。点 `添加评论` 在区域内显示 `DraftCard`，`anchor` 为 `{ anchor: '' }`。展开时用 `NoteCard variant="inline"` 列出 `notes`。
 
@@ -392,8 +409,7 @@ it('draft card saves with anchor fields and calls onDone', async () => {
   const add = vi.spyOn(api, 'addNote').mockResolvedValue({} as Note);
   const done = vi.fn();
   const anchor = { anchor: '', prefix: '前文', suffix: '后文', position: 3 };
-  const { getByRole, getByText } = renderWithClient(<DraftCard taskId="t" hasMedia={false} anchor={anchor} onDone={done} />);
-  expect(getByText(/插入点：…前文/)).toBeInTheDocument();
+  const { getByRole } = renderWithClient(<DraftCard taskId="t" hasMedia={false} anchor={anchor} onDone={done} />);
   fireEvent.change(getByRole('textbox'), { target: { value: '想法' } });
   fireEvent.keyDown(getByRole('textbox'), { key: 'Enter', metaKey: true });
   await waitFor(() => expect(add).toHaveBeenCalledWith('t', expect.objectContaining({ ...anchor, body: '想法' })));

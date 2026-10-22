@@ -233,11 +233,14 @@
   }
   .card-toggle:hover { background: var(--border-subtle); }
   .card-kind { font-size: 13px; color: var(--text-tertiary); width: 12px; text-align: center; }
-  .card-excerpt {
+  /* 收起时的正文预览：只在 is-collapsed 下出现，单行省略（内嵌卡片不显示锚点原文——原文就在正上方） */
+  .card-preview {
+    display: none;
     color: var(--text-secondary);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    min-width: 0; flex: 0 1 auto; max-width: 46%;
+    min-width: 0; flex: 0 1 auto; max-width: 60%;
   }
+  .sc-note-card.is-collapsed .card-preview { display: inline; }
   .card-ts { font-family: var(--font-mono); color: var(--accent-9); }
   .card-approx {
     padding: 0 6px; border-radius: 4px;
@@ -317,6 +320,11 @@
     padding: 10px 16px;
     border-bottom: 1px solid var(--border-subtle);
     font-size: 12px; line-height: 1.6;
+  }
+  /* 右栏卡片的引用原文：首行，最多两行，超出省略（.sc-quote） */
+  .sc-quote {
+    font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
   .side-card .hint { font-size: 12px; color: var(--text-tertiary); margin-bottom: 2px; }
   .side-card .card-snapshot { font-size: 11.5px; }
@@ -399,6 +407,7 @@
                 <div class="card-head">
                   <button class="card-toggle" aria-label="收起">▾</button>
                   <span class="card-kind"></span>
+                  <span class="card-preview">整体读完再回头对照第三节的实验设计。</span>
                   <span class="card-spacer"></span>
                   <span class="card-time">5 天前</span>
                   <span class="card-action">编辑</span><span class="card-action">删除</span>
@@ -425,7 +434,7 @@
               <div class="card-head">
                 <button class="card-toggle" aria-label="收起">▾</button>
                 <span class="card-kind">❝</span>
-                <span class="card-excerpt">计算机视觉等领域的演化路径</span>
+                <span class="card-preview">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</span>
                 <span class="card-spacer"></span>
                 <span class="card-time">3 天前</span>
                 <span class="card-action">编辑</span><span class="card-action">删除</span>
@@ -441,7 +450,7 @@
               <div class="card-head">
                 <button class="card-toggle" aria-label="收起">▾</button>
                 <span class="card-kind">‸</span>
-                <span class="card-excerpt">插入点</span>
+                <span class="card-preview">这里可以补一句：长距离依赖在 RNN 里是靠门控缓解的，不是根治。</span>
                 <span class="card-approx" id="approx-badge" style="display:none;">原文已变化</span>
                 <span class="card-spacer"></span>
                 <span class="card-time">昨天</span>
@@ -453,11 +462,7 @@
               </div>
             </div>
             <div class="sc-note-card is-draft" data-variant="inline" id="draft-card" style="display:none;">
-              <div class="card-head">
-                <span class="card-kind">‸</span>
-                <span class="draft-label">插入点：…大规模预训练模型的首选架构</span>
-              </div>
-              <div class="card-body" style="padding-left: 12px;">
+              <div class="card-body" style="padding: 10px 12px;">
                 <textarea class="card-textarea" rows="3" placeholder="写下评论…"></textarea>
                 <div class="card-edit-foot">
                   <span>⌘↵ 保存 · Esc 放弃</span>
@@ -470,14 +475,14 @@
           <h2>主要变体</h2>
           <ul>
             <li>自注意力：序列内部各位置两两计算相关性。</li>
-            <li>交叉注意力：查询来自一个序列，<mark class="vdl-note-anchor" data-note-id="n3">键和值来自另一个序列</mark>。
+            <li>交叉注意力：查询来自一个序列，<mark class="vdl-note-anchor" data-note-id="n3">键和值来自另一个序列，这让解码器在生成每个词时都能回看编码器对整句输入的全部表示</mark>。
               <!-- 槽位：li 内部末尾 -->
               <div class="sc-slot inline-only">
                 <div class="sc-note-card" data-variant="inline" data-note-id="n3">
                   <div class="card-head">
                     <button class="card-toggle" aria-label="收起">▾</button>
                     <span class="card-kind">❝</span>
-                    <span class="card-excerpt">键和值来自另一个序列</span>
+                    <span class="card-preview">编码器-解码器结构里就是这个。</span>
                     <span class="card-spacer"></span>
                     <span class="card-time">昨天</span>
                     <span class="card-action">编辑</span><span class="card-action">删除</span>
@@ -511,21 +516,23 @@
         </div>
         <div style="padding: 8px 16px; font-size: 12px; border-bottom: 1px solid var(--border-subtle);">整体读完再回头对照第三节的实验设计。</div>
         <div class="notes-abs">
-          <div class="side-card" data-note-id="n1" style="top: 150px;">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</div>
+          <div class="side-card" data-note-id="n1" style="top: 150px;"><div class="sc-quote">计算机视觉等领域的演化路径</div>这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</div>
           <div class="side-card" data-note-id="n2" style="top: 232px;">
+            <div class="sc-quote">插入点</div>
             <div class="hint side-approx" style="display:none;">原文已变化</div>
             <div class="card-snapshot side-approx" style="display:none;">…捕捉长距离依赖关系<strong>‸</strong>。这一特性…</div>
             这里可以补一句：长距离依赖在 RNN 里是靠门控缓解的，不是根治。
           </div>
-          <div class="side-card" data-note-id="n3" style="top: 400px;">编码器-解码器结构里就是这个。</div>
+          <div class="side-card" data-note-id="n3" style="top: 420px;"><div class="sc-quote">键和值来自另一个序列，这让解码器在生成每个词时都能回看编码器对整句输入的全部表示</div>编码器-解码器结构里就是这个。</div>
         </div>
       </aside>
     </div>
   </div>
 
   <p class="caption">
-    <strong>内嵌卡片</strong>：头部一行依次是收起箭头、类型（<code>❝</code> 选区、<code>‸</code> 点评论、无锚点不显示）、锚点摘录（选区取原文首行，超 40 字截断；点评论写「插入点」）、视频时间点（有时）、「原文已变化」（近似时）、相对时间，悬停时出现「编辑 / 删除」。
-    收起后只剩这一行。内容区目前只有一条条目（<code>note.body</code>），以后回复、AI 回答往下追加。卡片字号回到 UI 尺寸 13px，不继承正文 15px。
+    <strong>内嵌卡片</strong>：头部一行依次是收起箭头、类型（<code>❝</code> 选区、<code>‸</code> 点评论、无锚点不显示）、视频时间点（有时）、「原文已变化」（近似时）、相对时间，悬停时出现「编辑 / 删除」。
+    <strong>内嵌卡片不显示锚点原文</strong>——原文就在卡片正上方。收起后只剩这一行，并在类型图标后显示评论正文的第一行（单行省略）。
+    <strong>右栏卡片</strong>在正文上方引用原文首行，最多两行，超出省略（见右栏视图里「交叉注意力」那条）；点评论引用写「插入点」。草稿卡片也不显示锚点标签。内容区目前只有一条条目（<code>note.body</code>），以后回复、AI 回答往下追加。卡片字号回到 UI 尺寸 13px，不继承正文 15px。
   </p>
   <p class="caption">
     <strong>槽位位置</strong>：段落、标题、代码块、表格之后；列表项在 <code>li</code> 内部末尾（见「交叉注意力」那一项）。同一段落的多条评论共用一个槽位，按位置排序，草稿卡片按自己的位置插在中间。

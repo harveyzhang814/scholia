@@ -300,11 +300,13 @@
   }
   .card-toggle:hover { background: var(--border-subtle); }
   .card-kind { font-size: 13px; color: var(--text-tertiary); width: 12px; text-align: center; }
-  .card-excerpt {
+  .card-preview {
+    display: none;
     color: var(--text-secondary);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    min-width: 0; flex: 0 1 auto; max-width: 46%;
+    min-width: 0; flex: 0 1 auto; max-width: 60%;
   }
+  .sc-note-card.is-collapsed .card-preview { display: inline; }
   .card-ts { font-family: var(--font-mono); color: var(--accent-9); white-space: nowrap; }
   .card-approx {
     padding: 0 6px; border-radius: 4px;
@@ -347,11 +349,6 @@
     font-size: 12px; padding: 3px 10px; border-radius: 4px;
     background: var(--accent-9); color: #fff; border: 1px solid var(--accent-9); cursor: pointer;
   }
-  .draft-label {
-    font-size: 12px; padding: 1px 8px; border-radius: 4px;
-    background: var(--accent-3); color: var(--accent-11);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
-  }
   .sc-note-card.is-draft { background: var(--bg-surface); border-color: var(--accent-9); }
   /* 草稿状态只在 data-state="draft" 时出现 */
   .draft-only { display: none !important; }
@@ -387,6 +384,11 @@
     transition: background 120ms, box-shadow 120ms;
   }
   .side-card .note-ts { margin-bottom: 2px; }
+  /* 右栏卡片的引用原文：首行，最多两行，超出省略（.sc-quote） */
+  .sc-quote {
+    font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
   .side-card.is-linked { background: var(--accent-3); box-shadow: inset 2px 0 0 var(--accent-9); }
   .detail-frame[data-tab="summary"] .side-card[data-doc="article"],
   .detail-frame[data-tab="article"] .side-card[data-doc="summary"] { display: none; }
@@ -425,7 +427,7 @@
     计划：<code>docs/superpowers/plans/2026-10-22-inline-comments-p2.md</code>；卡片、未定位区、视图开关的视觉与文章页草稿 <code>drafts/task-detail-article-web-design.html</code> 相同。
     默认「内嵌」视图：评论卡片插在锚点所在段落下方；头部 ✦ 旁的「内嵌 / 右栏」切回第 1 期的右栏视图。
     下方按钮切换状态，也可以直接点头部的模式按钮、开关、tab、卡片的 ▾ 箭头，悬停标记或卡片看联动。
-    URL 直达：<code>#mode=A&amp;view=inline&amp;tab=article</code>、<code>#mode=B&amp;view=sidebar</code>、<code>#state=draft</code>，可组合。
+    URL 直达：<code>#mode=A&amp;view=inline&amp;tab=article</code>、<code>#mode=B&amp;view=sidebar</code>、<code>#state=collapsed</code>、<code>#state=draft</code>，可组合。
   </p>
 
   <div class="state-switch-label">布局模式</div>
@@ -450,6 +452,7 @@
   <div class="state-switch-label">内嵌视图状态</div>
   <div class="state-switch" data-group="state" id="inline-states">
     <button class="state-btn active" data-state="default">默认</button>
+    <button class="state-btn" data-state="collapsed">全部收起</button>
     <button class="state-btn" data-state="draft">草稿卡片（点评论，编辑中）</button>
   </div>
   <div class="switch-gap"></div>
@@ -649,19 +652,19 @@
             </div>
             <!-- 有锚点评论：绝对定位，top 由脚本按正文锚点高度计算 -->
             <div class="notes-abs">
-              <div class="side-card" data-note-id="n1" data-doc="summary">
+              <div class="side-card" data-note-id="n1" data-doc="summary"><div class="sc-quote">从 Query/Key/Value 的矩阵变换出发</div>
                 <div class="note-ts">@ 03:12</div>
                 这里解释了 Query/Key/Value 的几何直觉，值得反复看。
               </div>
-              <div class="side-card" data-note-id="n2" data-doc="summary">
+              <div class="side-card" data-note-id="n2" data-doc="summary"><div class="sc-quote">插入点</div>
                 <div class="note-ts">@ 18:40</div>
                 多头注意力的并行计算方式和单头相比的优势。
               </div>
-              <div class="side-card" data-note-id="n3" data-doc="article">
+              <div class="side-card" data-note-id="n3" data-doc="article"><div class="sc-quote">除以根号 d_k 做缩放，避免点积过大让 softmax 进入饱和区、梯度消失，这一步在 d_k 较大的多头配置下尤其关键</div>
                 <div class="note-ts">@ 12:04</div>
                 缩放因子的来历：点积的方差随 d_k 线性增长。
               </div>
-              <div class="side-card" data-note-id="n4" data-doc="any">回头和 RoPE（旋转位置编码）的做法对比一下。</div>
+              <div class="side-card" data-note-id="n4" data-doc="any"><div class="sc-quote">位置编码（Positional Encoding）</div>回头和 RoPE（旋转位置编码）的做法对比一下。</div>
             </div>
           </aside>
         </div>
@@ -710,15 +713,15 @@
   <p class="caption">
     <strong>模式A + 内嵌</strong>：左栏视频下方的评论列表不变（按时间看）；右侧正文同时出现内嵌卡片（按正文看）——同一条评论在两处各出现一次，这是有意的，悬停任一处另一处同步高亮。
     模式A 本来就没有右侧笔记栏，所以切到「右栏」视图时正文里没有卡片、没有未定位区，与第 1 期一致。
-    卡片头部在有视频时间点时显示 <code>@ 12:34</code>（mono、accent 色），位于摘录之后、相对时间之前。
+    内嵌卡片不显示锚点原文（原文就在卡片正上方），头部依次是收起箭头、类型（<code>❝</code> 选区、<code>‸</code> 点评论、无锚点不显示）、视频时间点 <code>@ 12:34</code>（有时，mono、accent 色）、相对时间；收起后在类型之后显示评论正文第一行，单行省略。
   </p>
   <p class="caption">
-    <strong>总结 / 文章 tab</strong>：每条新评论记录它所在的 tab（<code>doc</code> 字段）。另一个 tab 的评论不在当前正文里定位，进当前 tab 的「未定位评论」区——在总结 tab 写的「从 Query/Key/Value 的矩阵变换出发」那条，切到文章 tab 后出现在文首未定位区里，头部仍带原锚点摘录和时间点。
+    <strong>总结 / 文章 tab</strong>：每条新评论记录它所在的 tab（<code>doc</code> 字段）。另一个 tab 的评论不在当前正文里定位，进当前 tab 的「未定位评论」区——在总结 tab 写的「从 Query/Key/Value 的矩阵变换出发」那条，切到文章 tab 后出现在文首未定位区里，头部带时间点；未定位区卡片同样不显示锚点原文（怎么展示以后再定）。
     没有 <code>doc</code> 字段的旧评论（如「位置编码」那条）仍在当前 tab 尝试定位：两个 tab 都有这段文字，所以两边都内嵌显示；定位不到时才进未定位区。切 tab 会清掉正在写的草稿。
   </p>
   <p class="caption">
-    <strong>模式B + 右栏</strong>：与第 1 期一致——正文右侧有 260px 笔记栏（<code>.notes-col</code>），无锚点评论在顶部正常排列，有锚点的卡片按锚点高度对齐；切回「内嵌」时笔记栏不渲染，正文列占满这块宽度，卡片进正文。
-    <strong>草稿卡片</strong>：点评论后在锚点所在段落的槽位里出现编辑中的卡片（绿色描边），视频在播时头部带当前时间点，<code>⌘↵ 保存 · Esc 放弃</code>。
+    <strong>模式B + 右栏</strong>：与第 1 期一致——正文右侧有 260px 笔记栏（<code>.notes-col</code>），无锚点评论在顶部正常排列，有锚点的卡片按锚点高度对齐，正文上方用 <code>.sc-quote</code> 引用锚点原文首行（最多两行，超出省略；点评论写「插入点」，无锚点不加）；模式A 左栏列表不加引用；切回「内嵌」时笔记栏不渲染，正文列占满这块宽度，卡片进正文。
+    <strong>草稿卡片</strong>：点评论后在锚点所在段落的槽位里出现编辑中的卡片（绿色描边），只有输入框、<code>⌘↵ 保存 · Esc 放弃</code> 和保存按钮，不带锚点标签。
   </p>
 </div>
 
@@ -737,6 +740,7 @@
           <div class="card-head">
             <button class="card-toggle" aria-label="收起">▾</button>
             <span class="card-kind"></span>
+            <span class="card-preview">整体看完后对照论文原文第 3.2 节。</span>
             <span class="card-ts">@ 25:10</span>
             <span class="card-spacer"></span>
             <span class="card-time">5 天前</span>
@@ -748,7 +752,7 @@
           <div class="card-head">
             <button class="card-toggle" aria-label="收起">▾</button>
             <span class="card-kind">❝</span>
-            <span class="card-excerpt">除以根号 d_k 做缩放</span>
+            <span class="card-preview">缩放因子的来历：点积的方差随 d_k 线性增长。</span>
             <span class="card-ts">@ 12:04</span>
             <span class="card-spacer"></span>
             <span class="card-time">昨天</span>
@@ -766,7 +770,7 @@
         <div class="card-head">
           <button class="card-toggle" aria-label="收起">▾</button>
           <span class="card-kind">❝</span>
-          <span class="card-excerpt">从 Query/Key/Value 的矩阵变换出发</span>
+            <span class="card-preview">这里解释了 Query/Key/Value 的几何直觉，值得反复看。</span>
           <span class="card-ts">@ 03:12</span>
           <span class="card-spacer"></span>
           <span class="card-time">3 天前</span>
@@ -783,7 +787,7 @@
         <div class="card-head">
           <button class="card-toggle" aria-label="收起">▾</button>
           <span class="card-kind">‸</span>
-          <span class="card-excerpt">插入点</span>
+            <span class="card-preview">多头注意力的并行计算方式和单头相比的优势。</span>
           <span class="card-ts">@ 18:40</span>
           <span class="card-spacer"></span>
           <span class="card-time">昨天</span>
@@ -792,12 +796,7 @@
         <div class="card-body"><p class="card-entry">多头注意力的并行计算方式和单头相比的优势。</p></div>
       </div>
       <div class="sc-note-card is-draft draft-only" data-variant="inline">
-        <div class="card-head">
-          <span class="card-kind">‸</span>
-          <span class="draft-label">插入点：…同时保持了可并行计算的效率优势</span>
-          <span class="card-ts">@ 12:04</span>
-        </div>
-        <div class="card-body" style="padding-left: 12px;">
+        <div class="card-body" style="padding: 10px 12px;">
           <textarea class="card-textarea" rows="3" placeholder="写下评论…"></textarea>
           <div class="card-edit-foot">
             <span>⌘↵ 保存 · Esc 放弃</span>
@@ -813,7 +812,7 @@
         <div class="card-head">
           <button class="card-toggle" aria-label="收起">▾</button>
           <span class="card-kind">❝</span>
-          <span class="card-excerpt">位置编码（Positional Encoding）</span>
+            <span class="card-preview">回头和 RoPE（旋转位置编码）的做法对比一下。</span>
           <span class="card-spacer"></span>
           <span class="card-time">2 周前</span>
           <span class="card-action">编辑</span><span class="card-action">删除</span>
@@ -840,6 +839,7 @@
           <div class="card-head">
             <button class="card-toggle" aria-label="收起">▾</button>
             <span class="card-kind"></span>
+            <span class="card-preview">整体看完后对照论文原文第 3.2 节。</span>
             <span class="card-ts">@ 25:10</span>
             <span class="card-spacer"></span>
             <span class="card-time">5 天前</span>
@@ -851,7 +851,7 @@
           <div class="card-head">
             <button class="card-toggle" aria-label="收起">▾</button>
             <span class="card-kind">❝</span>
-            <span class="card-excerpt">从 Query/Key/Value 的矩阵变换出发</span>
+            <span class="card-preview">这里解释了 Query/Key/Value 的几何直觉，值得反复看。</span>
             <span class="card-ts">@ 03:12</span>
             <span class="card-spacer"></span>
             <span class="card-time">3 天前</span>
@@ -863,7 +863,7 @@
           <div class="card-head">
             <button class="card-toggle" aria-label="收起">▾</button>
             <span class="card-kind">‸</span>
-            <span class="card-excerpt">插入点</span>
+            <span class="card-preview">多头注意力的并行计算方式和单头相比的优势。</span>
             <span class="card-ts">@ 18:40</span>
             <span class="card-spacer"></span>
             <span class="card-time">昨天</span>
@@ -878,13 +878,13 @@
     <p>大家好，今天我们来系统地拆解 Transformer 里的注意力机制。先从最基础的一个问题开始：模型怎么知道一个词应该「关注」句子里的哪些其他词？</p>
 
     <h2 class="article-h2">Scaled Dot-Product Attention</h2>
-    <p>每个词先被映射成 Query、Key、Value 三个向量。Query 和 Key 做点积得到相似度，再<mark class="vdl-note-anchor" data-note-id="n3">除以根号 d_k 做缩放</mark>，避免点积过大让 softmax 进入饱和区、梯度消失。</p>
+    <p>每个词先被映射成 Query、Key、Value 三个向量。Query 和 Key 做点积得到相似度，再<mark class="vdl-note-anchor" data-note-id="n3">除以根号 d_k 做缩放，避免点积过大让 softmax 进入饱和区、梯度消失，这一步在 d_k 较大的多头配置下尤其关键</mark>。</p>
     <div class="sc-slot inline-only">
       <div class="sc-note-card" data-variant="inline" data-note-id="n3">
         <div class="card-head">
           <button class="card-toggle" aria-label="收起">▾</button>
           <span class="card-kind">❝</span>
-          <span class="card-excerpt">除以根号 d_k 做缩放</span>
+            <span class="card-preview">缩放因子的来历：点积的方差随 d_k 线性增长。</span>
           <span class="card-ts">@ 12:04</span>
           <span class="card-spacer"></span>
           <span class="card-time">昨天</span>
@@ -902,7 +902,7 @@
         <div class="card-head">
           <button class="card-toggle" aria-label="收起">▾</button>
           <span class="card-kind">❝</span>
-          <span class="card-excerpt">位置编码（Positional Encoding）</span>
+            <span class="card-preview">回头和 RoPE（旋转位置编码）的做法对比一下。</span>
           <span class="card-spacer"></span>
           <span class="card-time">2 周前</span>
           <span class="card-action">编辑</span><span class="card-action">删除</span>
@@ -985,6 +985,7 @@
     });
     inlineStates.classList.toggle('is-disabled', S.view !== 'inline');
     var f = frames[S.mode];
+    visibleCards(f).forEach(function (c) { setCollapsed(c, S.state === 'collapsed'); });
     syncCollapseAll(f);
     layoutSideCards(f);
     if (S.state === 'draft') {
@@ -998,7 +999,7 @@
   function set(k, v) {
     S[k] = v;
     if (k === 'state' && v === 'draft') { S.view = 'inline'; S.tab = 'summary'; }
-    if (k === 'tab' || (k === 'view' && v !== 'inline')) S.state = 'default';  // 切 tab 清掉草稿
+    if ((k === 'tab' || (k === 'view' && v !== 'inline')) && S.state === 'draft') S.state = 'default';  // 切 tab 清掉草稿
     apply();
   }
 
@@ -1064,6 +1065,7 @@
     if (p[0] === 'view' && (p[1] === 'inline' || p[1] === 'sidebar')) S.view = p[1];
     if (p[0] === 'tab' && (p[1] === 'summary' || p[1] === 'article')) S.tab = p[1];
     if (p[0] === 'state' && p[1] === 'draft') { S.state = 'draft'; S.view = 'inline'; S.tab = 'summary'; }
+    if (p[0] === 'state' && p[1] === 'collapsed') { S.state = 'collapsed'; S.view = 'inline'; }
   });
   apply();
 </script>
