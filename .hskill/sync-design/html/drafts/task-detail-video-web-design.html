@@ -1,0 +1,1026 @@
+<meta charset="utf-8">
+<title>视频任务详情页 · 布局模式 + 正文内嵌评论 — 设计稿</title>
+<style>
+  :root {
+    --bg-canvas:     #F9F8F4;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #F1EFE9;
+    --border-subtle: #E5E2DA;
+    --border-strong: #CFCBC0;
+    --text-primary:   #2C2A24;
+    --text-secondary: #67645E;
+    --text-tertiary:  #6E6961;
+    --accent-3:  #EBF1E8;
+    --accent-9:  #5A8A5A;
+    --accent-10: #466F46;
+    --accent-11: #3D5E3D;
+    --accent-12: #243B24;
+    --status-ok:   #4A8A5A;
+    --status-err:  #B05050;
+    --status-busy: #C28A3D;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-canvas:     #1A1A18;
+      --bg-surface:    #232322;
+      --bg-elevated:   #2A2A28;
+      --border-subtle: #2E2E2B;
+      --border-strong: #3D3E3B;
+      --text-primary:   #E8E8E6;
+      --text-secondary: #9A9B98;
+      --text-tertiary:  #868782;
+      --accent-3:  #2A3A2A;
+      --accent-9:  #7DAE7D;
+      --accent-10: #6FA06F;
+      --accent-11: #9BC79B;
+      --accent-12: #C8E0C8;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 24px;
+    line-height: 1.6;
+    max-width: 960px;
+  }
+  .page-sub code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  /* ── 页面顶部状态切换（与文章页设计稿同一写法：分组标签 + 按钮组） ── */
+  .state-switch { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .state-switch-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin: 0 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .state-btn {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms, color 120ms;
+  }
+  .state-btn:hover { background: var(--bg-elevated); }
+  .state-btn.active {
+    border-color: var(--accent-9);
+    color: var(--accent-10);
+    background: var(--accent-3);
+    font-weight: 500;
+  }
+  .state-switch.is-disabled { opacity: 0.4; pointer-events: none; }
+  .switch-gap { height: 16px; }
+
+  /* ── 详情页外壳：header + mode-content ── */
+  .detail-frame {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-surface);
+  }
+
+  .frame-header {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .frame-header .left { display: flex; align-items: center; gap: 16px; min-width: 0; }
+  .back-arrow { color: var(--text-tertiary); font-size: 14px; }
+  .frame-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .frame-header .right { display: flex; align-items: center; gap: 14px; }
+  .theme-picker-btn {
+    font-size: 14px;
+    color: var(--text-tertiary);
+    padding: 4px 6px;
+    border-radius: 4px;
+  }
+  .gantt-link { font-size: 14px; color: var(--text-tertiary); padding: 4px 6px; }
+  .kbd { padding: 2px 4px; border-radius: 4px; border: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-tertiary); }
+
+  /* ── 新增：评论视图切换（CommentViewToggle），紧挨主题选择器 ✦（与文章页设计稿相同） ── */
+  .view-toggle { display: flex; align-items: center; gap: 0; }
+  .view-toggle button {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: none;
+    background: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+  }
+  .view-toggle button[aria-pressed="true"] { color: var(--text-primary); font-weight: 500; }
+
+  /* ── ModeSwitcher — 5 图标+文字按钮 ── */
+  .mode-switcher { display: flex; align-items: center; gap: 2px; }
+  .mode-btn {
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 8px; height: 28px; border-radius: 4px;
+    font-size: 12px; color: var(--text-tertiary);
+  }
+  .mode-btn[data-goto-mode] { cursor: pointer; }
+  .mode-btn.active { background: var(--accent-3); color: var(--accent-9); }
+  .mode-btn svg { width: 14px; height: 14px; }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    padding: 0 48px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .tabs { display: flex; }
+  .tab { padding: 10px 0; margin-right: 24px; font-size: 14px; border-bottom: 2px solid transparent; color: var(--text-tertiary); cursor: pointer; }
+  .tab.active { color: var(--text-primary); font-weight: 500; border-bottom-color: var(--accent-9); }
+  .tab-actions { display: flex; align-items: center; gap: 12px; padding: 12px 0; font-size: 12px; color: var(--text-tertiary); }
+  .tab-actions .collapse-all { cursor: pointer; }
+
+  /* ── 视频播放器 ── */
+  .player-mock { position: relative; background: #000; flex-shrink: 0; }
+  .player-mock.ar-16-9 { aspect-ratio: 16/9; }
+  .player-video-surface {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.25); font-size: 12px; font-family: var(--font-mono);
+  }
+  .player-controls {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 24px 12px 12px;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+  }
+  .player-seek { height: 4px; border-radius: 999px; background: rgba(255,255,255,0.25); margin-bottom: 8px; position: relative; cursor: pointer; }
+  .player-seek-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: var(--accent-9); }
+  .player-seek-thumb { position: absolute; right: -6px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; border-radius: 999px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+  .player-row { display: flex; align-items: center; gap: 12px; color: #fff; }
+  .player-play-btn {
+    width: 28px; height: 28px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; background: rgba(255,255,255,0.12);
+  }
+  .player-time { font-size: 12px; font-family: var(--font-mono); color: rgba(255,255,255,0.7); flex-shrink: 0; }
+  .player-time span { color: rgba(255,255,255,0.35); }
+  .cc-btn {
+    margin-left: auto;
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 3px; padding: 1px 5px; font-size: 10px; font-weight: 600;
+    color: rgba(255,255,255,0.7); display: flex; align-items: center; gap: 4px;
+  }
+  .cc-btn.on { background: rgba(255,255,255,0.18); color: #fff; }
+  .cc-btn.on::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: var(--accent-9); }
+
+  /* ── 笔记栏 ── */
+  .notes-mock { display: flex; flex-direction: column; font-size: 13px; }
+  .notes-header { padding: 10px 16px; font-size: 12px; font-weight: 500; color: var(--text-secondary); border-bottom: 1px solid var(--border-subtle); }
+  .notes-header span { color: var(--text-tertiary); font-weight: 400; }
+  .notes-input-wrap { padding: 12px; border-bottom: 1px solid var(--border-subtle); }
+  .notes-textarea {
+    width: 100%; min-height: 52px; padding: 8px; border-radius: 6px; resize: none;
+    background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+    color: var(--text-tertiary); font-size: 12px; font-family: var(--font-sans);
+  }
+  .notes-input-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+  .notes-save-btn { font-size: 12px; padding: 3px 12px; border-radius: 4px; background: var(--accent-9); color: #fff; }
+  .note-item { padding: 10px 16px; border-bottom: 1px solid var(--border-subtle); transition: background 120ms, box-shadow 120ms; }
+  .note-item.is-linked { background: var(--accent-3); box-shadow: inset 2px 0 0 var(--accent-9); }
+  .note-ts { font-size: 11px; font-family: var(--font-mono); color: var(--accent-9); margin-bottom: 4px; }
+  .note-body { font-size: 12px; line-height: 1.6; color: var(--text-primary); }
+  .notes-empty { text-align: center; padding: 24px 12px; font-size: 12px; color: var(--text-tertiary); }
+
+  /* ── 字幕/转录侧栏 ── */
+  .subtitle-mock { display: flex; flex-direction: column; }
+  .subtitle-head { padding: 10px 16px; display: flex; align-items: center; gap: 16px; font-size: 12px; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0; }
+  .subtitle-lang { color: var(--text-tertiary); }
+  .subtitle-lang.active { color: var(--text-primary); font-weight: 500; }
+  .subtitle-count { margin-left: auto; color: var(--text-tertiary); font-family: var(--font-mono); font-size: 11.5px; }
+  .subtitle-items { overflow-y: auto; }
+  .subtitle-row { padding: 10px 16px; }
+  .subtitle-row.active { background: var(--accent-3); }
+  .subtitle-row-ts { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-tertiary); margin-bottom: 4px; }
+  .subtitle-row.active .subtitle-row-ts { color: var(--accent-11); }
+  .subtitle-row-text { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+  .subtitle-row.active .subtitle-row-text { color: var(--text-primary); }
+
+  /* ── 正文列 ── */
+  .article-scroll { padding: 40px 48px; overflow-y: auto; }
+  .article-h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 14px; }
+  .article-h2 { font-size: 16px; font-weight: 600; margin: 24px 0 10px; }
+  .article-scroll p { font-size: 13.5px; line-height: 23.625px; color: var(--text-primary); margin: 0 0 14px; }
+
+  /* ── 总结 / 文章两份正文同时在 DOM 里，按 data-tab 显示其中一份 ── */
+  .detail-frame[data-tab="summary"] .doc[data-doc="article"],
+  .detail-frame[data-tab="article"] .doc[data-doc="summary"] { display: none; }
+
+  /* ── 笔记锚点 / 点评论图标（第 1 期已上线，与文章页设计稿一致） ── */
+  mark.vdl-note-anchor {
+    color: inherit;
+    background: rgba(207, 203, 192, 0.34);
+    border-bottom: 1px dotted var(--text-tertiary);
+    border-radius: 2px;
+    cursor: pointer;
+    padding: 0 1px;
+    transition: background 120ms, box-shadow 120ms;
+  }
+  mark.vdl-note-anchor.is-linked {
+    background: var(--accent-3);
+    border-bottom-color: var(--accent-9);
+    box-shadow: inset 0 0 0 1px var(--accent-9);
+  }
+  .vdl-note-point { color: var(--text-tertiary); cursor: pointer; margin: 0 1px; transition: color 120ms; }
+  .vdl-note-point.is-linked { color: var(--accent-9); }
+  .vdl-note-point svg { display: inline-block; vertical-align: -1px; }
+
+  /* ── 新增：内嵌卡片 .sc-note-card[data-variant="inline"]（CSS 原样取自文章页设计稿） ── */
+  .sc-slot { margin: 10px 0 16px; display: flex; flex-direction: column; gap: 8px; }
+  li > .sc-slot { margin: 8px 0 10px; }
+  .sc-note-card {
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    transition: background 120ms, box-shadow 120ms;
+  }
+  .sc-note-card.is-linked { background: var(--accent-3); box-shadow: inset 2px 0 0 var(--accent-9); }
+  /* 布局：评论正文在最上（首要信息）→ 近似快照 → 最底部信息行（时间点 / 原文已变化 / 相对时间 / 编辑删除，次要信息）。
+     收起按钮在正文首行最右侧；不显示类型图标（正文里的底色标记与气泡图标已区分两类评论）。 */
+  .sc-note-card { padding: 10px 12px 8px; }
+  .card-main { display: flex; align-items: flex-start; gap: 8px; }
+  .card-entries { flex: 1; min-width: 0; }
+  .card-entry { margin: 0; white-space: pre-wrap; }
+  .card-toggle {
+    flex-shrink: 0;
+    width: 20px; height: 20px; margin: 1px -4px 0 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: none; background: none; padding: 0; cursor: pointer;
+    color: var(--text-tertiary); font-size: 11px; border-radius: 3px;
+  }
+  .card-toggle:hover { background: var(--border-subtle); }
+  /* 收起：整张卡片只剩一行正文预览 + 右侧展开按钮 */
+  .card-preview {
+    display: none;
+    flex: 1; min-width: 0;
+    color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sc-note-card.is-collapsed { padding-bottom: 10px; }
+  .sc-note-card.is-collapsed .card-preview { display: block; }
+  .sc-note-card.is-collapsed .card-entries,
+  .sc-note-card.is-collapsed .card-snapshot,
+  .sc-note-card.is-collapsed .card-meta { display: none !important; }
+  .card-snapshot {
+    margin: 6px 0 0;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: var(--bg-surface);
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.6;
+  }
+  .card-snapshot strong { color: var(--text-secondary); font-weight: 600; }
+  /* 信息行：卡片最后一行 */
+  .card-meta {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 6px;
+    font-size: 11.5px; color: var(--text-tertiary);
+    white-space: nowrap;
+  }
+  .card-meta .sep { opacity: 0.6; }
+  .card-ts { font-family: var(--font-mono); color: var(--accent-9); }
+  .card-actions { margin-left: auto; display: flex; gap: 10px; opacity: 0; transition: opacity 120ms; }
+  .card-actions span { cursor: pointer; }
+  .sc-note-card:hover .card-actions, .side-card:hover .card-actions { opacity: 1; }
+  /* 视频页正文 p 是 13.5px / 23.625px，卡片内的 p 回到 UI 尺寸 */
+  .article-scroll .sc-note-card p.card-entry { font-size: 13px; line-height: 1.6; margin: 0; }
+  .article-scroll .sc-note-card p.card-snapshot { font-size: 12px; line-height: 1.6; margin: 6px 0 0; color: var(--text-tertiary); }
+
+  /* 编辑态 / 草稿卡片：textarea 自身 accent 描边表达可编辑，卡片不再叠加 is-linked */
+  .card-textarea {
+    width: 100%;
+    font-family: var(--font-sans);
+    font-size: 13px; line-height: 1.6;
+    padding: 6px 8px; border-radius: 4px;
+    background: var(--bg-surface);
+    border: 1px solid var(--accent-9);
+    color: var(--text-primary);
+    resize: none; outline: none;
+  }
+  .card-edit-foot { margin-top: 6px; display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--text-tertiary); }
+  .card-save {
+    font-size: 12px; padding: 3px 10px; border-radius: 4px;
+    background: var(--accent-9); color: #fff; border: 1px solid var(--accent-9); cursor: pointer;
+  }
+  .sc-note-card.is-draft .card-edit-foot { margin-top: 6px; }
+  .sc-note-card.is-draft { background: var(--bg-surface); border-color: var(--accent-9); }
+  /* 草稿状态只在 data-state="draft" 时出现 */
+  .draft-only { display: none !important; }
+  .detail-frame[data-state="draft"] .sc-note-card.draft-only { display: block !important; }
+  .detail-frame[data-state="draft"] .vdl-note-point.draft-only { display: inline !important; color: var(--accent-9); }
+
+  /* ── 新增：文首未定位区（UnlocatedZone），只在内嵌视图出现，在 tab 栏下、正文开头 ── */
+  .unlocated-zone {
+    margin: 0 0 20px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    padding: 6px 12px 8px;
+  }
+  .zone-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); min-height: 26px; }
+  .zone-title { font-weight: 500; }
+  .zone-add { margin-left: auto; font-size: 12px; color: var(--accent-10); cursor: pointer; }
+  .zone-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .unlocated-zone.is-collapsed .zone-list { display: none; }
+
+  /* ── 视图开关：内嵌视图不渲染右栏，右栏视图不渲染内嵌卡片 / 未定位区 / 全部收起 ── */
+  .detail-frame[data-view="inline"] .sidebar-only { display: none !important; }
+  .detail-frame[data-view="sidebar"] .inline-only { display: none !important; }
+
+  /* ── 右栏视图（与第 1 期一致）：.notes-col 260px，卡片按锚点高度对齐（即原 NoteItem） ── */
+  .notes-col-mock { width: 260px; flex-shrink: 0; border-left: 1px solid var(--border-subtle); display: flex; flex-direction: column; }
+  .notes-abs { position: relative; flex: 1; }
+  .side-card {
+    position: absolute; left: 0; right: 0;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 12px; line-height: 1.6;
+    transition: background 120ms, box-shadow 120ms;
+  }
+  /* 右栏卡片的引用原文：首行，最多两行，超出省略（.sc-quote） */
+  .sc-quote {
+    font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .side-card .card-snapshot { font-size: 11.5px; }
+  .side-card.is-linked { background: var(--accent-3); box-shadow: inset 2px 0 0 var(--accent-9); }
+  .detail-frame[data-tab="summary"] .side-card[data-doc="article"],
+  .detail-frame[data-tab="article"] .side-card[data-doc="summary"] { display: none; }
+
+  /* ═══════════════════ 模式A — 视频优先 (55/45) ═══════════════════ */
+  #state-A .modeA-body { display: flex; height: 620px; }
+  #state-A .modeA-left { width: 55%; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid var(--border-subtle); }
+  #state-A .modeA-left .player-mock { width: 100%; }
+  #state-A .modeA-left .notes-mock { flex: 1; overflow-y: auto; min-height: 0; }
+  #state-A .modeA-right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #state-A .modeA-right .article-scroll { flex: 1; min-height: 0; }
+
+  /* ═══════════════════ 模式F — 剧场模式 ═══════════════════ */
+  #state-F .modeF-video { max-height: 58vh; }
+  #state-F .modeF-body { display: flex; height: 420px; overflow-y: auto; }
+  #state-F .modeF-article { flex: 1; min-width: 0; overflow-y: visible; }
+  #state-F .modeF-notes { width: 260px; flex-shrink: 0; border-left: 1px solid var(--border-subtle); }
+
+  /* ═══════════════════ 模式B — 阅读优先 ═══════════════════ */
+  #state-B .modeB-body { display: flex; height: 560px; }
+  #state-B .modeB-scroll { flex: 1; min-width: 0; overflow-y: auto; }
+  #state-B .modeB-row { display: flex; min-height: 100%; }
+  #state-B .modeB-main { flex: 1; min-width: 0; overflow-y: visible; }
+  #state-B .modeB-sidebar { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border-subtle); }
+  #state-B .modeB-sidebar .player-mock { width: 100%; aspect-ratio: 16/9; }
+  #state-B .modeB-sidebar .subtitle-mock { flex: 1; min-height: 0; overflow-y: auto; }
+
+  .caption { margin-top: 20px; font-size: 12px; color: var(--text-tertiary); line-height: 1.7; max-width: 960px; }
+  .caption code { font-family: var(--font-mono); background: var(--bg-elevated); padding: 1px 4px; border-radius: 3px; }
+</style>
+
+<div class="page">
+  <h1 class="page-title">视频任务详情页 · 布局模式 + 正文内嵌评论</h1>
+  <p class="page-sub">
+    对应实现：<code>web/src/routes/tasks.$id.tsx</code> + <code>web/src/components/{player,subtitle-list,notes-panel,mode-switcher}.tsx</code>，以及第 2 期新增的 <code>note-card.tsx</code> / <code>inline-notes.tsx</code> / <code>comment-view-toggle.tsx</code>。
+    计划：<code>docs/superpowers/plans/2026-10-22-inline-comments-p2.md</code>；卡片、未定位区、视图开关的视觉与文章页草稿 <code>drafts/task-detail-article-web-design.html</code> 相同。
+    默认「内嵌」视图：评论卡片插在锚点所在段落下方；头部 ✦ 旁的「内嵌 / 右栏」切回第 1 期的右栏视图。
+    下方按钮切换状态，也可以直接点头部的模式按钮、开关、tab、卡片的 ▾ 箭头，悬停标记或卡片看联动。
+    URL 直达：<code>#mode=A&amp;view=inline&amp;tab=article</code>、<code>#mode=B&amp;view=sidebar</code>、<code>#state=collapsed</code>、<code>#state=draft</code>，可组合。
+  </p>
+
+  <div class="state-switch-label">布局模式</div>
+  <div class="state-switch" data-group="mode">
+    <button class="state-btn active" data-mode="A">模式A — 视频优先（默认）</button>
+    <button class="state-btn" data-mode="F">模式F — 剧场模式</button>
+    <button class="state-btn" data-mode="B">模式B — 阅读优先</button>
+  </div>
+
+  <div class="state-switch-label">评论视图</div>
+  <div class="state-switch" data-group="view">
+    <button class="state-btn active" data-view="inline">内嵌（默认）</button>
+    <button class="state-btn" data-view="sidebar">右栏</button>
+  </div>
+
+  <div class="state-switch-label">Tab</div>
+  <div class="state-switch" data-group="tab">
+    <button class="state-btn active" data-tab="summary">总结 tab</button>
+    <button class="state-btn" data-tab="article">文章 tab</button>
+  </div>
+
+  <div class="state-switch-label">内嵌视图状态</div>
+  <div class="state-switch" data-group="state" id="inline-states">
+    <button class="state-btn active" data-state="default">默认</button>
+    <button class="state-btn" data-state="collapsed">全部收起</button>
+    <button class="state-btn" data-state="draft">草稿卡片（点评论，编辑中）</button>
+  </div>
+  <div class="switch-gap"></div>
+
+  <!-- ── 模式A-视频优先（默认） ── -->
+  <div id="state-A" class="detail-frame" data-view="inline" data-tab="summary" data-state="default">
+    <div class="frame-header">
+      <div class="left">
+        <span class="back-arrow">←</span>
+        <span class="frame-title">Transformer 注意力机制详解 · 视频精读</span>
+      </div>
+      <div class="right">
+        <span class="theme-picker-btn">✦</span>
+        <div class="view-toggle">
+          <button aria-pressed="true" data-toggle-view="inline">内嵌</button>
+          <button aria-pressed="false" data-toggle-view="sidebar">右栏</button>
+        </div>
+        <div class="mode-switcher">
+          <span class="mode-btn active" data-goto-mode="A"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polygon points="10,8 10,14 16,11" fill="currentColor" stroke="none"/></svg>视频</span>
+          <span class="mode-btn" data-goto-mode="B"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>阅读</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14C3 9.03 7.03 5 12 5s9 4.03 9 9"/><rect x="2" y="14" width="4" height="6" rx="1"/><rect x="18" y="14" width="4" height="6" rx="1"/></svg>音频</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>纯读</span>
+          <span class="mode-btn" data-goto-mode="F"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 6l4-4h12l4 4"/><line x1="8" y1="2" x2="6" y2="6"/><line x1="14" y1="2" x2="12" y2="6"/></svg>剧场</span>
+        </div>
+        <span class="gantt-link">▦</span>
+        <span class="kbd">⌘K</span>
+      </div>
+    </div>
+    <div class="modeA-body">
+      <div class="modeA-left">
+        <div class="player-mock ar-16-9">
+          <div class="player-video-surface">video/mp4</div>
+          <div class="player-controls">
+            <div class="player-seek"><div class="player-seek-fill" style="width:38%"><div class="player-seek-thumb"></div></div></div>
+            <div class="player-row">
+              <span class="player-play-btn">▶</span>
+              <span class="player-time">12:04<span> / 31:47</span></span>
+              <span class="cc-btn on">CC</span>
+            </div>
+          </div>
+        </div>
+        <!-- 左栏评论列表保持原样（按时间看）；内嵌视图下同一条评论在右侧正文里也有一张卡片（按正文看） -->
+        <div class="notes-mock">
+          <div class="notes-header">笔记 <span>· 5</span></div>
+          <div class="notes-input-wrap">
+            <textarea class="notes-textarea" placeholder="写下笔记…" readonly>写下笔记…</textarea>
+            <div class="notes-input-foot">
+              <span class="note-ts" style="margin:0">@ 12:04</span>
+              <span class="notes-save-btn">保存</span>
+            </div>
+          </div>
+          <div class="note-item" data-note-id="n1">
+            <div class="note-ts">@ 03:12</div>
+            <div class="note-body">这里解释了 Query/Key/Value 的几何直觉，值得反复看。</div>
+          </div>
+          <div class="note-item" data-note-id="n3">
+            <div class="note-ts">@ 12:04</div>
+            <div class="note-body">缩放因子的来历：点积的方差随 d_k 线性增长。</div>
+          </div>
+          <div class="note-item" data-note-id="n2">
+            <div class="note-ts">@ 18:40</div>
+            <div class="note-body">多头注意力的并行计算方式和单头相比的优势。</div>
+          </div>
+          <div class="note-item" data-note-id="z1">
+            <div class="note-ts">@ 25:10</div>
+            <div class="note-body">整体看完后对照论文原文第 3.2 节。</div>
+          </div>
+          <div class="note-item" data-note-id="n4">
+            <div class="note-body">回头和 RoPE（旋转位置编码）的做法对比一下。</div>
+          </div>
+        </div>
+      </div>
+      <div class="modeA-right">
+        <div class="tab-bar">
+          <div class="tabs">
+            <div class="tab active" data-tab-btn="summary">总结</div>
+            <div class="tab" data-tab-btn="article">文章</div>
+          </div>
+          <div class="tab-actions"><span class="collapse-all inline-only">全部收起</span><span>复制</span><span>显示文件</span></div>
+        </div>
+        <div class="article-scroll doc-host"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 模式F-剧场模式 ── -->
+  <div id="state-F" class="detail-frame" style="display:none" data-view="inline" data-tab="summary" data-state="default">
+    <div class="frame-header">
+      <div class="left">
+        <span class="back-arrow">←</span>
+        <span class="frame-title">Transformer 注意力机制详解 · 视频精读</span>
+      </div>
+      <div class="right">
+        <span class="theme-picker-btn">✦</span>
+        <div class="view-toggle">
+          <button aria-pressed="true" data-toggle-view="inline">内嵌</button>
+          <button aria-pressed="false" data-toggle-view="sidebar">右栏</button>
+        </div>
+        <div class="mode-switcher">
+          <span class="mode-btn" data-goto-mode="A"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polygon points="10,8 10,14 16,11" fill="currentColor" stroke="none"/></svg>视频</span>
+          <span class="mode-btn" data-goto-mode="B"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>阅读</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14C3 9.03 7.03 5 12 5s9 4.03 9 9"/><rect x="2" y="14" width="4" height="6" rx="1"/><rect x="18" y="14" width="4" height="6" rx="1"/></svg>音频</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>纯读</span>
+          <span class="mode-btn active" data-goto-mode="F"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 6l4-4h12l4 4"/><line x1="8" y1="2" x2="6" y2="6"/><line x1="14" y1="2" x2="12" y2="6"/></svg>剧场</span>
+        </div>
+        <span class="gantt-link">▦</span>
+        <span class="kbd">⌘K</span>
+      </div>
+    </div>
+    <div class="player-mock modeF-video ar-16-9">
+      <div class="player-video-surface">video/mp4 · 全宽</div>
+      <div class="player-controls">
+        <div class="player-seek"><div class="player-seek-fill" style="width:62%"><div class="player-seek-thumb"></div></div></div>
+        <div class="player-row">
+          <span class="player-play-btn">❚❚</span>
+          <span class="player-time">19:41<span> / 31:47</span></span>
+          <span class="cc-btn on">CC</span>
+        </div>
+      </div>
+    </div>
+    <div class="tab-bar">
+      <div class="tabs">
+        <div class="tab active" data-tab-btn="summary">总结</div>
+        <div class="tab" data-tab-btn="article">文章</div>
+      </div>
+      <div class="tab-actions"><span class="collapse-all inline-only">全部收起</span><span>复制</span><span>显示文件</span></div>
+    </div>
+    <div class="modeF-body">
+      <div class="modeF-article article-scroll doc-host"></div>
+      <!-- 右栏视图才有笔记栏（此处沿用完成稿的简化列表） -->
+      <div class="modeF-notes notes-mock sidebar-only">
+        <div class="notes-header">笔记 <span>· 5</span></div>
+        <div class="note-item" data-note-id="n1">
+          <div class="note-ts">@ 03:12</div>
+          <div class="note-body">这里解释了 Query/Key/Value 的几何直觉，值得反复看。</div>
+        </div>
+        <div class="note-item" data-note-id="n2">
+          <div class="note-ts">@ 18:40</div>
+          <div class="note-body">多头注意力的并行计算方式和单头相比的优势。</div>
+        </div>
+        <div class="note-item" data-note-id="n4">
+          <div class="note-body">回头和 RoPE（旋转位置编码）的做法对比一下。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 模式B-阅读优先 ── -->
+  <div id="state-B" class="detail-frame" style="display:none" data-view="inline" data-tab="summary" data-state="default">
+    <div class="frame-header">
+      <div class="left">
+        <span class="back-arrow">←</span>
+        <span class="frame-title">Transformer 注意力机制详解 · 视频精读</span>
+      </div>
+      <div class="right">
+        <span class="theme-picker-btn">✦</span>
+        <div class="view-toggle">
+          <button aria-pressed="true" data-toggle-view="inline">内嵌</button>
+          <button aria-pressed="false" data-toggle-view="sidebar">右栏</button>
+        </div>
+        <div class="mode-switcher">
+          <span class="mode-btn" data-goto-mode="A"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polygon points="10,8 10,14 16,11" fill="currentColor" stroke="none"/></svg>视频</span>
+          <span class="mode-btn active" data-goto-mode="B"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>阅读</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14C3 9.03 7.03 5 12 5s9 4.03 9 9"/><rect x="2" y="14" width="4" height="6" rx="1"/><rect x="18" y="14" width="4" height="6" rx="1"/></svg>音频</span>
+          <span class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>纯读</span>
+          <span class="mode-btn" data-goto-mode="F"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 6l4-4h12l4 4"/><line x1="8" y1="2" x2="6" y2="6"/><line x1="14" y1="2" x2="12" y2="6"/></svg>剧场</span>
+        </div>
+        <span class="gantt-link">▦</span>
+        <span class="kbd">⌘K</span>
+      </div>
+    </div>
+    <div class="tab-bar">
+      <div class="tabs">
+        <div class="tab active" data-tab-btn="summary">总结</div>
+        <div class="tab" data-tab-btn="article">文章</div>
+      </div>
+      <div class="tab-actions"><span class="collapse-all inline-only">全部收起</span><span>复制</span><span>显示文件</span></div>
+    </div>
+    <div class="modeB-body">
+      <div class="modeB-scroll">
+        <div class="modeB-row">
+          <div class="modeB-main article-scroll doc-host"></div>
+          <!-- ── 右栏视图（第 1 期行为不变）：内嵌视图下整个不渲染 ── -->
+          <aside class="notes-col-mock sidebar-only">
+            <div class="notes-header">笔记 <span>· 5</span></div>
+            <div class="notes-input-wrap">
+              <textarea class="notes-textarea" placeholder="写下笔记…" readonly>写下笔记…</textarea>
+              <div class="notes-input-foot">
+                <span class="note-ts" style="margin:0">@ 12:04</span>
+                <span class="notes-save-btn">保存</span>
+              </div>
+            </div>
+            <!-- 无锚点评论：正常文档流 -->
+            <div class="note-item" data-note-id="z1">
+              <div class="note-body">整体看完后对照论文原文第 3.2 节。</div>
+              <div class="card-meta"><span class="card-ts">@ 25:10</span><span class="sep">·</span><span>5 天前</span></div>
+            </div>
+            <!-- 有锚点评论：绝对定位，top 由脚本按正文锚点高度计算 -->
+            <div class="notes-abs">
+              <div class="side-card" data-note-id="n1" data-doc="summary"><div class="sc-quote">从 Query/Key/Value 的矩阵变换出发</div>这里解释了 Query/Key/Value 的几何直觉，值得反复看。<div class="card-meta"><span class="card-ts">@ 03:12</span><span class="sep">·</span><span>3 天前</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div></div>
+              <div class="side-card" data-note-id="n2" data-doc="summary"><div class="sc-quote">插入点</div>多头注意力的并行计算方式和单头相比的优势。<div class="card-meta"><span class="card-ts">@ 18:40</span><span class="sep">·</span><span>昨天</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div></div>
+              <div class="side-card" data-note-id="n3" data-doc="article"><div class="sc-quote">除以根号 d_k 做缩放，避免点积过大让 softmax 进入饱和区、梯度消失，这一步在 d_k 较大的多头配置下尤其关键</div>缩放因子的来历：点积的方差随 d_k 线性增长。<div class="card-meta"><span class="card-ts">@ 12:04</span><span class="sep">·</span><span>昨天</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div></div>
+              <div class="side-card" data-note-id="n4" data-doc="any"><div class="sc-quote">位置编码（Positional Encoding）</div>回头和 RoPE（旋转位置编码）的做法对比一下。<div class="card-meta"><span>2 周前</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <div class="modeB-sidebar">
+        <div class="player-mock">
+          <div class="player-video-surface">video/mp4</div>
+          <div class="player-controls">
+            <div class="player-seek"><div class="player-seek-fill" style="width:38%"><div class="player-seek-thumb"></div></div></div>
+            <div class="player-row">
+              <span class="player-play-btn">▶</span>
+              <span class="player-time">12:04<span> / 31:47</span></span>
+            </div>
+          </div>
+        </div>
+        <div class="subtitle-mock">
+          <div class="subtitle-head">
+            <span class="subtitle-lang active">中文</span>
+            <span class="subtitle-lang">EN</span>
+            <span class="subtitle-count">812 段</span>
+          </div>
+          <div class="subtitle-items">
+            <div class="subtitle-row">
+              <div class="subtitle-row-ts">11:48</div>
+              <div class="subtitle-row-text">接下来我们看一下 Query 和 Key 是如何计算相似度的。</div>
+            </div>
+            <div class="subtitle-row active">
+              <div class="subtitle-row-ts">12:04</div>
+              <div class="subtitle-row-text">这里用点积除以根号 d_k 做缩放，避免梯度消失。</div>
+            </div>
+            <div class="subtitle-row">
+              <div class="subtitle-row-ts">12:19</div>
+              <div class="subtitle-row-text">缩放之后再经过 softmax 得到注意力权重分布。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">
+    三种模式共享同一套 header 结构（返回箭头 + 标题 + 主题选择 <code>✦</code> + 新增「内嵌 / 右栏」开关 + ModeSwitcher + 甘特图入口 <code>▦</code> + <code>⌘K</code>），仅 <code>data-mode</code> 驱动的内容区布局不同 —
+    模式A 是视频任务默认态（左 55% 播放器+笔记，右 45% 总结/文章正文）；模式F 剧场态把播放器提到顶部满宽展示，正文与笔记退居下方一行；
+    模式B 阅读优先态把正文列放大为主区域，播放器与转录字幕收进右侧 320px 固定侧栏。三态复用同一份播放器/笔记/字幕视觉语言，保持组件感一致。
+  </p>
+  <p class="caption">
+    <strong>模式A + 内嵌</strong>：左栏视频下方的评论列表不变（按时间看）；右侧正文同时出现内嵌卡片（按正文看）——同一条评论在两处各出现一次，这是有意的，悬停任一处另一处同步高亮。
+    模式A 本来就没有右侧笔记栏，所以切到「右栏」视图时正文里没有卡片、没有未定位区，与第 1 期一致。
+    <strong>卡片布局</strong>（内嵌、右栏相同）：评论正文在最上，收起按钮 ▾ 在正文首行最右侧；原文已变化时正文下方出现原文快照；最底部一行是次要信息——视频时间点 <code>@ 12:34</code>（有时，mono、accent 色）、「原文已变化」（近似时）、相对时间，用 <code>·</code> 分隔，右侧「编辑 / 删除」悬停时出现。不显示类型图标。内嵌卡片不显示锚点原文（原文就在卡片正上方）；收起后整张卡片只剩一行：评论正文首行（单行省略）+ 右侧展开按钮。
+  </p>
+  <p class="caption">
+    <strong>总结 / 文章 tab</strong>：每条新评论记录它所在的 tab（<code>doc</code> 字段）。另一个 tab 的评论不在当前正文里定位，进当前 tab 的「未定位评论」区——在总结 tab 写的「从 Query/Key/Value 的矩阵变换出发」那条，切到文章 tab 后出现在文首未定位区里，底部信息行仍带时间点；未定位区卡片同样不显示锚点原文（怎么展示以后再定）。未定位区头部左边是标题，右边依次是「+ 添加评论」和收起按钮。
+    没有 <code>doc</code> 字段的旧评论（如「位置编码」那条）仍在当前 tab 尝试定位：两个 tab 都有这段文字，所以两边都内嵌显示；定位不到时才进未定位区。切 tab 会清掉正在写的草稿。
+  </p>
+  <p class="caption">
+    <strong>模式B + 右栏</strong>：与第 1 期一致——正文右侧有 260px 笔记栏（<code>.notes-col</code>），无锚点评论在顶部正常排列，有锚点的卡片按锚点高度对齐，卡片自上而下是引用原文 <code>.sc-quote</code>（首行，最多两行，超出省略；点评论写「插入点」，无锚点不加）→ 正文 → 快照（近似时）→ 信息行，不能收起；模式A 左栏列表不加引用；切回「内嵌」时笔记栏不渲染，正文列占满这块宽度，卡片进正文。
+    <strong>草稿卡片</strong>：点评论后在锚点所在段落的槽位里出现编辑中的卡片（绿色描边），只有输入框、<code>⌘↵ 保存 · Esc 放弃</code> 和保存按钮，不带锚点标签。
+  </p>
+</div>
+
+<!-- ── 总结 tab 正文（doc=summary）：脚本克隆进每个模式的正文列 ── -->
+<template id="tpl-summary">
+  <div class="doc" data-doc="summary">
+    <!-- 未定位区：无锚点评论 z1 + 文章 tab 的评论 n3 -->
+    <div class="unlocated-zone inline-only">
+      <div class="zone-head">
+        <span class="zone-title">未定位评论（2）</span>
+        <span class="zone-add">+ 添加评论</span>
+        <button class="card-toggle" aria-label="收起" data-zone-toggle>▾</button>
+      </div>
+      <div class="zone-list">
+        <div class="sc-note-card" data-variant="inline" data-note-id="z1">
+          <div class="card-main">
+            <span class="card-preview">整体看完后对照论文原文第 3.2 节。</span>
+            <div class="card-entries"><p class="card-entry">整体看完后对照论文原文第 3.2 节。</p></div>
+            <button class="card-toggle" aria-label="收起">▾</button>
+          </div>
+          <div class="card-meta"><span class="card-ts">@ 25:10</span><span class="sep">·</span><span>5 天前</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
+        </div>
+        <div class="sc-note-card" data-variant="inline" data-note-id="n3">
+          <div class="card-main">
+            <span class="card-preview">缩放因子的来历：点积的方差随 d_k 线性增长。</span>
+            <div class="card-entries"><p class="card-entry">缩放因子的来历：点积的方差随 d_k 线性增长。</p></div>
+            <button class="card-toggle" aria-label="收起">▾</button>
+          </div>
+          <div class="card-meta"><span class="card-ts">@ 12:04</span><span class="sep">·</span><span>昨天</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <h1 class="article-h1">核心要点总结</h1>
+    <p>本视频系统讲解了 Transformer 中自注意力机制的计算过程，<mark class="vdl-note-anchor" data-note-id="n1">从 Query/Key/Value 的矩阵变换出发</mark>，逐步推导 Scaled Dot-Product Attention 的公式来源。</p>
+    <div class="sc-slot inline-only">
+      <div class="sc-note-card" data-variant="inline" data-note-id="n1">
+        <div class="card-main">
+          <span class="card-preview">这里解释了 Query/Key/Value 的几何直觉，值得反复看。</span>
+          <div class="card-entries"><p class="card-entry">这里解释了 Query/Key/Value 的几何直觉，值得反复看。</p></div>
+          <button class="card-toggle" aria-label="收起">▾</button>
+        </div>
+        <div class="card-meta"><span class="card-ts">@ 03:12</span><span class="sep">·</span><span>3 天前</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
+      </div>
+    </div>
+
+    <p>多头注意力通过并行的多组线性投影捕捉不同子空间的语义关系，相比单头机制显著提升了模型的表达能力<span class="vdl-note-point" data-note-id="n2"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H7l-3 2.5V11h-.5a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>，同时保持了可并行计算的效率优势<span class="vdl-note-point draft-only"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H7l-3 2.5V11h-.5a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>。</p>
+    <!-- 同一段落的多条评论共用一个槽位，按位置排序；草稿卡片按自己的位置混排 -->
+    <div class="sc-slot inline-only">
+      <div class="sc-note-card" data-variant="inline" data-note-id="n2">
+        <div class="card-main">
+          <span class="card-preview">多头注意力的并行计算方式和单头相比的优势。</span>
+          <div class="card-entries"><p class="card-entry">多头注意力的并行计算方式和单头相比的优势。</p></div>
+          <button class="card-toggle" aria-label="收起">▾</button>
+        </div>
+        <div class="card-meta"><span class="card-ts">@ 18:40</span><span class="sep">·</span><span>昨天</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
+      </div>
+      <div class="sc-note-card is-draft draft-only" data-variant="inline">
+        <div>
+          <textarea class="card-textarea" rows="3" placeholder="写下评论…"></textarea>
+          <div class="card-edit-foot">
+            <span>⌘↵ 保存 · Esc 放弃</span>
+            <button class="card-save">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p>此后作者进一步讨论了<mark class="vdl-note-anchor" data-note-id="n4">位置编码（Positional Encoding）</mark>如何为无序的自注意力机制注入序列顺序信息。</p>
+    <div class="sc-slot inline-only">
+      <div class="sc-note-card" data-variant="inline" data-note-id="n4">
+        <div class="card-main">
+          <span class="card-preview">回头和 RoPE（旋转位置编码）的做法对比一下。</span>
+          <div class="card-entries"><p class="card-entry">回头和 RoPE（旋转位置编码）的做法对比一下。</p></div>
+          <button class="card-toggle" aria-label="收起">▾</button>
+        </div>
+        <div class="card-meta"><span>2 周前</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
+      </div>
+    </div>
+
+    <p>最后，视频对比了 Transformer 与 RNN 在长序列任务上的训练速度与效果差异，并给出了几个工程实现上的注意事项。</p>
+  </div>
+</template>
+
+<!-- ── 文章 tab 正文（doc=article）：总结 tab 的 n1 / n2 进这里的未定位区 ── -->
+<template id="tpl-article">
+  <div class="doc" data-doc="article">
+    <div class="unlocated-zone inline-only">
+      <div class="zone-head">
+        <span class="zone-title">未定位评论（3）</span>
+        <span class="zone-add">+ 添加评论</span>
+        <button class="card-toggle" aria-label="收起" data-zone-toggle>▾</button>
+      </div>
+      <div class="zone-list">
+        <div class="sc-note-card" data-variant="inline" data-note-id="z1">
+          <div class="card-main">
+            <span class="card-preview">整体看完后对照论文原文第 3.2 节。</span>
+            <div class="card-entries"><p class="card-entry">整体看完后对照论文原文第 3.2 节。</p></div>
+            <button class="card-toggle" aria-label="收起">▾</button>
+          </div>
+          <div class="card-meta"><span class="card-ts">@ 25:10</span><span class="sep">·</span><span>5 天前</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
+        </div>
+        <div class="sc-note-card" data-variant="inline" data-note-id="n1">
+          <div class="card-main">
+            <span class="card-preview">这里解释了 Query/Key/Value 的几何直觉，值得反复看。</span>
+            <div class="card-entries"><p class="card-entry">这里解释了 Query/Key/Value 的几何直觉，值得反复看。</p></div>
+            <button class="card-toggle" aria-label="收起">▾</button>
+          </div>
+          <div class="card-meta"><span class="card-ts">@ 03:12</span><span class="sep">·</span><span>3 天前</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
+        </div>
+        <div class="sc-note-card" data-variant="inline" data-note-id="n2">
+          <div class="card-main">
+            <span class="card-preview">多头注意力的并行计算方式和单头相比的优势。</span>
+            <div class="card-entries"><p class="card-entry">多头注意力的并行计算方式和单头相比的优势。</p></div>
+            <button class="card-toggle" aria-label="收起">▾</button>
+          </div>
+          <div class="card-meta"><span class="card-ts">@ 18:40</span><span class="sep">·</span><span>昨天</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <h1 class="article-h1">Transformer 注意力机制详解</h1>
+    <p>大家好，今天我们来系统地拆解 Transformer 里的注意力机制。先从最基础的一个问题开始：模型怎么知道一个词应该「关注」句子里的哪些其他词？</p>
+
+    <h2 class="article-h2">Scaled Dot-Product Attention</h2>
+    <p>每个词先被映射成 Query、Key、Value 三个向量。Query 和 Key 做点积得到相似度，再<mark class="vdl-note-anchor" data-note-id="n3">除以根号 d_k 做缩放，避免点积过大让 softmax 进入饱和区、梯度消失，这一步在 d_k 较大的多头配置下尤其关键</mark>。</p>
+    <div class="sc-slot inline-only">
+      <div class="sc-note-card" data-variant="inline" data-note-id="n3">
+        <div class="card-main">
+          <span class="card-preview">缩放因子的来历：点积的方差随 d_k 线性增长。</span>
+          <div class="card-entries"><p class="card-entry">缩放因子的来历：点积的方差随 d_k 线性增长。</p></div>
+          <button class="card-toggle" aria-label="收起">▾</button>
+        </div>
+        <div class="card-meta"><span class="card-ts">@ 12:04</span><span class="sep">·</span><span>昨天</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
+      </div>
+    </div>
+    <p>缩放之后再经过 softmax 得到注意力权重分布，用这组权重对 Value 加权求和，就得到这个位置的输出。</p>
+
+    <h2 class="article-h2">位置信息</h2>
+    <p>自注意力本身对顺序不敏感，所以需要额外加入<mark class="vdl-note-anchor" data-note-id="n4">位置编码（Positional Encoding）</mark>，把每个词在序列中的位置信息注入进去。</p>
+    <div class="sc-slot inline-only">
+      <div class="sc-note-card" data-variant="inline" data-note-id="n4">
+        <div class="card-main">
+          <span class="card-preview">回头和 RoPE（旋转位置编码）的做法对比一下。</span>
+          <div class="card-entries"><p class="card-entry">回头和 RoPE（旋转位置编码）的做法对比一下。</p></div>
+          <button class="card-toggle" aria-label="收起">▾</button>
+        </div>
+        <div class="card-meta"><span>2 周前</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
+      </div>
+    </div>
+    <p>原论文用的是正弦 / 余弦函数生成的固定编码，后来的很多模型改用可学习的位置向量或相对位置编码。</p>
+  </div>
+</template>
+
+<script>
+  var S = { mode: 'A', view: 'inline', tab: 'summary', state: 'default' };
+  var frames = { A: document.getElementById('state-A'), F: document.getElementById('state-F'), B: document.getElementById('state-B') };
+  var inlineStates = document.getElementById('inline-states');
+
+  // 两份正文克隆进每个模式的正文列
+  var tplS = document.getElementById('tpl-summary'), tplA = document.getElementById('tpl-article');
+  document.querySelectorAll('.doc-host').forEach(function (h) {
+    h.appendChild(tplS.content.cloneNode(true));
+    h.appendChild(tplA.content.cloneNode(true));
+  });
+
+  function visibleCards(f) {
+    return f.querySelectorAll('.doc[data-doc="' + S.tab + '"] .sc-note-card[data-note-id]');
+  }
+  function syncCollapseAll(f) {
+    var anyOpen = Array.prototype.some.call(visibleCards(f), function (c) { return !c.classList.contains('is-collapsed'); });
+    f.querySelector('.collapse-all').textContent = anyOpen ? '全部收起' : '全部展开';
+  }
+  function setCollapsed(card, on) {
+    card.classList.toggle('is-collapsed', on);
+    var t = card.querySelector('.card-toggle');
+    if (t) { t.textContent = on ? '▸' : '▾'; t.setAttribute('aria-label', on ? '展开' : '收起'); }
+    syncCollapseAll(card.closest('.detail-frame'));
+  }
+
+  // 右栏视图：卡片 top = 锚点相对笔记栏的高度，向下推开避免重叠（第 1 期 computePositions 的行为）
+  function layoutSideCards(f) {
+    var abs = f.querySelector('.notes-abs');
+    if (!abs || S.view !== 'sidebar') return;
+    var base = abs.getBoundingClientRect().top, prevBottom = 0;
+    abs.querySelectorAll('.side-card').forEach(function (c) {
+      if (getComputedStyle(c).display === 'none') return;
+      var a = f.querySelector('.doc[data-doc="' + S.tab + '"] .vdl-note-anchor[data-note-id="' + c.getAttribute('data-note-id') + '"], .doc[data-doc="' + S.tab + '"] .vdl-note-point[data-note-id="' + c.getAttribute('data-note-id') + '"]');
+      var y = a ? a.getBoundingClientRect().top - base - 10 : 0;
+      var top = Math.max(y, prevBottom + 8, 0);
+      c.style.top = top + 'px';
+      prevBottom = top + c.offsetHeight;
+    });
+    abs.style.minHeight = prevBottom + 'px';
+  }
+
+  function scrollerOf(el) {
+    for (var n = el.parentElement; n; n = n.parentElement) {
+      var oy = getComputedStyle(n).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) return n;
+    }
+    return null;
+  }
+
+  function apply() {
+    Object.keys(frames).forEach(function (k) {
+      var f = frames[k];
+      f.style.display = k === S.mode ? 'block' : 'none';
+      f.setAttribute('data-view', S.view);
+      f.setAttribute('data-tab', S.tab);
+      f.setAttribute('data-state', S.state);
+      f.querySelectorAll('[data-toggle-view]').forEach(function (b) {
+        b.setAttribute('aria-pressed', b.getAttribute('data-toggle-view') === S.view ? 'true' : 'false');
+      });
+      f.querySelectorAll('[data-tab-btn]').forEach(function (t) {
+        t.classList.toggle('active', t.getAttribute('data-tab-btn') === S.tab);
+      });
+    });
+    ['mode', 'view', 'tab', 'state'].forEach(function (g) {
+      document.querySelectorAll('[data-group="' + g + '"] .state-btn').forEach(function (b) {
+        b.classList.toggle('active', b.getAttribute('data-' + g) === S[g]);
+      });
+    });
+    inlineStates.classList.toggle('is-disabled', S.view !== 'inline');
+    var f = frames[S.mode];
+    visibleCards(f).forEach(function (c) { setCollapsed(c, S.state === 'collapsed'); });
+    syncCollapseAll(f);
+    layoutSideCards(f);
+    if (S.state === 'draft') {
+      var d = f.querySelector('.doc[data-doc="summary"] .is-draft');
+      var sc = scrollerOf(d);
+      if (sc) sc.scrollTop += d.getBoundingClientRect().top - sc.getBoundingClientRect().top - 120;
+      d.querySelector('textarea').focus({ preventScroll: true });
+    }
+  }
+
+  function set(k, v) {
+    S[k] = v;
+    if (k === 'state' && v === 'draft') { S.view = 'inline'; S.tab = 'summary'; }
+    if ((k === 'tab' || (k === 'view' && v !== 'inline')) && S.state === 'draft') S.state = 'default';  // 切 tab 清掉草稿
+    apply();
+  }
+
+  ['mode', 'view', 'tab', 'state'].forEach(function (g) {
+    document.querySelectorAll('[data-group="' + g + '"] .state-btn').forEach(function (b) {
+      b.addEventListener('click', function () { set(g, b.getAttribute('data-' + g)); });
+    });
+  });
+  document.querySelectorAll('[data-toggle-view]').forEach(function (b) {
+    b.addEventListener('click', function () { set('view', b.getAttribute('data-toggle-view')); });
+  });
+  document.querySelectorAll('[data-tab-btn]').forEach(function (t) {
+    t.addEventListener('click', function () { set('tab', t.getAttribute('data-tab-btn')); });
+  });
+  document.querySelectorAll('[data-goto-mode]').forEach(function (b) {
+    b.addEventListener('click', function () { set('mode', b.getAttribute('data-goto-mode')); });
+  });
+
+  Object.keys(frames).forEach(function (k) {
+    var f = frames[k];
+    // 单卡收起
+    f.querySelectorAll('.sc-note-card[data-note-id]').forEach(function (card) {
+      var t = card.querySelector('.card-toggle');
+      if (t) t.addEventListener('click', function () { setCollapsed(card, !card.classList.contains('is-collapsed')); });
+    });
+    // 全部收起 / 全部展开
+    var ca = f.querySelector('.collapse-all');
+    ca.addEventListener('click', function () {
+      var anyOpen = ca.textContent === '全部收起';
+      visibleCards(f).forEach(function (c) { setCollapsed(c, anyOpen); });
+    });
+    // 未定位区自身的收起
+    f.querySelectorAll('[data-zone-toggle]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var zone = b.closest('.unlocated-zone');
+        var on = !zone.classList.contains('is-collapsed');
+        zone.classList.toggle('is-collapsed', on);
+        b.textContent = on ? '▸' : '▾';
+        b.setAttribute('aria-label', on ? '展开' : '收起');
+      });
+    });
+    // 点击正文标记 / 图标：内嵌视图切换对应卡片的收起
+    f.querySelectorAll('mark.vdl-note-anchor, .vdl-note-point[data-note-id]').forEach(function (m) {
+      m.addEventListener('click', function () {
+        if (S.view !== 'inline') return;
+        var card = m.closest('.doc').querySelector('.sc-note-card[data-note-id="' + m.getAttribute('data-note-id') + '"]');
+        if (card) setCollapsed(card, !card.classList.contains('is-collapsed'));
+      });
+    });
+    // 悬停联动：正文标记 ↔ 内嵌卡片 ↔ 左栏列表 / 右栏卡片（限本模式内）
+    f.querySelectorAll('[data-note-id]').forEach(function (el) {
+      var id = el.getAttribute('data-note-id');
+      function link(on) { f.querySelectorAll('[data-note-id="' + id + '"]').forEach(function (x) { x.classList.toggle('is-linked', on); }); }
+      el.addEventListener('mouseenter', function () { link(true); });
+      el.addEventListener('mouseleave', function () { link(false); });
+    });
+  });
+
+  // 直达某个状态：#mode=B、#view=sidebar、#tab=article、#state=draft，可组合（用 & 连接）
+  location.hash.slice(1).split('&').forEach(function (kv) {
+    var p = kv.split('=');
+    if (p[0] === 'mode' && frames[p[1]]) S.mode = p[1];
+    if (p[0] === 'view' && (p[1] === 'inline' || p[1] === 'sidebar')) S.view = p[1];
+    if (p[0] === 'tab' && (p[1] === 'summary' || p[1] === 'article')) S.tab = p[1];
+    if (p[0] === 'state' && p[1] === 'draft') { S.state = 'draft'; S.view = 'inline'; S.tab = 'summary'; }
+    if (p[0] === 'state' && p[1] === 'collapsed') { S.state = 'collapsed'; S.view = 'inline'; }
+  });
+  apply();
+</script>
