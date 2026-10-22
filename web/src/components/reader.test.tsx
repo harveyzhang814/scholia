@@ -398,4 +398,13 @@ describe('Reader sc markers', () => {
     const { container } = render(<Reader content={'a <!-- note --> b'} />);
     expect(container.textContent).toContain('<!-- note -->');
   });
+
+  it('locates a note by its markers after the text changed', () => {
+    const content = '前面<!-- sc:aaaaaaaa -->改过的原文<!-- /sc:aaaaaaaa -->后面';
+    const notes = [{ id: 'm', anchor: '旧原文', prefix: '前面', suffix: '后面', position: 2, markerId: 'aaaaaaaa' }];
+    const onNotesLocated = vi.fn();
+    const { container } = render(<Reader content={content} notes={notes} onNotesLocated={onNotesLocated} />);
+    expect(container.querySelector('mark.vdl-note-anchor')!.textContent).toBe('改过的原文');
+    expect(onNotesLocated).toHaveBeenLastCalledWith({ m: { start: 2, end: 7, grade: 'exact' } });
+  });
 });

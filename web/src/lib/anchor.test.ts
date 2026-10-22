@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { anchorKind, captureAnchor, locateAnchor } from './anchor';
-import { buildTextIndex } from './text-index';
+import { buildTextIndex, markerOffsets } from './text-index';
 
 function ix(html: string) {
   const root = document.createElement('div');
@@ -127,5 +127,64 @@ describe('locateAnchor', () => {
   it('legacy anchor keeps blank lines and indentation inside code blocks', () => {
     const i = ix('<pre><code>foo\n\n    bar</code></pre>');
     expect(locateAnchor(i, { anchor: 'foo\n\n    bar' })).toEqual({ start: 0, end: 12, grade: 'exact' });
+  });
+});
+
+const mk = (id: string, edge: 'open' | 'close') => `<span data-sc-ui data-sc-marker="${id}" data-sc-edge="${edge}"></span>`;
+
+describe('locateAnchor with sc markers', () => {
+  const stale = { anchor: '完全不同的旧文字', prefix: 'x', suffix: 'y', position: 0, markerId: 'aaaaaaaa' };
+
+  it('marker pair wins over text', () => {
+    const i = ix(`<p>甲乙${mk('aaaaaaaa', 'open')}丙丁${mk('aaaaaaaa', 'close')}戊</p>`);
+    expect(locateAnchor(i, stale, markerOffsets(i))).toEqual({ start: 2, end: 4, grade: 'exact' });
+  });
+  it('marker pair at paragraph edges maps into the block, not the next one', () => {
+    const i = ix(`<p>${mk('aaaaaaaa', 'open')}甲乙${mk('aaaaaaaa', 'close')}</p><p>丙</p>`);
+    expect(locateAnchor(i, stale, markerOffsets(i))).toEqual({ start: 0, end: 2, grade: 'exact' });
+  });
+  it('point marker locates a point note', () => {
+    const i = ix(`<p>甲乙${mk('aaaaaaaa', 'open')}丙丁</p>`);
+    const point = { anchor: '', prefix: '不存在的前文', suffix: '', position: 0, markerId: 'aaaaaaaa' };
+    expect(locateAnchor(i, point, markerOffsets(i))).toEqual({ start: 2, end: 2, grade: 'exact' });
+  });
+  it('only open marker infers end from anchor length', () => {
+    const i = ix(`<p>甲乙${mk('aaaaaaaa', 'open')}丙丁戊己</p>`);
+    const a = { ...stale, anchor: '旧文' };
+    expect(locateAnchor(i, a, markerOffsets(i))).toEqual({ start: 2, end: 4, grade: 'exact' });
+    // clamped to the end of the text
+    expect(locateAnchor(i, { ...stale, anchor: '很长很长很长很长很长' }, markerOffsets(i)))
+      .toEqual({ start: 2, end: i.text.length, grade: 'exact' });
+  });
+  it('only close marker infers start', () => {
+    const i = ix(`<p>甲乙丙丁${mk('aaaaaaaa', 'close')}戊己</p>`);
+    const a = { ...stale, anchor: '旧文' };
+    expect(locateAnchor(i, a, markerOffsets(i))).toEqual({ start: 2, end: 4, grade: 'exact' });
+    // clamped to 0
+    expect(locateAnchor(i, { ...stale, anchor: '很长很长很长很长很长' }, markerOffsets(i)))
+      .toEqual({ start: 0, end: 4, grade: 'exact' });
+  });
+  it('first occurrence wins for duplicated marker ids', () => {
+    const i = ix(
+      `<p>甲${mk('aaaaaaaa', 'open')}乙${mk('aaaaaaaa', 'close')}丙</p>`
+      + `<p>丁${mk('aaaaaaaa', 'open')}戊${mk('aaaaaaaa', 'close')}己</p>`,
+    );
+    expect(markerOffsets(i).get('aaaaaaaa')).toEqual({ open: 1, close: 2 });
+    expect(locateAnchor(i, stale, markerOffsets(i))).toEqual({ start: 1, end: 2, grade: 'exact' });
+  });
+  it('unknown markerId falls back to text', () => {
+    const i = ix(`<p>甲乙${mk('bbbbbbbb', 'open')}丙丁${mk('bbbbbbbb', 'close')}戊</p>`);
+    const a = { anchor: '丙丁', prefix: '甲乙', suffix: '戊', position: 2 };
+    const expected = locateAnchor(i, a);
+    expect(expected).toEqual({ start: 2, end: 4, grade: 'exact' });
+    expect(locateAnchor(i, { ...a, markerId: 'aaaaaaaa' }, markerOffsets(i))).toEqual(expected);
+  });
+  it('markers are ignored when no marker map is given', () => {
+    const i = ix(`<p>甲乙${mk('aaaaaaaa', 'open')}丙丁${mk('aaaaaaaa', 'close')}戊</p>`);
+    expect(locateAnchor(i, stale)).not.toEqual({ start: 2, end: 4, grade: 'exact' });
+  });
+  it('marker spans add no text to the index', () => {
+    const i = ix(`<p>甲乙${mk('aaaaaaaa', 'open')}丙丁</p>`);
+    expect(i.text).toBe('甲乙丙丁');
   });
 });

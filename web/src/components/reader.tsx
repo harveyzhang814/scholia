@@ -5,7 +5,7 @@ import type { Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import { ArticleMetaBar } from './article-meta-bar';
 import { api, type Highlight, type Note, type NoteAnchor, type NoteDoc } from '@/lib/api';
-import { buildTextIndex, caretRangeAt, offsetToPoint, rangeToOffsets, SLOT_ATTR, UI_ATTR, type TextIndex } from '@/lib/text-index';
+import { buildTextIndex, caretRangeAt, markerOffsets, offsetToPoint, rangeToOffsets, SLOT_ATTR, UI_ATTR, type TextIndex } from '@/lib/text-index';
 import { captureAnchor, locateAnchor, type Located } from '@/lib/anchor';
 import { groupSlots, placeSlot } from '@/lib/inline-slots';
 import { remarkScMarkers } from '@/lib/sc-marker';
@@ -279,10 +279,11 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
     const body = bodyRef.current;
     if (!body) return;
     const index = buildTextIndex(body);
+    const markers = markerOffsets(index);
     const located: Record<string, Located> = {};
     for (const note of notes ?? []) {
       if (doc && note.doc && note.doc !== doc) continue;
-      const loc = locateAnchor(index, note);
+      const loc = locateAnchor(index, note, markers);
       if (loc) located[note.id] = loc;
     }
     const items = Object.entries(located).map(([id, loc]) => ({ id, start: loc.start, end: loc.end }));
