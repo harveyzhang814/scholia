@@ -154,9 +154,18 @@ export interface Highlight {
   createdAt: number;
 }
 
-export interface Note {
-  id: string;
+export type NoteDoc = 'summary' | 'article';
+
+export interface NoteAnchor {
   anchor: string;
+  prefix?: string;
+  suffix?: string;
+  position?: number;
+  doc?: NoteDoc;
+}
+
+export interface Note extends NoteAnchor {
+  id: string;
   mediaTimestamp?: number;
   body: string;
   createdAt: number;
@@ -256,7 +265,7 @@ export const api = {
   listNotes: (taskId: string) =>
     request<Note[]>(`/api/tasks/${taskId}/notes`),
 
-  addNote: (taskId: string, data: { anchor?: string; mediaTimestamp?: number; body: string }) =>
+  addNote: (taskId: string, data: Partial<NoteAnchor> & { mediaTimestamp?: number; body: string }) =>
     request<Note>(`/api/tasks/${taskId}/notes`, {
       method: 'POST',
       body: JSON.stringify(data),

@@ -280,6 +280,34 @@ async function req(port, method, urlPath, body) {
     assert.equal(r2.body[0].id, 'n1');
   });
 
+  await test('notes: POST stores anchor context fields', async () => {
+    const r = await req(port, 'POST', `/api/tasks/${taskId}/notes`,
+      { anchor: '', prefix: '前文', suffix: '后文', position: 12, doc: 'article', body: 'point' });
+    assert.equal(r.status, 201);
+    assert.equal(r.body.prefix, '前文');
+    assert.equal(r.body.suffix, '后文');
+    assert.equal(r.body.position, 12);
+    assert.equal(r.body.doc, 'article');
+    await req(port, 'DELETE', `/api/tasks/${taskId}/notes/${r.body.id}`);
+  });
+
+  await test('notes: POST without new fields stores none of them', async () => {
+    const r = await req(port, 'POST', `/api/tasks/${taskId}/notes`, { anchor: 'x', body: 'legacy' });
+    assert.equal(r.status, 201);
+    for (const k of ['prefix', 'suffix', 'position', 'doc']) assert.ok(!(k in r.body), k);
+    await req(port, 'DELETE', `/api/tasks/${taskId}/notes/${r.body.id}`);
+  });
+
+  await test('notes: POST rejects invalid anchor fields', async () => {
+    const bad = [
+      { prefix: 'x'.repeat(33) }, { suffix: 5 }, { position: -1 }, { position: 1.5 }, { doc: 'other' },
+    ];
+    for (const extra of bad) {
+      const r = await req(port, 'POST', `/api/tasks/${taskId}/notes`, { anchor: '', body: 'b', ...extra });
+      assert.equal(r.status, 400, JSON.stringify(extra));
+    }
+  });
+
   // Article highlights
   await test('article highlights CRUD, co-located with the article file', async () => {
     const r = await req(port, 'POST', '/api/tasks/article-intro/highlights', { anchor: 'h-1', color: 'green' });

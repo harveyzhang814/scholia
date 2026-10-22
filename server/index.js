@@ -333,14 +333,27 @@ function createApp(options = {}) {
 
   router.post('/tasks/:taskId/notes', async (ctx) => {
     const { taskId } = ctx.params;
-    const { anchor = '', mediaTimestamp, body } = ctx.request.body || {};
+    const { anchor = '', mediaTimestamp, body, prefix, suffix, position, doc } = ctx.request.body || {};
     if (!body || typeof body !== 'string' || !body.trim()) { ctx.status = 400; ctx.body = { error: 'body required' }; return; }
+    const validContext = (s) => typeof s === 'string' && s.length <= 32;
+    if ((prefix !== undefined && !validContext(prefix)) || (suffix !== undefined && !validContext(suffix))) { ctx.status = 400; ctx.body = { error: 'prefix/suffix must be a string of at most 32 chars' }; return; }
+    if (position !== undefined && !(Number.isInteger(position) && position >= 0)) { ctx.status = 400; ctx.body = { error: 'position must be a non-negative integer' }; return; }
+    if (doc !== undefined && doc !== 'summary' && doc !== 'article') { ctx.status = 400; ctx.body = { error: 'doc must be summary or article' }; return; }
     const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
     if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
     await fs.promises.mkdir(paths.base, { recursive: true });
     const ns = await readJson(paths.notes, []);
     const now = Date.now();
-    const note = { id: crypto.randomUUID(), anchor: anchor || '', ...(mediaTimestamp != null ? { mediaTimestamp: Number(mediaTimestamp) } : {}), body: body.trim(), createdAt: now, updatedAt: now };
+    const note = {
+      id: crypto.randomUUID(),
+      anchor: anchor || '',
+      ...(prefix !== undefined ? { prefix } : {}),
+      ...(suffix !== undefined ? { suffix } : {}),
+      ...(position !== undefined ? { position } : {}),
+      ...(doc !== undefined ? { doc } : {}),
+      ...(mediaTimestamp != null ? { mediaTimestamp: Number(mediaTimestamp) } : {}),
+      body: body.trim(), createdAt: now, updatedAt: now,
+    };
     ns.unshift(note);
     await writeJson(paths.notes, ns);
     ctx.status = 201; ctx.body = note;
