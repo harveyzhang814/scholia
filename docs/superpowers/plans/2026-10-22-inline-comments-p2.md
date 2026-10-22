@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-22-inline-comments-design.md`（第 2.1 节内嵌视图部分、第 3.1 节步骤 4、第 3.3、3.4、4 节）
 
+**设计稿（视觉依据）：** `.hskill/sync-design/html/drafts/task-detail-article-web-design.html`（文章页：内嵌卡片各状态、未定位区、视图开关、全部收起、右栏对照、右键菜单）和 `.hskill/sync-design/html/drafts/task-detail-video-web-design.html`（视频页：Mode A 内嵌、总结/文章 tab、Mode B 右栏）。浏览器直接打开；URL 加 `#state=draft`、`#view=sidebar` 等可直达某个状态。尺寸、颜色、间距以设计稿的 CSS 为准，计划里的文字描述与设计稿冲突时以设计稿为准。
+
 **前置：** 第 1 期（`feature/inline-comments-p1`，已验收）必须先合入 `staging`；本期在从 `staging` 切出的 `feature/inline-comments-p2` 上实施。本计划引用的现有代码都以第 1 期合入后的状态为准。
 
 ## Global Constraints

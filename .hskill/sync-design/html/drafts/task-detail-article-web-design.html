@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>文章任务详情页（纯读模式）— 笔记锚点标记 · 设计稿</title>
+<title>文章任务详情页（纯读模式）— 正文内嵌评论 · 设计稿</title>
 <style>
   :root {
     --bg-canvas:     #F9F8F4;
@@ -50,40 +50,17 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  .page {
-    max-width: 1440px;
-    margin: 0 auto;
-    padding: 48px 24px 96px;
-  }
-
-  .page-title {
-    font-size: 20px;
-    font-weight: 600;
-    margin: 0 0 6px;
-  }
-
-  .page-sub {
-    font-size: 13px;
-    color: var(--text-secondary);
-    margin: 0 0 24px;
-    line-height: 1.6;
-    max-width: 900px;
-  }
-
-  .page-sub code {
+  .page { max-width: 1440px; margin: 0 auto; padding: 48px 24px 96px; }
+  .page-title { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+  .page-sub { font-size: 13px; color: var(--text-secondary); margin: 0 0 24px; line-height: 1.6; max-width: 960px; }
+  .page-sub code, .caption code {
     font-family: var(--font-mono);
     background: var(--bg-elevated);
     padding: 1px 4px;
     border-radius: 3px;
   }
 
-  .state-switch {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-  .state-switch:last-of-type { margin-bottom: 28px; }
+  .state-switch { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
   .state-switch-label {
     font-size: 11px;
     color: var(--text-tertiary);
@@ -109,6 +86,8 @@
     background: var(--accent-3);
     font-weight: 500;
   }
+  .state-switch.is-disabled { opacity: 0.4; pointer-events: none; }
+  .switch-gap { height: 16px; }
 
   /* ── 文章任务详情页外壳（无媒体：ModeSwitcher / 甘特图入口隐藏，Tab 栏无总结/文章切换） ── */
   .detail-frame {
@@ -117,7 +96,6 @@
     overflow: hidden;
     background: var(--bg-surface);
   }
-
   .frame-header {
     height: 48px;
     display: flex;
@@ -125,43 +103,30 @@
     justify-content: space-between;
     padding: 0 20px;
     border-bottom: 1px solid var(--border-subtle);
-    flex-shrink: 0;
   }
-  .frame-header .left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    min-width: 0;
-  }
+  .frame-header .left { display: flex; align-items: center; gap: 16px; min-width: 0; }
   .back-arrow { color: var(--text-tertiary); font-size: 14px; }
-  .frame-title {
-    font-size: 14px;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .frame-header .right {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    font-size: 13px;
-    color: var(--text-tertiary);
-  }
-  .theme-picker-btn {
+  .frame-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .frame-header .right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-tertiary); }
+  .theme-picker-btn { font-size: 13px; padding: 4px 8px; border-radius: 4px; color: var(--text-tertiary); }
+  .kbd { padding: 2px 4px; border-radius: 4px; border: 1px solid var(--border-subtle); font-size: 12px; }
+
+  /* ── 新增：评论视图切换（CommentViewToggle），紧挨主题选择器 ✦ ──
+     两个文字按钮，沿用头部按钮的 text-sm px-2 py-1 rounded；选中项为 text-primary，未选中 text-tertiary */
+  .view-toggle { display: flex; align-items: center; gap: 0; }
+  .view-toggle button {
+    font-family: var(--font-sans);
     font-size: 13px;
     padding: 4px 8px;
     border-radius: 4px;
+    border: none;
+    background: none;
     color: var(--text-tertiary);
+    cursor: pointer;
   }
-  .kbd {
-    padding: 2px 4px;
-    border-radius: 4px;
-    border: 1px solid var(--border-subtle);
-    font-size: 12px;
-  }
+  .view-toggle button[aria-pressed="true"] { color: var(--text-primary); font-weight: 500; }
 
-  /* ── Tab bar（无媒体文章任务：左侧无 总结/文章 切换项，仅保留右侧 复制/显示文件） ── */
+  /* ── Tab bar ── */
   .tab-bar {
     padding: 0 48px;
     border-bottom: 1px solid var(--border-subtle);
@@ -170,169 +135,41 @@
     justify-content: space-between;
   }
   .tabs { display: flex; min-height: 1px; }
-  .tab-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 0;
-    font-size: 12px;
-    color: var(--text-tertiary);
-  }
+  .tab-actions { display: flex; align-items: center; gap: 12px; padding: 12px 0; font-size: 12px; color: var(--text-tertiary); }
+  .tab-actions .collapse-all { cursor: pointer; }
 
-  /* ── 三栏内容行：正文列 | TOC | 笔记栏（对应 .article-notes-row） ── */
-  .content-row {
-    display: flex;
-    height: 560px;
-  }
+  /* ── 内容行：正文列 | TOC | 笔记栏（右栏视图才有） ── */
+  .content-row { display: flex; height: 760px; }
+  .article-col-mock { flex: 1; min-width: 0; position: relative; overflow-y: auto; }
+  .article-scroll { padding: 40px 48px; }
+  /* 宽度方案 B：内嵌视图下正文列给右栏留出同样宽度，正文宽度与右栏视图一致 */
+  .detail-frame[data-width="keep"][data-view="inline"] .article-col-mock { padding-right: 260px; }
 
-  /* 正文列 — 对应 .article-col，信息栏和正文都在这一列的滚动视口内 */
-  .article-col-mock {
-    flex: 1;
-    min-width: 0;
-    position: relative;
-    overflow: hidden; /* 这个 demo 用两个静态帧模拟滚动前后，不做真实滚动 */
-  }
-  .article-scroll {
-    padding: 40px 48px;
-  }
+  /* ── ArticleMetaBar（已上线） ── */
+  .meta-bar { padding-bottom: 16px; margin-bottom: 8px; border-bottom: 1px solid var(--border-subtle); font-size: 12px; }
+  .meta-scalar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 24px; }
+  .meta-label { font-family: var(--font-mono); color: var(--text-tertiary); opacity: 0.7; margin-bottom: 2px; }
+  .meta-value { color: var(--text-secondary); overflow-wrap: anywhere; }
 
-  /* ── ArticleMetaBar — 信息栏
-     嵌在 Reader 的 <article class="prose-cn"> 内部、正文标题之上 —— 因此它的宽度
-     天然等于正文列宽度，并随正文一起滚动。 ── */
-  .meta-bar {
-    padding-bottom: 16px;
-    margin-bottom: 8px;
-    border-bottom: 1px solid var(--border-subtle);
-    font-size: 12px;
-  }
-  .meta-scalar-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 8px 24px;
-  }
-  .meta-field { min-width: 0; }
-  .meta-label {
-    font-family: var(--font-mono);
-    color: var(--text-tertiary);
-    opacity: 0.7;
-    margin-bottom: 2px;
-  }
-  .meta-value {
-    color: var(--text-secondary);
-    overflow-wrap: anywhere; /* 长值（如 URL）自动换行，不溢出到相邻网格列 */
-  }
-  .meta-array-row { margin-top: 8px; }
-  .meta-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .chip {
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: var(--bg-elevated);
-    color: var(--text-secondary);
-    font-size: 11.5px;
-    white-space: nowrap;
-  }
+  /* ── 正文排版（对应 .prose-cn 默认主题） ── */
+  .prose { font-size: 15px; line-height: 1.85; color: var(--text-primary); }
+  .prose h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 24px 0 16px; }
+  .prose h2 { font-size: 20px; font-weight: 600; margin: 32px 0 12px; }
+  .prose p { margin: 0 0 14px; }
+  .prose ul { margin: 0 0 14px; padding-left: 22px; }
+  .prose li { margin: 4px 0; }
 
-  .article-h1 {
-    font-size: 26px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    margin: 0 0 16px;
-  }
-  .article-h2 {
-    font-size: 20px;
-    font-weight: 600;
-    margin: 0 0 12px;
-  }
-  .article-scroll p {
-    font-size: 13.5px;
-    line-height: 23.625px;
-    color: var(--text-primary);
-    margin: 0 0 14px;
-  }
-
-  /* TOC — 对应 web/src/components/toc.tsx（w-44 px-6 py-14, sticky） */
-  .toc-mock {
-    width: 224px;
-    flex-shrink: 0;
-    padding: 56px 24px;
-  }
-  .toc-item {
-    display: block;
-    padding: 4px 0;
-    font-size: 12.5px;
-    color: var(--text-tertiary);
-  }
+  /* TOC */
+  .toc-mock { width: 224px; flex-shrink: 0; padding: 56px 24px; }
+  .toc-item { display: block; padding: 4px 0; font-size: 12.5px; color: var(--text-tertiary); }
   .toc-item.active { color: var(--text-primary); font-weight: 500; }
 
-  /* 笔记栏 — 对应 .notes-col + NotesPanel，固定 260px，独立于正文滚动 */
-  .notes-col-mock {
-    width: 260px;
-    flex-shrink: 0;
-    border-left: 1px solid var(--border-subtle);
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  .notes-header {
-    padding: 10px 16px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    border-bottom: 1px solid var(--border-subtle);
-  }
-  .notes-input-block {
-    padding: 12px;
-    border-bottom: 1px solid var(--border-subtle);
-  }
-  .notes-textarea {
-    padding: 8px;
-    border-radius: 6px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-tertiary);
-    font-size: 12.5px;
-    min-height: 52px;
-    line-height: 1.6;
-  }
-  .notes-input-actions {
-    margin-top: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-  }
-  .notes-save-btn {
-    font-size: 12px;
-    padding: 3px 10px;
-    border-radius: 4px;
-    background: var(--bg-elevated);
-    color: var(--text-tertiary);
-    border: 1px solid var(--border-subtle);
-  }
-  .notes-empty {
-    text-align: center;
-    margin-top: 20px;
-    font-size: 12px;
-    color: var(--text-tertiary);
-  }
-
-  /* ── 高亮 mark（对应 web/src/components/reader.tsx + globals.css .vdl-hl）
-     仅作对比参照，展示笔记锚点标记与高亮的样式差异 ── */
-  mark.vdl-hl {
-    background: transparent;
-    border-radius: 2px;
-    cursor: context-menu;
-  }
+  /* ── 高亮 / 笔记锚点 / 点评论图标（第 1 期已上线，与 globals.css 一致） ── */
+  mark.vdl-hl { background: transparent; border-radius: 2px; cursor: context-menu; color: inherit; }
   mark.vdl-hl[data-color="yellow"] { background: rgba(255, 214, 0, 0.35); }
-
-  /* ── 笔记锚点标记（新增，对应 web/src/components/reader.tsx 待新增的 note-anchor 注入 effect）
-     刻意不引入新色相：DESIGN.md 明确「无紫色/渐变」，且高亮已占用 黄/绿/红实色块 + 蓝色下划线。
-     改用「暖灰色块 + 点状下划线」表达"这是笔记，不是高亮"，联动强调态复用品牌唯一 accent（sage green）。 ── */
   mark.vdl-note-anchor {
-    background: rgba(207, 203, 192, 0.34); /* border-strong 暖灰，低饱和度，天然与高亮的鲜艳色块区分 */
+    color: inherit;
+    background: rgba(207, 203, 192, 0.34);
     border-bottom: 1px dotted var(--text-tertiary);
     border-radius: 2px;
     cursor: pointer;
@@ -344,80 +181,183 @@
     border-bottom-color: var(--accent-9);
     box-shadow: inset 0 0 0 1px var(--accent-9);
   }
+  .vdl-note-point { color: var(--text-tertiary); cursor: pointer; margin: 0 1px; transition: color 120ms; }
+  .vdl-note-point.is-linked { color: var(--accent-9); }
+  .vdl-note-point svg { display: inline-block; vertical-align: -1px; }
 
-  /* 笔记卡片（对应 web/src/components/notes-panel.tsx NoteItem，新增 isLinked 强调态）
-     只用一种手法（背景色 + 左侧强调条）表达"联动中"，不叠加 border-color，避免和左侧 box-shadow
-     在圆角处产生粗细不一致的双重描边。编辑态不再额外套用 is-linked，直接沿用真实实现里
-     textarea 自身的 accent 描边——避免"绿框套绿框"。 ── */
-  .note-item-mock {
-    margin: 8px 12px 12px;
-    padding: 10px 12px;
+  /* ── 右键菜单（第 1 期已上线）：在此处评论 / 删除高亮 ── */
+  .ctx-menu {
+    position: absolute;
+    z-index: 20;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
     border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    overflow: hidden;
+    min-width: 132px;
+  }
+  .ctx-menu div { padding: 7px 14px; font-size: 13px; color: var(--text-primary); }
+  .ctx-menu div:hover { background: var(--bg-elevated); }
+  .ctx-menu .danger { color: var(--status-err); }
+
+  /* ── 新增：内嵌卡片 .sc-note-card[data-variant="inline"]
+     插在锚点所在段落之后（列表项则在 li 内部末尾）。整宽、6px 圆角、elevated 底色；
+     不用彩色左边框（DESIGN.md AI-slop 清单），联动态与右栏卡片一致：accent-3 底 + 内阴影强调条。
+     卡片内字号回到 UI 尺寸（13px / 1.6），不继承正文 15px / 1.85。 ── */
+  .sc-slot { margin: 10px 0 16px; display: flex; flex-direction: column; gap: 8px; }
+  li > .sc-slot { margin: 8px 0 10px; }
+  .sc-note-card {
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-primary);
     transition: background 120ms, box-shadow 120ms;
   }
-  .note-item-mock.is-linked {
-    background: var(--accent-3);
-    box-shadow: inset 2px 0 0 var(--accent-9);
-  }
-  .note-body-view {
-    margin: 0;
-    font-size: 12.5px;
-    line-height: 1.6;
-    color: var(--text-primary);
-  }
-  .note-edit-textarea {
-    display: none;
-    width: 100%;
-    font-size: 12.5px;
-    line-height: 1.6;
-    padding: 6px;
-    border-radius: 4px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--accent-9);
-    color: var(--text-primary);
-    resize: none;
-  }
-
-  .caption {
-    margin-top: 20px;
+  .sc-note-card.is-linked { background: var(--accent-3); box-shadow: inset 2px 0 0 var(--accent-9); }
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
     font-size: 12px;
     color: var(--text-tertiary);
-    line-height: 1.7;
-    max-width: 900px;
+    min-height: 32px;
   }
-  .caption code {
-    font-family: var(--font-mono);
-    background: var(--bg-elevated);
-    padding: 1px 4px;
-    border-radius: 3px;
+  .card-toggle {
+    width: 18px; height: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: none; background: none; padding: 0; cursor: pointer;
+    color: var(--text-tertiary); font-size: 11px; border-radius: 3px;
   }
+  .card-toggle:hover { background: var(--border-subtle); }
+  .card-kind { font-size: 13px; color: var(--text-tertiary); width: 12px; text-align: center; }
+  .card-excerpt {
+    color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    min-width: 0; flex: 0 1 auto; max-width: 46%;
+  }
+  .card-ts { font-family: var(--font-mono); color: var(--accent-9); }
+  .card-approx {
+    padding: 0 6px; border-radius: 4px;
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    font-size: 11.5px; color: var(--text-tertiary);
+  }
+  .card-spacer { flex: 1; }
+  .card-time { font-size: 11.5px; white-space: nowrap; }
+  .card-action { font-size: 12px; color: var(--text-tertiary); cursor: pointer; opacity: 0; transition: opacity 120ms; }
+  .sc-note-card:hover .card-action, .sc-note-card.show-actions .card-action { opacity: 1; }
+  .card-body { padding: 0 12px 10px 38px; }
+  .card-entry { margin: 0; white-space: pre-wrap; }
+  .card-snapshot {
+    margin: 0 0 6px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: var(--bg-surface);
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.6;
+  }
+  .card-snapshot strong { color: var(--text-secondary); font-weight: 600; }
+  .sc-note-card.is-collapsed .card-body { display: none; }
+
+  /* 编辑态 / 草稿卡片：textarea 自身 accent 描边表达可编辑，卡片不再叠加 is-linked */
+  .card-textarea {
+    width: 100%;
+    font-family: var(--font-sans);
+    font-size: 13px; line-height: 1.6;
+    padding: 6px 8px; border-radius: 4px;
+    background: var(--bg-surface);
+    border: 1px solid var(--accent-9);
+    color: var(--text-primary);
+    resize: none; outline: none;
+  }
+  .card-edit-foot { margin-top: 6px; display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--text-tertiary); }
+  .card-save {
+    font-size: 12px; padding: 3px 10px; border-radius: 4px;
+    background: var(--accent-9); color: #fff; border: 1px solid var(--accent-9); cursor: pointer;
+  }
+  .draft-label {
+    font-size: 12px; padding: 1px 8px; border-radius: 4px;
+    background: var(--accent-3); color: var(--accent-11);
+  }
+  .sc-note-card.is-draft { background: var(--bg-surface); border-color: var(--accent-9); }
+
+  /* ── 新增：文首未定位区（UnlocatedZone），只在内嵌视图出现，位于信息栏之上 ── */
+  .unlocated-zone {
+    margin: 0 0 20px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    padding: 6px 12px 8px;
+  }
+  .zone-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); min-height: 26px; }
+  .zone-head .card-toggle { margin-left: -4px; }
+  .zone-title { font-weight: 500; }
+  .zone-add { margin-left: auto; font-size: 12px; color: var(--accent-10); cursor: pointer; }
+  .zone-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .unlocated-zone.is-collapsed .zone-list { display: none; }
+
+  /* ── 右栏视图（与第 1 期一致）：.notes-col 260px，卡片为 sidebar 变体（即原 NoteItem） ── */
+  .notes-col-mock { width: 260px; flex-shrink: 0; border-left: 1px solid var(--border-subtle); display: flex; flex-direction: column; }
+  .detail-frame[data-view="inline"] .notes-col-mock { display: none; }
+  .detail-frame[data-view="sidebar"] .inline-only { display: none !important; }
+  .notes-header { padding: 10px 16px; font-size: 12px; font-weight: 500; color: var(--text-secondary); border-bottom: 1px solid var(--border-subtle); }
+  .notes-input-block { padding: 12px; border-bottom: 1px solid var(--border-subtle); }
+  .notes-textarea {
+    padding: 8px; border-radius: 6px; background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle); color: var(--text-tertiary);
+    font-size: 12.5px; min-height: 52px; line-height: 1.6;
+  }
+  .notes-input-actions { margin-top: 8px; display: flex; justify-content: flex-end; }
+  .notes-save-btn { font-size: 12px; padding: 3px 10px; border-radius: 4px; background: var(--bg-elevated); color: var(--text-tertiary); border: 1px solid var(--border-subtle); }
+  .notes-abs { position: relative; flex: 1; }
+  .side-card {
+    position: absolute; left: 0; right: 0;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 12px; line-height: 1.6;
+  }
+  .side-card .hint { font-size: 12px; color: var(--text-tertiary); margin-bottom: 2px; }
+  .side-card .card-snapshot { font-size: 11.5px; }
+  .side-card.is-linked { background: var(--accent-3); box-shadow: inset 2px 0 0 var(--accent-9); }
+
+  .caption { margin-top: 20px; font-size: 12px; color: var(--text-tertiary); line-height: 1.7; max-width: 960px; }
 </style>
 
 <div class="page">
-  <h1 class="page-title">文章任务详情页（纯读模式 E · 无媒体）— 笔记锚点标记</h1>
+  <h1 class="page-title">文章任务详情页（纯读模式 E · 无媒体）— 正文内嵌评论</h1>
   <p class="page-sub">
-    对应实现：<code>web/src/routes/tasks.$id.tsx</code>（<code>isArticleTask=true</code>、<code>mediaKind=null</code> 时的渲染分支）。
-    本稿在已上线的 <code>task-detail-article-web</code> 基础上，新增「笔记锚点在正文中的视觉标记」设计：
-    正文中标为 <code>计算机视觉等领域的演化路径</code> 的这段文字是笔记的锚点，用暖灰色块 + 点状下划线标记——
-    与右侧 <code>自然语言处理</code> 的高亮（黄色实色块，对应 <code>mark.vdl-hl</code>）明显不同。
-    悬停正文锚点或右侧笔记卡片，两者会互相高亮联动；点击正文锚点会让笔记卡片进入编辑态。
+    对应实现：<code>web/src/routes/tasks.$id.tsx</code>、<code>reader.tsx</code>、新增 <code>note-card.tsx</code> / <code>inline-notes.tsx</code> / <code>comment-view-toggle.tsx</code>。
+    计划：<code>docs/superpowers/plans/2026-10-22-inline-comments-p2.md</code>。
+    默认是「内嵌」视图：评论卡片插在锚点所在段落下方，右栏不显示；头部 ✦ 旁的「内嵌 / 右栏」切换到第 1 期的右栏视图。
+    下方按钮切换各状态；也可以直接点卡片的 ▾ 箭头、点正文里的标记或气泡图标、悬停标记或卡片体验联动。
   </p>
 
-  <div class="state-switch-label">滚动状态</div>
-  <div class="state-switch" data-group="scroll">
-    <button class="state-btn active" data-state="top">状态 1 — 顶部（信息栏 + 正文标题同屏）</button>
-    <button class="state-btn" data-state="scrolled">状态 2 — 向下滚动（信息栏随正文滚出视口，TOC 仍 sticky 可见）</button>
+  <div class="state-switch-label">评论视图</div>
+  <div class="state-switch" data-group="view">
+    <button class="state-btn active" data-view="inline">内嵌（默认）</button>
+    <button class="state-btn" data-view="sidebar">右栏</button>
   </div>
 
-  <div class="state-switch-label">笔记锚点联动状态（也可直接把鼠标移到下方正文标记或笔记卡片上体验真实交互）</div>
-  <div class="state-switch" data-group="link">
-    <button class="state-btn link-btn active" data-linkstate="default">默认（无联动）</button>
-    <button class="state-btn link-btn" data-linkstate="anchor-hover">悬停正文锚点 → 卡片高亮</button>
-    <button class="state-btn link-btn" data-linkstate="card-hover">悬停笔记卡片 → 锚点高亮</button>
-    <button class="state-btn link-btn" data-linkstate="editing">点击锚点 → 卡片进入编辑态</button>
+  <div class="state-switch-label">内嵌视图状态</div>
+  <div class="state-switch" data-group="inline-state" id="inline-states">
+    <button class="state-btn active" data-istate="expanded">全部展开（打开页面时）</button>
+    <button class="state-btn" data-istate="one-collapsed">单卡收起</button>
+    <button class="state-btn" data-istate="all-collapsed">全部收起</button>
+    <button class="state-btn" data-istate="ctxmenu">右键 →「在此处评论」</button>
+    <button class="state-btn" data-istate="draft">草稿卡片（点评论，编辑中）</button>
+    <button class="state-btn" data-istate="approx">近似（原文已变化 + 快照）</button>
   </div>
 
-  <div class="detail-frame">
+  <div class="state-switch-label">待确认：内嵌视图下正文列宽度</div>
+  <div class="state-switch" data-group="width" id="width-states">
+    <button class="state-btn active" data-width="fill">A — 占满右栏空出的宽度（计划当前方案）</button>
+    <button class="state-btn" data-width="keep">B — 保持与右栏视图相同宽度</button>
+  </div>
+  <div class="switch-gap"></div>
+
+  <div class="detail-frame" id="frame" data-view="inline" data-width="fill">
     <div class="frame-header">
       <div class="left">
         <span class="back-arrow">←</span>
@@ -425,13 +365,19 @@
       </div>
       <div class="right">
         <span class="theme-picker-btn" title="文章主题">✦</span>
+        <div class="view-toggle">
+          <button aria-pressed="true" data-toggle-view="inline">内嵌</button>
+          <button aria-pressed="false" data-toggle-view="sidebar">右栏</button>
+        </div>
+        <span>标记为未读</span>
         <span class="kbd">⌘K</span>
       </div>
     </div>
 
     <div class="tab-bar">
-      <div class="tabs"><!-- 无媒体文章任务：isArticleTask=true，总结/文章 切换不渲染 --></div>
+      <div class="tabs"></div>
       <div class="tab-actions">
+        <span class="collapse-all inline-only" id="collapse-all">全部收起</span>
         <span>复制</span>
         <span>显示文件</span>
       </div>
@@ -439,148 +385,298 @@
 
     <div class="content-row">
       <div class="article-col-mock">
-        <!-- 状态 1：滚动视口顶部 -->
-        <div class="article-scroll" id="scroll-top">
-          <div class="meta-bar">
-            <div class="meta-scalar-grid">
-              <div class="meta-field">
-                <div class="meta-label">Date</div>
-                <div class="meta-value">2024-01-01</div>
-              </div>
-              <div class="meta-field">
-                <div class="meta-label">Author</div>
-                <div class="meta-value">Jane Doe</div>
-              </div>
-              <div class="meta-field">
-                <div class="meta-label">Source Url</div>
-                <div class="meta-value">https://arxiv.org/abs/2024.03158v2-attention-survey-full-paper</div>
-              </div>
+        <div class="article-scroll prose" style="position: relative;">
+
+          <!-- ── 未定位区（内嵌视图）：无锚点 / 未定位 / 另一个 tab 的评论 ── -->
+          <div class="unlocated-zone inline-only" id="zone">
+            <div class="zone-head">
+              <button class="card-toggle" aria-label="收起" data-zone-toggle>▾</button>
+              <span class="zone-title">未定位评论（1）</span>
+              <span class="zone-add">+ 添加评论</span>
             </div>
-            <div class="meta-array-row">
-              <div class="meta-label">Tags</div>
-              <div class="meta-chips">
-                <span class="chip">ai</span>
-                <span class="chip">machine-learning</span>
-                <span class="chip">nlp</span>
+            <div class="zone-list">
+              <div class="sc-note-card" data-variant="inline" data-note-id="z1">
+                <div class="card-head">
+                  <button class="card-toggle" aria-label="收起">▾</button>
+                  <span class="card-kind"></span>
+                  <span class="card-spacer"></span>
+                  <span class="card-time">5 天前</span>
+                  <span class="card-action">编辑</span><span class="card-action">删除</span>
+                </div>
+                <div class="card-body"><p class="card-entry">整体读完再回头对照第三节的实验设计。</p></div>
               </div>
             </div>
           </div>
-          <h1 class="article-h1">深度学习中的注意力机制综述</h1>
-          <p>注意力机制自 2017 年 Transformer 架构提出以来，已成为现代深度学习模型的核心组件之一。本文从基础原理出发，系统梳理其在<mark class="vdl-hl" data-color="yellow">自然语言处理</mark>、<mark class="vdl-note-anchor" data-note-id="n1">计算机视觉等领域的演化路径</mark>……</p>
-          <p>与传统的循环神经网络相比，注意力机制能够并行处理序列数据，同时更好地捕捉长距离依赖关系。这一特性使其成为大规模预训练模型的首选架构……</p>
-        </div>
 
-        <!-- 状态 2：向下滚动后 —— 信息栏已滚出视口，只剩正文 -->
-        <div class="article-scroll" id="scroll-down" style="display:none;">
-          <h2 class="article-h2">经验教训</h2>
-          <p>不要把 LLM 包装在抽象层里。给它最大行动空间，然后做限制，而不是反过来。</p>
-          <p>我们仍然在包装它的工具。每一个 helper 都是一个约束，强化学习过的模型不得不绕着它走。</p>
-          <p>当我们构建 Browser Use 第一版时，我们交付了数千行 element extractors、DOM indexers、click wrappers。LLM 懂 CDP，它们在数百万 token 中训练过。</p>
+          <div class="meta-bar">
+            <div class="meta-scalar-grid">
+              <div><div class="meta-label">Date</div><div class="meta-value">2024-01-01</div></div>
+              <div><div class="meta-label">Author</div><div class="meta-value">Jane Doe</div></div>
+              <div><div class="meta-label">Source Url</div><div class="meta-value">https://arxiv.org/abs/2024.03158v2</div></div>
+            </div>
+          </div>
+
+          <h1>深度学习中的注意力机制综述</h1>
+
+          <p id="p1">注意力机制自 2017 年 Transformer 架构提出以来，已成为现代深度学习模型的核心组件之一。本文从基础原理出发，系统梳理其在<mark class="vdl-hl" data-color="yellow">自然语言处理</mark>、<mark class="vdl-note-anchor" data-note-id="n1">计算机视觉等领域的演化路径</mark>，并讨论其计算代价。</p>
+          <!-- 槽位：p1 之后 -->
+          <div class="sc-slot inline-only">
+            <div class="sc-note-card" data-variant="inline" data-note-id="n1">
+              <div class="card-head">
+                <button class="card-toggle" aria-label="收起">▾</button>
+                <span class="card-kind">❝</span>
+                <span class="card-excerpt">计算机视觉等领域的演化路径</span>
+                <span class="card-spacer"></span>
+                <span class="card-time">3 天前</span>
+                <span class="card-action">编辑</span><span class="card-action">删除</span>
+              </div>
+              <div class="card-body"><p class="card-entry">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</p></div>
+            </div>
+          </div>
+
+          <p id="p2">与传统的循环神经网络相比，注意力机制能够并行处理序列数据，同时更好地捕捉长距离依赖关系<span class="vdl-note-point" data-note-id="n2"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H7l-3 2.5V11h-.5a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>。这一特性使其成为大规模预训练模型的首选架构<span class="vdl-note-point" id="draft-icon" style="display:none;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H7l-3 2.5V11h-.5a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>，<span id="ctx-target">也带来了平方级的显存开销</span>。</p>
+          <!-- 槽位：p2 之后（同一段落的多条评论共用一个槽位，按位置排序；草稿卡片按自己的位置混排） -->
+          <div class="sc-slot inline-only">
+            <div class="sc-note-card" data-variant="inline" data-note-id="n2" id="card-n2">
+              <div class="card-head">
+                <button class="card-toggle" aria-label="收起">▾</button>
+                <span class="card-kind">‸</span>
+                <span class="card-excerpt">插入点</span>
+                <span class="card-approx" id="approx-badge" style="display:none;">原文已变化</span>
+                <span class="card-spacer"></span>
+                <span class="card-time">昨天</span>
+                <span class="card-action">编辑</span><span class="card-action">删除</span>
+              </div>
+              <div class="card-body">
+                <p class="card-snapshot" id="approx-snapshot" style="display:none;">…并行处理序列数据，同时更好地捕捉长距离依赖关系<strong>‸</strong>。这一特性使其成为大规模预训练…</p>
+                <p class="card-entry">这里可以补一句：长距离依赖在 RNN 里是靠门控缓解的，不是根治。</p>
+              </div>
+            </div>
+            <div class="sc-note-card is-draft" data-variant="inline" id="draft-card" style="display:none;">
+              <div class="card-head">
+                <span class="card-kind">‸</span>
+                <span class="draft-label">插入点：…大规模预训练模型的首选架构</span>
+              </div>
+              <div class="card-body" style="padding-left: 12px;">
+                <textarea class="card-textarea" rows="3" placeholder="写下评论…"></textarea>
+                <div class="card-edit-foot">
+                  <span>⌘↵ 保存 · Esc 放弃</span>
+                  <button class="card-save">保存</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <h2>主要变体</h2>
+          <ul>
+            <li>自注意力：序列内部各位置两两计算相关性。</li>
+            <li>交叉注意力：查询来自一个序列，<mark class="vdl-note-anchor" data-note-id="n3">键和值来自另一个序列</mark>。
+              <!-- 槽位：li 内部末尾 -->
+              <div class="sc-slot inline-only">
+                <div class="sc-note-card" data-variant="inline" data-note-id="n3">
+                  <div class="card-head">
+                    <button class="card-toggle" aria-label="收起">▾</button>
+                    <span class="card-kind">❝</span>
+                    <span class="card-excerpt">键和值来自另一个序列</span>
+                    <span class="card-spacer"></span>
+                    <span class="card-time">昨天</span>
+                    <span class="card-action">编辑</span><span class="card-action">删除</span>
+                  </div>
+                  <div class="card-body"><p class="card-entry">编码器-解码器结构里就是这个。</p></div>
+                </div>
+              </div>
+            </li>
+            <li>稀疏注意力：只在局部窗口内计算，降低开销。</li>
+          </ul>
+
+          <div class="ctx-menu" id="ctx-menu" style="display:none;">
+            <div>在此处评论</div>
+          </div>
         </div>
       </div>
 
       <aside class="toc-mock">
         <nav>
-          <a class="toc-item active">经验教训</a>
-          <a class="toc-item">为什么用原生 CDP</a>
-          <a class="toc-item">我们做错了什么</a>
-          <a class="toc-item">四个文件</a>
+          <a class="toc-item active">深度学习中的注意力机制综述</a>
+          <a class="toc-item">主要变体</a>
         </nav>
       </aside>
 
+      <!-- ── 右栏视图（第 1 期行为不变） ── -->
       <aside class="notes-col-mock">
-        <div class="notes-header">笔记 · 1</div>
+        <div class="notes-header">笔记 · 4</div>
         <div class="notes-input-block">
           <div class="notes-textarea">写下笔记…</div>
-          <div class="notes-input-actions">
-            <span class="notes-save-btn">保存</span>
-          </div>
+          <div class="notes-input-actions"><span class="notes-save-btn">保存</span></div>
         </div>
-        <div class="note-item-mock" data-note-id="n1">
-          <p class="note-body-view">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</p>
-          <textarea class="note-edit-textarea" rows="3">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</textarea>
+        <div style="padding: 8px 16px; font-size: 12px; border-bottom: 1px solid var(--border-subtle);">整体读完再回头对照第三节的实验设计。</div>
+        <div class="notes-abs">
+          <div class="side-card" data-note-id="n1" style="top: 150px;">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</div>
+          <div class="side-card" data-note-id="n2" style="top: 232px;">
+            <div class="hint side-approx" style="display:none;">原文已变化</div>
+            <div class="card-snapshot side-approx" style="display:none;">…捕捉长距离依赖关系<strong>‸</strong>。这一特性…</div>
+            这里可以补一句：长距离依赖在 RNN 里是靠门控缓解的，不是根治。
+          </div>
+          <div class="side-card" data-note-id="n3" style="top: 400px;">编码器-解码器结构里就是这个。</div>
         </div>
       </aside>
     </div>
   </div>
 
   <p class="caption">
-    信息栏（Date/Author/Source Url 网格 + Tags chips）左右边界与下方正文标题、段落对齐，到 TOC 开始的位置为止 —— 不跨到 TOC 或笔记栏下面。
-    <code>Source Url</code> 是特意选的长且不含空格的值，用来展示 <code>overflow-wrap: anywhere</code>：换行到第二行，而不是溢出到右边 <code>Tags</code> 或下一列。
-    点击上方"向下滚动"按钮：信息栏和标题一起离开视口，只剩正文段落 —— 因为它是 <code>&lt;article class="prose-cn"&gt;</code> 内部的第一个元素，
-    和正文共享同一个滚动容器；TOC 因自身 <code>position: sticky</code> 保持可见，笔记栏固定宽度不受影响。
+    <strong>内嵌卡片</strong>：头部一行依次是收起箭头、类型（<code>❝</code> 选区、<code>‸</code> 点评论、无锚点不显示）、锚点摘录（选区取原文首行，超 40 字截断；点评论写「插入点」）、视频时间点（有时）、「原文已变化」（近似时）、相对时间，悬停时出现「编辑 / 删除」。
+    收起后只剩这一行。内容区目前只有一条条目（<code>note.body</code>），以后回复、AI 回答往下追加。卡片字号回到 UI 尺寸 13px，不继承正文 15px。
   </p>
   <p class="caption">
-    <strong>笔记锚点标记设计说明：</strong>
-    <code>mark.vdl-note-anchor</code> 用暖灰色块（<code>border-strong</code> 低透明度）+ 点状下划线，与高亮 <code>mark.vdl-hl</code> 的黄/绿/红实色块、蓝色下划线在色相和纹理上都不同——
-    刻意不引入紫色等新色相（<code>DESIGN.md</code> 明确「无紫色/渐变」的反 AI-slop 约束），联动强调态复用品牌唯一 accent（sage green），与 Tab 下划线、悬停锚点徽标等既有交互态保持同一套语言。
-    悬停正文锚点 ↔ 悬停笔记卡片会互相高亮（<code>is-linked</code> 类），点击正文锚点会让对应卡片滚动到可见并进入编辑态——对应实现里这几个状态由 <code>hoveredNoteId</code> / <code>focusNoteId</code> 两个提升到 <code>tasks.$id.tsx</code> 的共享状态驱动。
+    <strong>槽位位置</strong>：段落、标题、代码块、表格之后；列表项在 <code>li</code> 内部末尾（见「交叉注意力」那一项）。同一段落的多条评论共用一个槽位，按位置排序，草稿卡片按自己的位置插在中间。
+    <strong>点击</strong>正文标记或气泡图标：内嵌视图下切换对应卡片的收起；右栏视图下保持第 1 期的「卡片滚动可见并进入编辑」。
+  </p>
+  <p class="caption">
+    <strong>未定位区</strong>在信息栏之上、只在内嵌视图出现：无锚点评论、找不到位置的评论、视频页另一个 tab 的评论都在这里；「+ 添加评论」新建无锚点评论。没有未定位评论时也保留这一行（显示「未定位评论（0）」）。
+    <strong>全部收起 / 全部展开</strong>在 tab 栏「复制」之前，只要还有一张展开的卡片就显示「全部收起」。
+  </p>
+  <p class="caption">
+    <strong>待确认的宽度</strong>：内嵌视图不渲染右栏。方案 A 正文列直接占满（纯读模式下正文有 72ch 上限，看不出差别；阅读、音频、剧场模式下正文会变宽）。方案 B 给右栏原位置留白，正文宽度与右栏视图一致。
   </p>
 </div>
 
 <script>
-  var stateBtns = document.querySelectorAll('[data-state]');
-  var panels = {
-    top: document.getElementById('scroll-top'),
-    scrolled: document.getElementById('scroll-down'),
-  };
+  var frame = document.getElementById('frame');
+  var inlineStates = document.getElementById('inline-states');
+  var widthStates = document.getElementById('width-states');
+  var cards = document.querySelectorAll('.sc-note-card[data-note-id]');
+  var collapseAll = document.getElementById('collapse-all');
+  var zone = document.getElementById('zone');
 
-  stateBtns.forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      stateBtns.forEach(function (b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      var target = btn.getAttribute('data-state');
-      Object.keys(panels).forEach(function (key) {
-        panels[key].style.display = key === target ? 'block' : 'none';
-      });
+  function activate(group, btn) {
+    group.querySelectorAll('.state-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+  }
+
+  // ── 视图切换（页面按钮 + 头部开关同步） ──
+  function setView(view) {
+    frame.setAttribute('data-view', view);
+    document.querySelectorAll('[data-toggle-view]').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.getAttribute('data-toggle-view') === view ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-group="view"] .state-btn').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-view') === view);
+    });
+    inlineStates.classList.toggle('is-disabled', view !== 'inline');
+    widthStates.classList.toggle('is-disabled', view !== 'inline');
+  }
+  document.querySelectorAll('[data-group="view"] .state-btn').forEach(function (b) {
+    b.addEventListener('click', function () { setView(b.getAttribute('data-view')); });
+  });
+  document.querySelectorAll('[data-toggle-view]').forEach(function (b) {
+    b.addEventListener('click', function () { setView(b.getAttribute('data-toggle-view')); });
+  });
+
+  // ── 宽度方案 ──
+  widthStates.querySelectorAll('.state-btn').forEach(function (b) {
+    b.addEventListener('click', function () { activate(widthStates, b); frame.setAttribute('data-width', b.getAttribute('data-width')); });
+  });
+
+  // ── 收起 ──
+  function syncCollapseAll() {
+    var anyOpen = Array.prototype.some.call(cards, function (c) { return !c.classList.contains('is-collapsed'); });
+    collapseAll.textContent = anyOpen ? '全部收起' : '全部展开';
+  }
+  function setCollapsed(card, on) {
+    card.classList.toggle('is-collapsed', on);
+    var t = card.querySelector('.card-toggle');
+    if (t) { t.textContent = on ? '▸' : '▾'; t.setAttribute('aria-label', on ? '展开' : '收起'); }
+    syncCollapseAll();
+  }
+  cards.forEach(function (card) {
+    var t = card.querySelector('.card-toggle');
+    if (t) t.addEventListener('click', function () { setCollapsed(card, !card.classList.contains('is-collapsed')); });
+  });
+  collapseAll.addEventListener('click', function () {
+    var anyOpen = collapseAll.textContent === '全部收起';
+    cards.forEach(function (c) { setCollapsed(c, anyOpen); });
+  });
+  zone.querySelector('[data-zone-toggle]').addEventListener('click', function (e) {
+    var on = !zone.classList.contains('is-collapsed');
+    zone.classList.toggle('is-collapsed', on);
+    e.currentTarget.textContent = on ? '▸' : '▾';
+    e.currentTarget.setAttribute('aria-label', on ? '展开' : '收起');
+  });
+
+  // 点击正文标记 / 图标：内嵌视图切换收起，右栏视图联动高亮
+  document.querySelectorAll('mark.vdl-note-anchor, .vdl-note-point[data-note-id]').forEach(function (m) {
+    var id = m.getAttribute('data-note-id');
+    m.addEventListener('click', function () {
+      if (frame.getAttribute('data-view') !== 'inline') return;
+      var card = document.querySelector('.sc-note-card[data-note-id="' + id + '"]');
+      if (card) setCollapsed(card, !card.classList.contains('is-collapsed'));
     });
   });
 
-  // ── 笔记锚点联动 demo ──────────────────────────────
-  var linkBtns = document.querySelectorAll('.link-btn');
-  var noteAnchorMark = document.querySelector('mark.vdl-note-anchor[data-note-id="n1"]');
-  var noteItem = document.querySelector('.note-item-mock[data-note-id="n1"]');
-  var noteBodyView = noteItem.querySelector('.note-body-view');
-  var noteEditArea = noteItem.querySelector('.note-edit-textarea');
-
-  function syncActiveLinkBtn(state) {
-    linkBtns.forEach(function (b) {
-      b.classList.toggle('active', b.getAttribute('data-linkstate') === state);
-    });
+  // ── 悬停联动（标记 ↔ 卡片，两种视图都有） ──
+  function link(id, on) {
+    document.querySelectorAll('[data-note-id="' + id + '"]').forEach(function (el) { el.classList.toggle('is-linked', on); });
   }
+  document.querySelectorAll('[data-note-id]').forEach(function (el) {
+    var id = el.getAttribute('data-note-id');
+    el.addEventListener('mouseenter', function () { link(id, true); });
+    el.addEventListener('mouseleave', function () { link(id, false); });
+  });
 
-  function applyLinkState(state) {
-    noteAnchorMark.classList.remove('is-linked');
-    noteItem.classList.remove('is-linked');
-    noteBodyView.style.display = 'block';
-    noteEditArea.style.display = 'none';
-
-    if (state === 'anchor-hover' || state === 'card-hover') {
-      noteAnchorMark.classList.add('is-linked');
-      noteItem.classList.add('is-linked');
-    }
-    if (state === 'editing') {
-      // 编辑态只保留锚点标记的联动色，卡片本身不再叠加 is-linked——
-      // 卡片已经用 textarea 自身的 accent 描边表达"可编辑"，两者都上色会变成"绿框套绿框"
-      noteAnchorMark.classList.add('is-linked');
-      noteBodyView.style.display = 'none';
-      noteEditArea.style.display = 'block';
-      noteItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
+  // ── 内嵌视图状态按钮 ──
+  var ctxMenu = document.getElementById('ctx-menu');
+  var draftCard = document.getElementById('draft-card');
+  var draftIcon = document.getElementById('draft-icon');
+  var approxBadge = document.getElementById('approx-badge');
+  var approxSnap = document.getElementById('approx-snapshot');
+  var sideApprox = document.querySelectorAll('.side-approx');
+  function resetInline() {
+    cards.forEach(function (c) { setCollapsed(c, false); c.classList.remove('show-actions'); });
+    ctxMenu.style.display = 'none';
+    draftCard.style.display = 'none';
+    draftIcon.style.display = 'none';
+    approxBadge.style.display = 'none';
+    approxSnap.style.display = 'none';
+    sideApprox.forEach(function (e) { e.style.display = 'none'; });
   }
-
-  linkBtns.forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var state = btn.getAttribute('data-linkstate');
-      syncActiveLinkBtn(state);
-      applyLinkState(state);
+  inlineStates.querySelectorAll('.state-btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      activate(inlineStates, b);
+      resetInline();
+      var s = b.getAttribute('data-istate');
+      if (s === 'one-collapsed') setCollapsed(document.querySelector('.sc-note-card[data-note-id="n1"]'), true);
+      if (s === 'all-collapsed') cards.forEach(function (c) { setCollapsed(c, true); });
+      if (s === 'ctxmenu') {
+        // 鼠标落在「也带来了平方级的显存开销」开头处
+        var r = document.getElementById('ctx-target').getClientRects()[0];
+        var host = ctxMenu.parentElement.getBoundingClientRect();
+        ctxMenu.style.left = (r.left - host.left + 4) + 'px';
+        ctxMenu.style.top = (r.bottom - host.top + 2) + 'px';
+        ctxMenu.style.display = 'block';
+      }
+      if (s === 'draft') {
+        draftIcon.style.display = 'inline';
+        draftCard.style.display = 'block';
+        draftCard.querySelector('textarea').focus({ preventScroll: true });
+        document.querySelector('.article-col-mock').scrollTop = 380;  // 正文列内滚到草稿卡片
+      }
+      if (s === 'approx') {
+        approxBadge.style.display = 'inline-block';
+        approxSnap.style.display = 'block';
+        sideApprox.forEach(function (e) { e.style.display = 'block'; });
+      }
     });
   });
 
-  // 真实悬停 / 点击也可直接体验，不依赖按钮
-  noteAnchorMark.addEventListener('mouseenter', function () { applyLinkState('anchor-hover'); syncActiveLinkBtn('anchor-hover'); });
-  noteAnchorMark.addEventListener('mouseleave', function () { applyLinkState('default'); syncActiveLinkBtn('default'); });
-  noteItem.addEventListener('mouseenter', function () { applyLinkState('card-hover'); syncActiveLinkBtn('card-hover'); });
-  noteItem.addEventListener('mouseleave', function () { applyLinkState('default'); syncActiveLinkBtn('default'); });
-  noteAnchorMark.addEventListener('click', function () { applyLinkState('editing'); syncActiveLinkBtn('editing'); });
+  setView('inline');
+  syncCollapseAll();
+
+  // 直达某个状态：#view=sidebar、#state=draft、#width=keep，可组合（用 & 连接）
+  location.hash.slice(1).split('&').forEach(function (kv) {
+    var p = kv.split('='), sel = null;
+    if (p[0] === 'view') sel = '[data-group="view"] [data-view="' + p[1] + '"]';
+    if (p[0] === 'state') sel = '[data-istate="' + p[1] + '"]';
+    if (p[0] === 'width') sel = '#width-states [data-width="' + p[1] + '"]';
+    var b = sel && document.querySelector(sel);
+    if (b) b.click();
+  });
 </script>

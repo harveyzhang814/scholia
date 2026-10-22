@@ -129,13 +129,18 @@
       "htmlFile": ".hskill/sync-design/html/drafts/task-detail-article-web-design.html",
       "uiStates": [
         "顶部-信息栏与正文标题同屏",
-        "向下滚动-信息栏随正文滚出视口",
-        "笔记锚点默认态（无联动）",
-        "悬停正文锚点→笔记卡片联动高亮",
-        "悬停笔记卡片→正文锚点联动高亮",
-        "点击正文锚点→卡片滚动可见并进入编辑态"
+        "内嵌视图-全部展开（默认）",
+        "内嵌视图-单卡收起",
+        "内嵌视图-全部收起",
+        "内嵌视图-右键在此处评论",
+        "内嵌视图-草稿卡片（点评论编辑中）",
+        "内嵌视图-近似（原文已变化+快照）",
+        "内嵌视图-文首未定位区",
+        "右栏视图（第1期行为）",
+        "悬停正文锚点↔卡片联动高亮",
+        "待确认-内嵌视图正文宽度方案A/B"
       ],
-      "description": "文章任务详情页新增「笔记锚点」正文标记：暖灰色块+点状下划线，区别于高亮的黄/绿/红实色块与蓝色下划线（未用紫色，遵循 DESIGN.md 的无紫色/渐变约束）；正文锚点与右侧笔记卡片双向悬停联动高亮，点击锚点使对应卡片进入编辑态，联动强调色复用品牌唯一 accent（sage green）",
+      "description": "文章详情页（纯读 E）：正文内嵌评论卡片、未定位区、内嵌/右栏视图切换、全部收起、右键菜单与点评论图标（inline comments 第 1、2 期）",
       "linkedEntryId": "task-detail-article-web"
     },
     {
@@ -159,6 +164,23 @@
       ],
       "description": "X 时间线详情页：640px 居中推文流，按 tweet_id 倒序；四种推文类型不靠文字标签区分，完全靠卡片结构自证——post 是基础卡片，reply/quote 都是卡片内部结构（回复对象行 / 内嵌被引用子卡片，不产生卡片外元素），repost 是唯一越出卡片边界的类型（浅底外框区分转推人与原作者，体现 author_handle 的归属反转）",
       "linkedEntryId": null
+    },
+    {
+      "id": "task-detail-video-web",
+      "platform": "web",
+      "htmlFile": ".hskill/sync-design/html/drafts/task-detail-video-web-design.html",
+      "uiStates": [
+        "模式A-视频优先 + 内嵌（默认）",
+        "模式A + 右栏",
+        "总结 tab",
+        "文章 tab（另一 tab 的评论进未定位区）",
+        "模式F-剧场 + 内嵌/右栏",
+        "模式B-阅读优先 + 内嵌",
+        "模式B-阅读优先 + 右栏",
+        "草稿卡片（点评论，编辑中）"
+      ],
+      "description": "视频详情页：Mode A 左栏列表与正文内嵌卡片并存、总结/文章 tab 的评论归属、Mode B 右栏视图对照（inline comments 第 2 期）",
+      "linkedEntryId": "task-detail-video-web"
     }
   ],
   "ignoredFiles": []
