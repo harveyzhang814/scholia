@@ -130,6 +130,7 @@ export function NoteCard({
       className="sc-note-card"
       data-note-card={note.id}
       data-variant={variant}
+      data-collapsed={isCollapsed || undefined}
       style={{
         background: isLinked && !editing ? 'var(--accent-3)' : undefined,
         boxShadow: isLinked && !editing ? 'inset 2px 0 0 var(--accent-9)' : undefined,

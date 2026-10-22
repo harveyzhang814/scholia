@@ -73,6 +73,14 @@ describe('NoteCard', () => {
     fireEvent.click(getByLabelText('展开'));
     expect(toggle).toHaveBeenCalled();
   });
+  it('marks the collapsed state on the root only when collapsed', () => {
+    const props = { variant: 'inline' as const, note: base, isLinked: false, onHover: noop, onUpdate: noop, onDelete: noop };
+    const c = render(<NoteCard {...props} collapsed />);
+    expect(c.container.querySelector('[data-note-card]')).toHaveAttribute('data-collapsed');
+    c.unmount();
+    const e = render(<NoteCard {...props} />);
+    expect(e.container.querySelector('[data-note-card]')).not.toHaveAttribute('data-collapsed');
+  });
   it('expanded inline card has no preview', () => {
     const { container } = render(<NoteCard variant="inline" note={base} isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);
     expect(container.querySelector('[data-preview]')).toBeNull();
