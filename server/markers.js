@@ -41,8 +41,13 @@ function applyInsertions(text, insertions, id, base = 0) {
   return out;
 }
 
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Tolerates whitespace edits inside the comment (e.g. `<!--sc:ID-->`).
 function removeMarkers(text, id) {
-  return text.split(markerText(id, 'start')).join('').split(markerText(id, 'end')).join('');
+  return text.replace(new RegExp('<!--\\s*\\/?sc:' + escapeRegExp(id) + '\\s*-->', 'g'), '');
 }
 
 function newMarkerId(text) {

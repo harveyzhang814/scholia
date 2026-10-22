@@ -510,6 +510,23 @@ async function req(port, method, urlPath, body) {
     assert.deepEqual(notes.map((n) => n.id), [n2.id]);
   });
 
+  await test('notes: DELETE removes markers whose inner whitespace was altered', async () => {
+    const aid = makeArticle('marked-ws', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-ws.md');
+    const note = await addNote(aid, {});
+    const body = await getBody(aid);
+    const i = body.indexOf('第一段');
+    const r = await mark(aid, note.id, { baseHash: sha256Hex(body), insertions: [{ offset: i, edge: 'start' }, { offset: i + 3, edge: 'end' }] });
+    assert.equal(r.status, 200);
+    const id = r.body.markerId;
+    const edited = fs.readFileSync(file, 'utf8').replace(`<!-- sc:${id} -->`, `<!--sc:${id}-->`).replace(`<!-- /sc:${id} -->`, `<!--  /sc:${id}\t-->`);
+    assert.ok(edited.includes(`<!--sc:${id}-->`) && edited.includes(`<!--  /sc:${id}\t-->`));
+    fs.writeFileSync(file, edited);
+    const d = await req(port, 'DELETE', `/api/tasks/${aid}/notes/${note.id}`);
+    assert.equal(d.status, 204);
+    assert.equal(fs.readFileSync(file, 'utf8'), MARKED_SRC);
+  });
+
   await test('notes: DELETE of a marked video note removes markers from its doc', async () => {
     const summary = path.join(workDir, taskId, 'writing', 'summary.md');
     const notes = (await req(port, 'GET', `/api/tasks/${taskId}/notes`)).body;
