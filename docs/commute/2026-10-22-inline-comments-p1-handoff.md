@@ -1,5 +1,5 @@
 ---
-status: 执行中
+status: 待验收
 date: 2026-10-22
 author_model: claude-opus-5-5
 acceptance: hard
@@ -94,3 +94,50 @@ target_node: 817aa4af-5c84-4459-9c71-b5e6d451bf20
 6. **改动没有超出计划**：`git diff --name-only $(git merge-base staging HEAD)..HEAD` 列出的文件，都在计划各任务的 Files 清单里。允许的例外只有三类：`web/package-lock.json`、本交接文档、计划允许新建的 `web/src/routes/tasks.$id.test.tsx`（或抽出 hook 后对应的源文件和测试文件）。
 7. **未确认项已记录**：spec 的"未确认项汇总"表里，"单击后是否留下可读取的光标"这一行写上了 Chrome 和 Safari 的实测结论；"定位的性能"这一行写上了实测耗时（计划 Task 8 Step 3）。
 8. **手动检查已逐项记录**：计划 Task 8 Step 2 的 5 项检查，每一项的结果都写在自测记录里（pass 或 fail，附简短说明）。如果某项无法在本机环境完成（比如手头没有视频任务），写明原因，不能空着。
+
+## 接手方自测记录（2026-10-22）
+
+在最终提交 `b83d02a` 上逐条实跑最小验收锚点全集。判成败的命令都没有接管道（输出重定向到文件后取退出码）。
+
+| # | 锚点 | 结果 | 命令与证据 |
+|---|---|---|---|
+| 1 | 后端测试全绿 + 3 个用例 | pass | `npm test` 退出码 0，7 个测试文件全部 `0 failed`（server 套件 51 passed）。`notes: POST stores anchor context fields`、`notes: POST without new fields stores none of them`、`notes: POST rejects invalid anchor fields` 三条均为 `✓` |
+| 2 | 前端测试全绿 + 计划用例都在 | pass | `cd web && npm test` 退出码 0，21 个文件 188 个用例通过。用脚本从计划 Task 3–7 的代码块里取出 39 个 `it(...)` 用例名，逐个在 `web/src/**/*.test.ts(x)` 中查找：缺失 0 个。替换项：Task 1 的结论没有要求替换 `c with caret creates point draft`（Chrome 可用，Safari 见下方红项）；Task 7 的 `switching tab clears draft` 做成了路由级测试 `web/src/routes/tasks.$id.test.tsx`，没有抽 hook。已有的高亮、评论标记、mermaid 用例没有删改 |
+| 3 | 前端构建通过 | pass | `cd web && npm run build` 退出码 0（含 `tsc`），`built in 3.32s` |
+| 4 | 旧接口已清除 | pass | `grep -rn "onAnchorSelect\|resolveAnchorY" web/src` 无输出（grep 退出码 1） |
+| 5 | 新依赖已加入 | pass | `web/package.json:17` `"approx-string-match": "^2.0.1"`，在 `dependencies` 里；`web/package-lock.json` 的改动只有新增依赖的 7 行 |
+| 6 | 改动没有超出计划 | pass | `git diff --name-only 817494d..HEAD` 的 19 个文件：全部在计划各任务的 Files 清单内，或属于允许的例外（`web/package-lock.json`、本交接文档、`web/src/routes/tasks.$id.test.tsx`）。另外改了 spec 文档（Task 1 / Task 8 要求写回实测结论）。`web/src/lib/text-index.ts` 属于 Task 3 的文件，Task 6 的修复轮里改过它，见下方裁决 |
+| 7 | 未确认项已记录 | **红：带着这条红送验** | spec "未确认项汇总" 表里，性能行已写入实测耗时（24.0 / 25.05 / 25.3 ms，160 KB 文章、30 条评论）。光标行已写入 Chrome 实测结论（`["Caret", true, "#text", 59]`，可用），**Safari 的实测结论还没有**：Safari 无法在本机自动化，已向用户要结果，截至交接时还没收到。表里目前写的是"Safari 待用户实测"。收到结果后补进该行即可；若 Safari 不可用，按计划把 `c with caret creates point draft` 换成 `c with collapsed selection does nothing`（`c` 键在选区不在正文内时本来就不响应，不会出错） |
+| 8 | 手动检查已逐项记录 | pass（有说明） | 见下 |
+
+### Task 8 Step 2 的 5 项手动检查
+
+第一轮在 `ab6bff8` 上跑，随后发现并修复了一个图标换行的 bug；最后一轮改动之后，在 `b83d02a` 上又复跑了一遍（报告：`.superpowers/sdd/2026-10-22-inline-comments-p1/task-8-report.md`、`task-8-recheck-report.md`，git 忽略，不在仓库里）。全部用 gstack browse 在无头 Chromium 里跑，用的是临时目录里的文章和视频任务副本，没有碰真实数据。选区和右键手势是合成事件，点击和 `c` 键是真实输入。
+
+1. 选区评论（气泡）：**pass**。创建、保存后标记和卡片都在，卡片按所在段落排布。
+2. 点评论：**pass**。右键"在此处评论"和单击后按 `c` 各创建一条，正文里出现 `span.vdl-note-point`，卡片在右栏。复跑里图标是行内的（段落不被拆开，图标宽 12px）。链接末尾的图标，点击不跳转且仍会聚焦卡片。
+3. Shift+右键：**pass（只能验证到"不拦截"）**。带 `shiftKey` 的 `contextmenu` 事件 `defaultPrevented === false` 且没有自定义菜单；无头环境看不到浏览器原生菜单本身。
+4. 改原文后刷新：**pass**。改评论所在句子，该卡片显示"原文已变化"；只改相邻段落，评论保持精确定位、没有提示。
+5. 视频页：**pass**。总结和文章两个 tab 的评论只在各自 tab 里出现标记；没有 `doc` 的旧评论在含有其文字的 tab 里出现；带未保存草稿切换 tab 后草稿清空。复跑里还验证了 Mode A（给临时视频任务放了一个占位的假媒体文件才出现布局切换）：气泡里没有评论按钮、右键保留原生菜单、`c` 键不响应、左栏的评论列表正常排开不叠在一起，切回有右栏的布局后三个入口恢复。
+
+**没有验证的**：Safari 单击后的光标（上面的红项）；macOS 上右键是否真的得到点评论而不是单词范围评论（浏览器先选词的行为只能真机验，代码按"右键按下时先快照选区"处理）；Mac 上 Ctrl+点击；真实的鼠标拖选和原生右键菜单。建议接手验收的人（或用户）在 macOS 的 Chrome/Safari 里手点一次右键。
+
+### 手动检查中发现、不是本分支引入、没有修的问题
+
+- 右栏卡片整体比对应段落低约 190px（有草稿标签时约 226px）。右栏定位的几何代码与基线 `817494d` 逐行相同，是已有行为。
+- 文章视图里，右栏卡片区的高度会不断增长（约每帧 +190px）：`articleRef` 指向被撑开的 `.article-col`，`ResizeObserver` 加 `setArticleHeight(scrollHeight)` 形成反馈。基线上有同样的 `articleHeight` 逻辑，几何未改，推测是已有问题，没有在基线上实测对比。
+- 从任务 A 切到任务 B 时，没保存的草稿会保留（路由元素没有 `key`）。
+
+### 过程中的裁决（每条都记录在控制者的台账里）
+
+- Task 3：把"块与块之间的空白跳过"规则收窄到只在相邻是块级元素或没有相邻元素时才跳过，行内元素之间的空格保留（否则 `- **a** *b*` 会被索引成 "ab"）。选区终点落在元素上会多带一个分隔符，不改，由 Task 4 的 `captureAnchor` 修剪。
+- Task 4：近似查找改成逐块搜索（库只返回误差最低的一档，整篇搜索再丢跨块匹配会漏掉块内合格的匹配）；边界加分只在该侧吻合时才算。
+- Task 5：`onNotesLocated` 改用 ref 存回调，不放进注入 effect 的依赖。
+- Task 6：`boundaryToOffset` 对落在被跳过子树（图标）里的边界，改成取同块内前一个节点的末尾，保证偏移等于图标位置（这需要改 Task 3 的 `text-index.ts`）；右键按下时先快照选区，避免 macOS 先选词。
+- 最终评审：Mode A 下不传 `onCommentDraft`（否则右键和 `c` 的草稿进了看不见的右栏，还会丢掉原生右键菜单；代价是 Mode A 里原本就没用的气泡评论按钮消失）；图标点击 `preventDefault`（防止链接末尾的图标触发跳转）；旧评论定位先查原文再查规整形式（防止多行代码锚点回归）；右栏位置计算复用 `text-index` 的块级标签集合。
+- 部分提交（由 Opus 子 agent 完成的几个）的署名行写的是实际运行的模型（`Claude Opus 5.5`），不是系统要求的 `Claude Sonnet 5.5`。需要统一的话可以 amend。
+
+### 两处有意改变的现有行为（交接文档已列，PR 描述里要写）
+
+- Mode A 左栏的评论从"叠在位置 0"改为正常列表排列。
+- 以前跨段落写的旧评论，现在能标出来。
