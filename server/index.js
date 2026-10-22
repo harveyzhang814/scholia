@@ -86,6 +86,8 @@ function createApp(options = {}) {
 
   // Marker writes rewrite users' source files; serialize them so the
   // hash check and the write in one request can't interleave with another.
+  // Every notes.json read-modify-write (create/update/delete/marker) also
+  // runs under this lock so concurrent requests can't drop each other's notes.
   let markerQueue = Promise.resolve();
   function withMarkerLock(fn) {
     const result = markerQueue.then(fn);
@@ -101,6 +103,14 @@ function createApp(options = {}) {
     }
     if (!WORK_DIR || (note.doc !== 'summary' && note.doc !== 'article')) return null;
     return path.join(WORK_DIR, taskId, 'writing', `${note.doc}.md`);
+  }
+
+  // Reads a source file as text, or null if it is not valid UTF-8: decoding
+  // would turn bad bytes into U+FFFD and writing back would destroy them.
+  async function readUtf8Source(file) {
+    const buf = await fs.promises.readFile(file);
+    const text = buf.toString('utf8');
+    return Buffer.from(text, 'utf8').equals(buf) ? text : null;
   }
 
   // Splits a source file into the part notes' offsets refer to (body) and
@@ -367,38 +377,42 @@ function createApp(options = {}) {
     if ((prefix !== undefined && !validContext(prefix)) || (suffix !== undefined && !validContext(suffix))) { ctx.status = 400; ctx.body = { error: 'prefix/suffix must be a string of at most 32 chars' }; return; }
     if (position !== undefined && !(Number.isInteger(position) && position >= 0)) { ctx.status = 400; ctx.body = { error: 'position must be a non-negative integer' }; return; }
     if (doc !== undefined && doc !== 'summary' && doc !== 'article') { ctx.status = 400; ctx.body = { error: 'doc must be summary or article' }; return; }
-    const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
-    if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
-    await fs.promises.mkdir(paths.base, { recursive: true });
-    const ns = await readJson(paths.notes, []);
-    const now = Date.now();
-    const note = {
-      id: crypto.randomUUID(),
-      anchor: anchor || '',
-      ...(prefix !== undefined ? { prefix } : {}),
-      ...(suffix !== undefined ? { suffix } : {}),
-      ...(position !== undefined ? { position } : {}),
-      ...(doc !== undefined ? { doc } : {}),
-      ...(mediaTimestamp != null ? { mediaTimestamp: Number(mediaTimestamp) } : {}),
-      body: body.trim(), createdAt: now, updatedAt: now,
-    };
-    ns.unshift(note);
-    await writeJson(paths.notes, ns);
-    ctx.status = 201; ctx.body = note;
+    await withMarkerLock(async () => {
+      const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
+      if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+      await fs.promises.mkdir(paths.base, { recursive: true });
+      const ns = await readJson(paths.notes, []);
+      const now = Date.now();
+      const note = {
+        id: crypto.randomUUID(),
+        anchor: anchor || '',
+        ...(prefix !== undefined ? { prefix } : {}),
+        ...(suffix !== undefined ? { suffix } : {}),
+        ...(position !== undefined ? { position } : {}),
+        ...(doc !== undefined ? { doc } : {}),
+        ...(mediaTimestamp != null ? { mediaTimestamp: Number(mediaTimestamp) } : {}),
+        body: body.trim(), createdAt: now, updatedAt: now,
+      };
+      ns.unshift(note);
+      await writeJson(paths.notes, ns);
+      ctx.status = 201; ctx.body = note;
+    });
   });
 
   router.patch('/tasks/:taskId/notes/:noteId', async (ctx) => {
     const { taskId, noteId } = ctx.params;
     const { body } = ctx.request.body || {};
     if (!body || typeof body !== 'string' || !body.trim()) { ctx.status = 400; ctx.body = { error: 'body required' }; return; }
-    const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
-    if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
-    const ns = await readJson(paths.notes, []);
-    const idx = ns.findIndex((n) => n.id === noteId);
-    if (idx === -1) { ctx.status = 404; ctx.body = { error: 'note not found' }; return; }
-    ns[idx] = { ...ns[idx], body: body.trim(), updatedAt: Date.now() };
-    await writeJson(paths.notes, ns);
-    ctx.body = ns[idx];
+    await withMarkerLock(async () => {
+      const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
+      if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+      const ns = await readJson(paths.notes, []);
+      const idx = ns.findIndex((n) => n.id === noteId);
+      if (idx === -1) { ctx.status = 404; ctx.body = { error: 'note not found' }; return; }
+      ns[idx] = { ...ns[idx], body: body.trim(), updatedAt: Date.now() };
+      await writeJson(paths.notes, ns);
+      ctx.body = ns[idx];
+    });
   });
 
   router.post('/tasks/:taskId/notes/:noteId/marker', async (ctx) => {
@@ -419,8 +433,9 @@ function createApp(options = {}) {
         return;
       }
       let raw;
-      try { raw = await fs.promises.readFile(file, 'utf8'); }
+      try { raw = await readUtf8Source(file); }
       catch (e) { if (e.code === 'ENOENT') { ctx.status = 404; ctx.body = { error: 'source file not found' }; return; } throw e; }
+      if (raw === null) { ctx.status = 422; ctx.body = { error: 'source file is not valid UTF-8' }; return; }
       const { body, base } = splitSource(taskId, raw);
       if (typeof baseHash !== 'string' || baseHash !== sha256Hex(body)) { ctx.status = 409; ctx.body = { error: 'stale' }; return; }
       const invalid = validateInsertions(insertions, body.length);
@@ -445,8 +460,9 @@ function createApp(options = {}) {
       if (note.markerId) {
         const file = await noteSourceFile(taskId, note);
         if (file) {
+          // null when the file is missing or not valid UTF-8: leave it alone.
           let raw = null;
-          try { raw = await fs.promises.readFile(file, 'utf8'); }
+          try { raw = await readUtf8Source(file); }
           catch (e) { if (e.code !== 'ENOENT') throw e; }
           if (raw !== null) {
             const cleaned = removeMarkers(raw, note.markerId);

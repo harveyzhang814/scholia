@@ -562,6 +562,58 @@ async function req(port, method, urlPath, body) {
     assert.equal(fs.statSync(file).mtimeMs, before.mtimeMs);
   });
 
+  // A stray Windows-1252 byte (0x93) at the end makes the file invalid UTF-8.
+  const nonUtf8 = (s) => Buffer.concat([Buffer.from(s, 'utf8'), Buffer.from([0x93, 0x0a])]);
+
+  await test('marker: a non-UTF-8 source file is refused and left byte-identical', async () => {
+    const file = path.join(contentDir, 'marked-latin.md');
+    const bytes = nonUtf8(MARKED_SRC);
+    fs.writeFileSync(file, bytes);
+    const aid = 'article-marked-latin';
+    const note = await addNote(aid, {});
+    const body = await getBody(aid);
+    const r = await mark(aid, note.id, { baseHash: sha256Hex(body), insertions: [{ offset: 0, edge: 'point' }] });
+    assert.equal(r.status, 422);
+    assert.ok(fs.readFileSync(file).equals(bytes));
+    const notes = (await req(port, 'GET', `/api/tasks/${aid}/notes`)).body;
+    assert.equal(notes.find((n) => n.id === note.id).markerId, undefined);
+  });
+
+  await test('notes: DELETE of a marked note on a non-UTF-8 file leaves the file and deletes the note', async () => {
+    const aid = makeArticle('marked-latin-del', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-latin-del.md');
+    const note = await addNote(aid, {});
+    const r = await mark(aid, note.id, { baseHash: sha256Hex(await getBody(aid)), insertions: [{ offset: 0, edge: 'point' }] });
+    assert.equal(r.status, 200);
+    const bytes = nonUtf8(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, bytes);
+    const d = await req(port, 'DELETE', `/api/tasks/${aid}/notes/${note.id}`);
+    assert.equal(d.status, 204);
+    assert.ok(fs.readFileSync(file).equals(bytes));
+    const notes = (await req(port, 'GET', `/api/tasks/${aid}/notes`)).body;
+    assert.ok(!notes.some((n) => n.id === note.id));
+  });
+
+  await test('notes: concurrent marker write and note creation lose nothing', async () => {
+    const aid = makeArticle('marked-race', MARKED_SRC);
+    const errors = [];
+    for (let round = 0; round < 10; round++) {
+      const a = await addNote(aid, { body: `a${round}` });
+      const body = await getBody(aid);
+      const results = await Promise.all([
+        mark(aid, a.id, { baseHash: sha256Hex(body), insertions: [{ offset: round, edge: 'point' }] }),
+        ...[0, 1, 2].map((k) => req(port, 'POST', `/api/tasks/${aid}/notes`, { anchor: '', body: `b${round}-${k}` })),
+      ]);
+      for (const r of results) if (r.status >= 500) errors.push(`round ${round}: ${r.status}`);
+      const notes = (await req(port, 'GET', `/api/tasks/${aid}/notes`)).body;
+      if (!notes.find((n) => n.id === a.id)?.markerId) errors.push(`round ${round}: note A lost its markerId`);
+      for (const r of results.slice(1)) {
+        if (r.status === 201 && !notes.some((n) => n.id === r.body.id)) errors.push(`round ${round}: created note lost`);
+      }
+    }
+    assert.deepEqual(errors, []);
+  });
+
   // Article content asset (images relative to the article's own directory)
   await test('content/asset serves an image resolved relative to the article file, not contentDir root', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/tasks/article-hash1/content/asset?path=${encodeURIComponent('../Image/pic.png')}&token=${TOKEN}`);
