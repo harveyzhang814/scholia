@@ -526,6 +526,32 @@ mark.vdl-note-anchor.is-linked {
   resize: none;
   outline: none;
 }
+/* 待写卡片（DraftCard）：绿色描边，底部提示 + 保存 */
+.sc-note-card[data-draft] { background: var(--bg-surface); border-color: var(--accent-9); }
+.sc-card-edit-foot {
+  margin-top: 6px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11.5px; color: var(--text-tertiary);
+}
+.sc-card-save {
+  padding: 3px 10px; border-radius: 4px;
+  border: 1px solid var(--accent-9); background: var(--accent-9);
+  color: #fff; font-size: 12px; cursor: pointer;
+}
+.sc-card-save:disabled { border-color: var(--border-subtle); background: var(--bg-elevated); color: var(--text-tertiary); cursor: default; }
+/* 文首未定位区（UnlocatedZone） */
+.sc-unlocated-zone {
+  margin: 0 0 20px;
+  padding: 6px 12px 8px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  font-size: 12px; color: var(--text-secondary);
+}
+.sc-zone-head { display: flex; align-items: center; gap: 8px; min-height: 26px; }
+.sc-zone-title { font-weight: 500; }
+.sc-zone-add { margin-left: auto; color: var(--accent-10); cursor: pointer; }
+.sc-zone-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.sc-zone-list .sc-note-card[data-variant="inline"] { margin: 0; }
 /* 右栏卡片的引用原文：首行，最多两行，超出省略 */
 .sc-quote {
   margin-bottom: 4px;
