@@ -30,6 +30,12 @@ export function readSortState(key: string, allowedFields: SortField[] = ['date',
   return DEFAULT_SORT;
 }
 
+export type CommentView = 'inline' | 'sidebar';
+
+export function readCommentView(): CommentView {
+  return localStorage.getItem('comment-view') === 'sidebar' ? 'sidebar' : 'inline';
+}
+
 interface UiState {
   theme: Theme;
   paletteOpen: boolean;
@@ -41,6 +47,8 @@ interface UiState {
   setLayoutMode: (m: LayoutMode) => void;
   proseTheme: ThemeId;
   setProseTheme: (theme: ThemeId) => void;
+  commentView: CommentView;
+  setCommentView: (v: CommentView) => void;
   subtitleScale: number;
   setSubtitleScale: (updater: (prev: number) => number) => void;
   videoSort: SortState;
@@ -64,6 +72,11 @@ export const useUiStore = create<UiState>((set, get) => ({
   setProseTheme: (proseTheme) => {
     localStorage.setItem('prose-theme', proseTheme);
     set({ proseTheme });
+  },
+  commentView: readCommentView(),
+  setCommentView: (commentView) => {
+    localStorage.setItem('comment-view', commentView);
+    set({ commentView });
   },
   subtitleScale: clampSubtitleScale(parseFloat(localStorage.getItem('subtitle-scale') ?? '') || 1),
   setSubtitleScale: (updater) => {
