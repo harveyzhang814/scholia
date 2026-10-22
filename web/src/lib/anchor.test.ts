@@ -68,6 +68,11 @@ describe('locateAnchor', () => {
     const second = i.text.lastIndexOf('重复');
     expect(locateAnchor(i, { anchor: '重复', prefix: '甲', suffix: 'X', position: 0 })!.start).toBe(second);
   });
+  it('exact: boundary bonus only counts on a fitting side', () => {
+    // First: prefix fits, no edge. Second: neither side fits but both reach block edges; position is closer to it.
+    const i = ix('<p>Qab重复ZZZ</p><p>xy重复zw</p>');
+    expect(locateAnchor(i, { anchor: '重复', prefix: 'ab', suffix: 'cd', position: 11 })!.start).toBe(3);
+  });
   it('exact: adjacent paragraph edited still matches', () => {
     const before = captureAnchor(ix('<p>评论这句话。</p><p>旁边段落</p>'), 2, 5);
     expect(locateAnchor(ix('<p>评论这句话。</p><p>旁边段落被大改了</p>'), before)!.grade).toBe('exact');
@@ -102,6 +107,12 @@ describe('locateAnchor', () => {
     const i = ix('<p>上下文前</p><p>半上下文后半</p>');
     const r = locateAnchor(i, { anchor: '', prefix: '文前半上下', suffix: '', position: 99 });
     expect(r).toBeNull();
+  });
+  it('fuzzy: a fewer-error match across blocks does not hide an in-block match', () => {
+    // 'abcd\nefgh' is 1 error from the prefix but spans a separator; 'abxyefgh' is 2 errors, inside one block.
+    const i = ix('<p>abcd</p><p>efgh</p><p>abxyefgh</p>');
+    expect(locateAnchor(i, { anchor: '', prefix: 'abcdefgh', suffix: '', position: 0 }))
+      .toEqual({ start: 18, end: 18, grade: 'approximate' });
   });
   it('falls back to position', () => {
     const i = ix('<p>全部重写后的文字没有任何相似之处</p>');

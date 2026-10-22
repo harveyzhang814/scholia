@@ -47,11 +47,13 @@ function fits(index: TextIndex, side: string, at: number, dir: Dir): boolean {
     : at + side.length <= b.end && index.text.slice(at, at + side.length) === side;
 }
 
-// A side shorter than CONTEXT_LEN hit a block edge at capture time; reaching an edge here too is a clue.
+// A fitting side scores 1; if it is shorter than CONTEXT_LEN (it hit a block edge at capture time)
+// and reaches an edge here too, that is an extra 0.5.
 function score(index: TextIndex, side: string, at: number, dir: Dir): number {
-  const b = blockAt(index, at);
-  const edge = b && side.length < CONTEXT_LEN && at + dir * side.length === (dir < 0 ? b.start : b.end);
-  return (fits(index, side, at, dir) ? 1 : 0) + (edge ? 0.5 : 0);
+  if (!fits(index, side, at, dir)) return 0;
+  const b = blockAt(index, at)!;
+  const edge = side.length < CONTEXT_LEN && at + dir * side.length === (dir < 0 ? b.start : b.end);
+  return edge ? 1.5 : 1;
 }
 
 function occurrences(text: string, s: string): number[] {
@@ -62,12 +64,19 @@ function occurrences(text: string, s: string): number[] {
 
 interface Fuzzy { start: number; end: number; errors: number; block: TextBlock }
 
+// Searched block by block: the library returns only the lowest-error tier, so a whole-text search
+// would let a cross-block match hide in-block ones.
 function fuzzy(index: TextIndex, side: string): Fuzzy[] {
   if (!side) return [];
-  return search(index.text, side, Math.floor(side.length * 0.25)).flatMap((m) => {
-    const block = blockAt(index, m.start);
-    return block && m.end <= block.end ? [{ ...m, block }] : [];
-  });
+  const maxErrors = Math.floor(side.length * 0.25);
+  return index.blocks.flatMap((block) =>
+    search(index.text.slice(block.start, block.end), side, maxErrors).map((m) => ({
+      start: block.start + m.start,
+      end: block.start + m.end,
+      errors: m.errors,
+      block,
+    })),
+  );
 }
 
 function best(ms: Fuzzy[], dist: (m: Fuzzy) => number): Fuzzy | undefined {
