@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { api, type Note } from './api';
+import * as sourceAnchor from './source-anchor';
 import { sha256Hex } from './sha256';
 import { writeMarker } from './marker-write';
 
@@ -63,6 +64,13 @@ describe('writeMarker', () => {
     vi.spyOn(api, 'getContent').mockRejectedValue(new Error('network'));
     expect(await writeMarker('article-x', note, '第一段文字。')).toBe(false);
     expect(add).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves false without a request when planning throws', async () => {
+    vi.spyOn(sourceAnchor, 'planMarkerInsertions').mockImplementation(() => { throw new Error('parse failed'); });
+    const add = vi.spyOn(api, 'addMarker');
+    await expect(writeMarker('article-x', note, '第一段文字。')).resolves.toBe(false);
+    expect(add).not.toHaveBeenCalled();
   });
 
   it('other errors give up without retry', async () => {

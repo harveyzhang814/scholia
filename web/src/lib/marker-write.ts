@@ -14,7 +14,7 @@ async function attempt(taskId: string, note: Note, md: string): Promise<void> {
 }
 
 export async function writeMarker(taskId: string, note: Note, md: string): Promise<boolean> {
-  if (!planMarkerInsertions(md, note)) return false;
+  // Everything, planning included, runs inside try: this must resolve false, never reject.
   try {
     await attempt(taskId, note, md);
     return true;

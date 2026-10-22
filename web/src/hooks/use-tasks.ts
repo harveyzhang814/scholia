@@ -93,7 +93,7 @@ export function useAddNote(taskId: string) {
         if (!ok) return;
         qc.invalidateQueries({ queryKey: contentKey });
         qc.invalidateQueries({ queryKey: ['task', taskId, 'notes'] });
-      });
+      }).catch(() => {});
     },
   });
 }

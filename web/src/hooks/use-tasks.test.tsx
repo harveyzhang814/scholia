@@ -38,6 +38,17 @@ describe('useAddNote marker writing', () => {
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['task', 'article-x', 'content', 'article'] });
   });
 
+  it('swallows a rejected writeMarker: no unhandled rejection, no content invalidation', async () => {
+    const write = vi.spyOn(markerWrite, 'writeMarker').mockRejectedValue(new Error('boom'));
+    const { qc, result } = setup('article-x', note, '第一段文字。');
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    await act(() => result.current.mutateAsync({ body: 'b' }));
+    await waitFor(() => expect(write).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));  // let the rejection settle; vitest fails the run on an unhandled one
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ['task', 'article-x', 'content', 'article'] });
+    expect(result.current.isError).toBe(false);
+  });
+
   it.each([
     ['an anchorless note', 'article-x', { ...note, prefix: '', suffix: '' }, '第一段文字。'],
     ['a video page note without doc', 'task-1', note, '第一段文字。'],
