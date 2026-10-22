@@ -1,13 +1,24 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { useEffect } from 'react';
+import { render, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import type { NoteAnchor } from '@/lib/api';
+import type { Located } from '@/lib/anchor';
 import { useUiStore } from '@/stores/ui-store';
 import TaskDetail from './tasks.$id';
 
 const h = vi.hoisted(() => ({
   mediaInfo: undefined as unknown,
-  readerProps: {} as { onCommentDraft?: unknown },
+  notes: [] as { id: string; anchor: string }[],
+  located: {} as Record<string, unknown>,
+  readerProps: {} as {
+    onCommentDraft?: unknown;
+    renderInline?: unknown;
+    draft?: unknown;
+    onNoteAnchorClick?: unknown;
+  },
+  inlineProps: {} as { collapsed?: Set<string>; draft?: unknown; onDraftDone?: () => void; notes?: { id: string }[] },
+  zoneProps: {} as { collapsed?: Set<string>; notes?: { id: string }[] },
 }));
 
 vi.mock('@/hooks/use-tasks', () => {
@@ -20,7 +31,7 @@ vi.mock('@/hooks/use-tasks', () => {
     useHighlights: () => ({ data: [] }),
     useAddHighlight: () => mutation,
     useDeleteHighlight: () => mutation,
-    useNotes: () => ({ data: [] }),
+    useNotes: () => ({ data: h.notes }),
   };
 });
 
@@ -33,15 +44,36 @@ vi.mock('@/components/subtitle-list', () => ({ SubtitleList: () => null }));
 vi.mock('@/components/player', () => ({ Player: () => null }));
 
 vi.mock('@/components/reader', () => ({
-  Reader: (props: { onCommentDraft?: (a: NoteAnchor) => void }) => {
+  Reader: (props: {
+    onCommentDraft?: (a: NoteAnchor) => void;
+    onNotesLocated?: (l: Record<string, Located>) => void;
+    renderInline?: (ids: string[]) => React.ReactNode;
+    onNoteAnchorClick?: (id: string) => void;
+  }) => {
     h.readerProps = props;
-    return <button onClick={() => props.onCommentDraft?.({ anchor: '选中的文字' })}>draft</button>;
+    useEffect(() => { props.onNotesLocated?.(h.located as Record<string, Located>); }); // eslint-disable-line react-hooks/exhaustive-deps
+    return (
+      <>
+        <button onClick={() => props.onCommentDraft?.({ anchor: '选中的文字' })}>draft</button>
+        <button onClick={() => props.onNoteAnchorClick?.('a')}>anchor-a</button>
+        {props.renderInline?.([])}
+      </>
+    );
   },
 }));
 
+vi.mock('@/components/inline-notes', () => ({
+  InlineCards: (props: typeof h.inlineProps) => { h.inlineProps = props; return null; },
+  UnlocatedZone: (props: typeof h.zoneProps) => { h.zoneProps = props; return <div data-testid="zone" />; },
+}));
+
 vi.mock('@/components/notes-panel', () => ({
-  NotesPanel: ({ pendingAnchor }: { pendingAnchor?: NoteAnchor | null }) =>
-    pendingAnchor ? <div>pending:{pendingAnchor.anchor}</div> : null,
+  NotesPanel: ({ pendingAnchor, focusNoteId }: { pendingAnchor?: NoteAnchor | null; focusNoteId?: string | null }) => (
+    <>
+      {pendingAnchor && <div>pending:{pendingAnchor.anchor}</div>}
+      {focusNoteId && <div>focus:{focusNoteId}</div>}
+    </>
+  ),
 }));
 
 function renderTask(id: string) {
@@ -55,7 +87,7 @@ function renderTask(id: string) {
 describe('TaskDetail', () => {
   it('switching tab clears draft', () => {
     h.mediaInfo = undefined;
-    useUiStore.setState({ layoutMode: 'B' });
+    useUiStore.setState({ layoutMode: 'B', commentView: 'sidebar' });
     const { getByText, queryByText } = renderTask('vid1');
     fireEvent.click(getByText('draft'));
     expect(getByText('pending:选中的文字')).toBeInTheDocument();
@@ -64,6 +96,7 @@ describe('TaskDetail', () => {
   });
 
   it('mode A gives Reader no comment entry', () => {
+    useUiStore.setState({ commentView: 'sidebar' });
     h.mediaInfo = { video: { exists: true }, audio: { exists: false } };
     renderTask('vid1');
     expect(useUiStore.getState().layoutMode).toBe('A');
@@ -71,6 +104,7 @@ describe('TaskDetail', () => {
   });
 
   it('other layouts and articles give Reader the comment entry', () => {
+    useUiStore.setState({ commentView: 'sidebar' });
     h.mediaInfo = { video: { exists: false }, audio: { exists: true } };
     const audio = renderTask('aud1');
     expect(useUiStore.getState().layoutMode).toBe('C');
@@ -81,5 +115,102 @@ describe('TaskDetail', () => {
     renderTask('article-x');
     expect(useUiStore.getState().layoutMode).toBe('E');
     expect(h.readerProps.onCommentDraft).toBeTypeOf('function');
+  });
+
+  describe('comment view', () => {
+    const noteA = { id: 'a', anchor: 'A' };
+    const noteB = { id: 'b', anchor: 'B' };
+    const setup = (view: 'inline' | 'sidebar', notes = [noteA, noteB], located: Record<string, unknown> = {}) => {
+      h.notes = notes;
+      h.located = located;
+      h.mediaInfo = { video: { exists: false }, audio: { exists: false } };
+      useUiStore.setState({ commentView: view, layoutMode: 'E' });
+    };
+
+    it('inline view hides the right column and passes renderInline', () => {
+      setup('inline');
+      const { container } = renderTask('article-x');
+      expect(container.querySelector('.notes-col')).toBeNull();
+      expect(h.readerProps.renderInline).toBeTypeOf('function');
+    });
+
+    it('sidebar view keeps the right column and no renderInline', () => {
+      setup('sidebar');
+      const { container, queryByTestId, queryByText } = renderTask('article-x');
+      expect(container.querySelector('.notes-col')).not.toBeNull();
+      expect(h.readerProps.renderInline).toBeUndefined();
+      expect(h.readerProps.draft).toBeUndefined();
+      expect(queryByTestId('zone')).toBeNull();
+      expect(queryByText('全部收起')).toBeNull();
+    });
+
+    it('sidebar view routes anchor clicks to the notes panel focus', () => {
+      setup('sidebar');
+      const { getByText } = renderTask('article-x');
+      fireEvent.click(getByText('anchor-a'));
+      expect(getByText('focus:a')).toBeInTheDocument();
+    });
+
+    it('mode A in inline view gives Reader the comment entry', () => {
+      setup('inline');
+      h.mediaInfo = { video: { exists: true }, audio: { exists: false } };
+      renderTask('vid1');
+      expect(useUiStore.getState().layoutMode).toBe('A');
+      expect(h.readerProps.onCommentDraft).toBeTypeOf('function');
+    });
+
+    it('inline view passes the draft state to Reader and InlineCards, and onDraftDone clears it', () => {
+      setup('inline');
+      const { getByText } = renderTask('article-x');
+      expect(h.readerProps.draft).toBeNull();
+      fireEvent.click(getByText('draft'));
+      expect(h.readerProps.draft).toEqual({ anchor: '选中的文字' });
+      expect(h.inlineProps.draft).toEqual({ anchor: '选中的文字' });
+      act(() => h.inlineProps.onDraftDone?.());
+      expect(h.readerProps.draft).toBeNull();
+    });
+
+    it('collapse all then expand all', () => {
+      setup('inline');
+      const { getByText, queryByText } = renderTask('article-x');
+      expect(h.inlineProps.collapsed).toEqual(new Set());
+      fireEvent.click(getByText('全部收起'));
+      expect(h.inlineProps.collapsed).toEqual(new Set(['a', 'b']));
+      expect(h.zoneProps.collapsed).toEqual(new Set(['a', 'b']));
+      expect(queryByText('全部收起')).toBeNull();
+      fireEvent.click(getByText('全部展开'));
+      expect(h.inlineProps.collapsed).toEqual(new Set());
+      expect(getByText('全部收起')).toBeInTheDocument();
+    });
+
+    it('shows collapse all again when one note is expanded via its anchor', () => {
+      setup('inline');
+      const { getByText } = renderTask('article-x');
+      fireEvent.click(getByText('全部收起'));
+      fireEvent.click(getByText('anchor-a'));
+      expect(h.inlineProps.collapsed).toEqual(new Set(['b']));
+      expect(getByText('全部收起')).toBeInTheDocument();
+    });
+
+    it('has no collapse button without notes', () => {
+      setup('inline', []);
+      const { queryByText } = renderTask('article-x');
+      expect(queryByText('全部收起')).toBeNull();
+      expect(queryByText('全部展开')).toBeNull();
+    });
+
+    it('unlocated zone gets the notes Reader did not locate', () => {
+      setup('inline', [noteA, noteB], { a: { start: 0, end: 1, grade: 'exact' } });
+      renderTask('article-x');
+      expect(h.zoneProps.notes?.map((n) => n.id)).toEqual(['b']);
+    });
+
+    it('unlocated zone renders before the reader', () => {
+      setup('inline');
+      const { getByTestId, getByText } = renderTask('article-x');
+      const zone = getByTestId('zone');
+      const reader = getByText('draft');
+      expect(zone.compareDocumentPosition(reader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
   });
 });
