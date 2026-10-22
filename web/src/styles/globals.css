@@ -442,10 +442,14 @@ mark.vdl-note-anchor.is-linked {
 .vdl-note-point {
   color: var(--text-tertiary);
   cursor: pointer;
-  vertical-align: -1px;
   margin: 0 1px;
   transition: color 120ms;
 }
 .vdl-note-point.is-linked {
   color: var(--accent-9);
+}
+/* Tailwind preflight 把 svg 设为 block，会把段落从图标处断开 */
+.vdl-note-point svg {
+  display: inline-block;
+  vertical-align: -1px;
 }
