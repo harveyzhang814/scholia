@@ -216,45 +216,34 @@
     transition: background 120ms, box-shadow 120ms;
   }
   .sc-note-card.is-linked { background: var(--accent-3); box-shadow: inset 2px 0 0 var(--accent-9); }
-  .card-head {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    font-size: 12px;
-    color: var(--text-tertiary);
-    min-height: 32px;
-  }
+  /* 布局：评论正文在最上（首要信息）→ 近似快照 → 最底部信息行（时间点 / 原文已变化 / 相对时间 / 编辑删除，次要信息）。
+     收起按钮在正文首行最右侧；不显示类型图标（正文里的底色标记与气泡图标已区分两类评论）。 */
+  .sc-note-card { padding: 10px 12px 8px; }
+  .card-main { display: flex; align-items: flex-start; gap: 8px; }
+  .card-entries { flex: 1; min-width: 0; }
+  .card-entry { margin: 0; white-space: pre-wrap; }
   .card-toggle {
-    width: 18px; height: 18px;
+    flex-shrink: 0;
+    width: 20px; height: 20px; margin: 1px -4px 0 0;
     display: inline-flex; align-items: center; justify-content: center;
     border: none; background: none; padding: 0; cursor: pointer;
     color: var(--text-tertiary); font-size: 11px; border-radius: 3px;
   }
   .card-toggle:hover { background: var(--border-subtle); }
-  .card-kind { font-size: 13px; color: var(--text-tertiary); width: 12px; text-align: center; }
-  /* 收起时的正文预览：只在 is-collapsed 下出现，单行省略（内嵌卡片不显示锚点原文——原文就在正上方） */
+  /* 收起：整张卡片只剩一行正文预览 + 右侧展开按钮 */
   .card-preview {
     display: none;
+    flex: 1; min-width: 0;
     color: var(--text-secondary);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    min-width: 0; flex: 0 1 auto; max-width: 60%;
   }
-  .sc-note-card.is-collapsed .card-preview { display: inline; }
-  .card-ts { font-family: var(--font-mono); color: var(--accent-9); }
-  .card-approx {
-    padding: 0 6px; border-radius: 4px;
-    background: var(--bg-surface); border: 1px solid var(--border-subtle);
-    font-size: 11.5px; color: var(--text-tertiary);
-  }
-  .card-spacer { flex: 1; }
-  .card-time { font-size: 11.5px; white-space: nowrap; }
-  .card-action { font-size: 12px; color: var(--text-tertiary); cursor: pointer; opacity: 0; transition: opacity 120ms; }
-  .sc-note-card:hover .card-action, .sc-note-card.show-actions .card-action { opacity: 1; }
-  .card-body { padding: 0 12px 10px 38px; }
-  .card-entry { margin: 0; white-space: pre-wrap; }
+  .sc-note-card.is-collapsed { padding-bottom: 10px; }
+  .sc-note-card.is-collapsed .card-preview { display: block; }
+  .sc-note-card.is-collapsed .card-entries,
+  .sc-note-card.is-collapsed .card-snapshot,
+  .sc-note-card.is-collapsed .card-meta { display: none !important; }
   .card-snapshot {
-    margin: 0 0 6px;
+    margin: 6px 0 0;
     padding: 6px 8px;
     border-radius: 4px;
     background: var(--bg-surface);
@@ -263,7 +252,18 @@
     line-height: 1.6;
   }
   .card-snapshot strong { color: var(--text-secondary); font-weight: 600; }
-  .sc-note-card.is-collapsed .card-body { display: none; }
+  /* 信息行：卡片最后一行 */
+  .card-meta {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 6px;
+    font-size: 11.5px; color: var(--text-tertiary);
+    white-space: nowrap;
+  }
+  .card-meta .sep { opacity: 0.6; }
+  .card-ts { font-family: var(--font-mono); color: var(--accent-9); }
+  .card-actions { margin-left: auto; display: flex; gap: 10px; opacity: 0; transition: opacity 120ms; }
+  .card-actions span { cursor: pointer; }
+  .sc-note-card:hover .card-actions, .side-card:hover .card-actions { opacity: 1; }
 
   /* 编辑态 / 草稿卡片：textarea 自身 accent 描边表达可编辑，卡片不再叠加 is-linked */
   .card-textarea {
@@ -285,6 +285,7 @@
     font-size: 12px; padding: 1px 8px; border-radius: 4px;
     background: var(--accent-3); color: var(--accent-11);
   }
+  .sc-note-card.is-draft .card-edit-foot { margin-top: 6px; }
   .sc-note-card.is-draft { background: var(--bg-surface); border-color: var(--accent-9); }
 
   /* ── 新增：文首未定位区（UnlocatedZone），只在内嵌视图出现，位于信息栏之上 ── */
@@ -295,7 +296,6 @@
     padding: 6px 12px 8px;
   }
   .zone-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); min-height: 26px; }
-  .zone-head .card-toggle { margin-left: -4px; }
   .zone-title { font-weight: 500; }
   .zone-add { margin-left: auto; font-size: 12px; color: var(--accent-10); cursor: pointer; }
   .zone-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
@@ -398,21 +398,18 @@
           <!-- ── 未定位区（内嵌视图）：无锚点 / 未定位 / 另一个 tab 的评论 ── -->
           <div class="unlocated-zone inline-only" id="zone">
             <div class="zone-head">
-              <button class="card-toggle" aria-label="收起" data-zone-toggle>▾</button>
               <span class="zone-title">未定位评论（1）</span>
               <span class="zone-add">+ 添加评论</span>
+              <button class="card-toggle" aria-label="收起" data-zone-toggle>▾</button>
             </div>
             <div class="zone-list">
               <div class="sc-note-card" data-variant="inline" data-note-id="z1">
-                <div class="card-head">
-                  <button class="card-toggle" aria-label="收起">▾</button>
-                  <span class="card-kind"></span>
+                <div class="card-main">
                   <span class="card-preview">整体读完再回头对照第三节的实验设计。</span>
-                  <span class="card-spacer"></span>
-                  <span class="card-time">5 天前</span>
-                  <span class="card-action">编辑</span><span class="card-action">删除</span>
+                  <div class="card-entries"><p class="card-entry">整体读完再回头对照第三节的实验设计。</p></div>
+                  <button class="card-toggle" aria-label="收起">▾</button>
                 </div>
-                <div class="card-body"><p class="card-entry">整体读完再回头对照第三节的实验设计。</p></div>
+                <div class="card-meta"><span>5 天前</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
               </div>
             </div>
           </div>
@@ -431,15 +428,12 @@
           <!-- 槽位：p1 之后 -->
           <div class="sc-slot inline-only">
             <div class="sc-note-card" data-variant="inline" data-note-id="n1">
-              <div class="card-head">
-                <button class="card-toggle" aria-label="收起">▾</button>
-                <span class="card-kind">❝</span>
+              <div class="card-main">
                 <span class="card-preview">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</span>
-                <span class="card-spacer"></span>
-                <span class="card-time">3 天前</span>
-                <span class="card-action">编辑</span><span class="card-action">删除</span>
+                <div class="card-entries"><p class="card-entry">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</p></div>
+                <button class="card-toggle" aria-label="收起">▾</button>
               </div>
-              <div class="card-body"><p class="card-entry">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</p></div>
+              <div class="card-meta"><span>3 天前</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
             </div>
           </div>
 
@@ -447,22 +441,16 @@
           <!-- 槽位：p2 之后（同一段落的多条评论共用一个槽位，按位置排序；草稿卡片按自己的位置混排） -->
           <div class="sc-slot inline-only">
             <div class="sc-note-card" data-variant="inline" data-note-id="n2" id="card-n2">
-              <div class="card-head">
-                <button class="card-toggle" aria-label="收起">▾</button>
-                <span class="card-kind">‸</span>
+              <div class="card-main">
                 <span class="card-preview">这里可以补一句：长距离依赖在 RNN 里是靠门控缓解的，不是根治。</span>
-                <span class="card-approx" id="approx-badge" style="display:none;">原文已变化</span>
-                <span class="card-spacer"></span>
-                <span class="card-time">昨天</span>
-                <span class="card-action">编辑</span><span class="card-action">删除</span>
+                <div class="card-entries"><p class="card-entry">这里可以补一句：长距离依赖在 RNN 里是靠门控缓解的，不是根治。</p></div>
+                <button class="card-toggle" aria-label="收起">▾</button>
               </div>
-              <div class="card-body">
-                <p class="card-snapshot" id="approx-snapshot" style="display:none;">…并行处理序列数据，同时更好地捕捉长距离依赖关系<strong>‸</strong>。这一特性使其成为大规模预训练…</p>
-                <p class="card-entry">这里可以补一句：长距离依赖在 RNN 里是靠门控缓解的，不是根治。</p>
-              </div>
+              <p class="card-snapshot" id="approx-snapshot" style="display:none;">…并行处理序列数据，同时更好地捕捉长距离依赖关系<strong>‸</strong>。这一特性使其成为大规模预训练…</p>
+              <div class="card-meta"><span id="approx-badge" style="display:none;">原文已变化<span class="sep"> ·</span></span><span>昨天</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
             </div>
             <div class="sc-note-card is-draft" data-variant="inline" id="draft-card" style="display:none;">
-              <div class="card-body" style="padding: 10px 12px;">
+              <div>
                 <textarea class="card-textarea" rows="3" placeholder="写下评论…"></textarea>
                 <div class="card-edit-foot">
                   <span>⌘↵ 保存 · Esc 放弃</span>
@@ -479,15 +467,12 @@
               <!-- 槽位：li 内部末尾 -->
               <div class="sc-slot inline-only">
                 <div class="sc-note-card" data-variant="inline" data-note-id="n3">
-                  <div class="card-head">
-                    <button class="card-toggle" aria-label="收起">▾</button>
-                    <span class="card-kind">❝</span>
+                  <div class="card-main">
                     <span class="card-preview">编码器-解码器结构里就是这个。</span>
-                    <span class="card-spacer"></span>
-                    <span class="card-time">昨天</span>
-                    <span class="card-action">编辑</span><span class="card-action">删除</span>
+                    <div class="card-entries"><p class="card-entry">编码器-解码器结构里就是这个。</p></div>
+                    <button class="card-toggle" aria-label="收起">▾</button>
                   </div>
-                  <div class="card-body"><p class="card-entry">编码器-解码器结构里就是这个。</p></div>
+                  <div class="card-meta"><span>昨天</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
                 </div>
               </div>
             </li>
@@ -516,23 +501,24 @@
         </div>
         <div style="padding: 8px 16px; font-size: 12px; border-bottom: 1px solid var(--border-subtle);">整体读完再回头对照第三节的实验设计。</div>
         <div class="notes-abs">
-          <div class="side-card" data-note-id="n1" style="top: 150px;"><div class="sc-quote">计算机视觉等领域的演化路径</div>这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</div>
-          <div class="side-card" data-note-id="n2" style="top: 232px;">
+          <div class="side-card" data-note-id="n1" style="top: 150px;"><div class="sc-quote">计算机视觉等领域的演化路径</div>这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。<div class="card-meta"><span>3 天前</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div></div>
+          <div class="side-card" data-note-id="n2" style="top: 262px;">
             <div class="sc-quote">插入点</div>
-            <div class="hint side-approx" style="display:none;">原文已变化</div>
-            <div class="card-snapshot side-approx" style="display:none;">…捕捉长距离依赖关系<strong>‸</strong>。这一特性…</div>
             这里可以补一句：长距离依赖在 RNN 里是靠门控缓解的，不是根治。
+            <div class="card-snapshot side-approx" style="display:none;">…捕捉长距离依赖关系<strong>‸</strong>。这一特性…</div>
+            <div class="card-meta"><span class="side-approx" style="display:none;">原文已变化<span class="sep"> ·</span></span><span>昨天</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div>
           </div>
-          <div class="side-card" data-note-id="n3" style="top: 420px;"><div class="sc-quote">键和值来自另一个序列，这让解码器在生成每个词时都能回看编码器对整句输入的全部表示</div>编码器-解码器结构里就是这个。</div>
+          <div class="side-card" data-note-id="n3" style="top: 470px;"><div class="sc-quote">键和值来自另一个序列，这让解码器在生成每个词时都能回看编码器对整句输入的全部表示</div>编码器-解码器结构里就是这个。<div class="card-meta"><span>昨天</span><span class="card-actions"><span>编辑</span><span>删除</span></span></div></div>
         </div>
       </aside>
     </div>
   </div>
 
   <p class="caption">
-    <strong>内嵌卡片</strong>：头部一行依次是收起箭头、类型（<code>❝</code> 选区、<code>‸</code> 点评论、无锚点不显示）、视频时间点（有时）、「原文已变化」（近似时）、相对时间，悬停时出现「编辑 / 删除」。
-    <strong>内嵌卡片不显示锚点原文</strong>——原文就在卡片正上方。收起后只剩这一行，并在类型图标后显示评论正文的第一行（单行省略）。
-    <strong>右栏卡片</strong>在正文上方引用原文首行，最多两行，超出省略（见右栏视图里「交叉注意力」那条）；点评论引用写「插入点」。草稿卡片也不显示锚点标签。内容区目前只有一条条目（<code>note.body</code>），以后回复、AI 回答往下追加。卡片字号回到 UI 尺寸 13px，不继承正文 15px。
+    <strong>卡片布局</strong>：评论正文是首要内容，放在最上面；收起按钮 ▾ 在正文首行最右侧。原文已变化时，正文下方出现原文快照。
+    最底部一行是次要信息：视频时间点（有时）、「原文已变化」（近似时）、相对时间，右侧「编辑 / 删除」悬停时出现。不显示类型图标——正文里的底色标记（选区评论）和气泡图标（点评论）已经区分两类。
+    <strong>内嵌卡片不显示锚点原文</strong>（原文就在卡片正上方）；收起后只剩一行：评论正文首行（单行省略）+ 右侧展开按钮。
+    <strong>右栏卡片</strong>多一行引用原文在最上（首行，最多两行，超出省略；点评论写「插入点」），其余结构相同，不能收起。草稿卡片不显示锚点标签。
   </p>
   <p class="caption">
     <strong>槽位位置</strong>：段落、标题、代码块、表格之后；列表项在 <code>li</code> 内部末尾（见「交叉注意力」那一项）。同一段落的多条评论共用一个槽位，按位置排序，草稿卡片按自己的位置插在中间。
@@ -667,9 +653,9 @@
         document.querySelector('.article-col-mock').scrollTop = 380;  // 正文列内滚到草稿卡片
       }
       if (s === 'approx') {
-        approxBadge.style.display = 'inline-block';
+        approxBadge.style.display = 'inline';
         approxSnap.style.display = 'block';
-        sideApprox.forEach(function (e) { e.style.display = 'block'; });
+        sideApprox.forEach(function (e) { e.style.display = e.tagName === 'SPAN' ? 'inline' : 'block'; });
       }
     });
   });

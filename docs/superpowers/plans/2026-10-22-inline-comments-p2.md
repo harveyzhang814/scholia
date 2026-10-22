@@ -28,7 +28,7 @@
 ## 关键决定（本计划细化，spec 未写死的部分）
 
 - **引用原文只在右栏卡片上显示**（用户 2026-10-22 确认）：内嵌卡片紧贴在原文下方，不再重复显示锚点摘录；右栏卡片离原文远，在正文上方显示引用的原文（截断见 Task 2）。
-- **右栏卡片其余部分不变**：`variant="sidebar"` 除新增引用外，与现在的 `NoteItem` 一致（时间点、"原文已变化"、正文、悬停时显示编辑/删除），另加近似时的原文快照。收起箭头、类型图标、创建时间只在内嵌卡片上出现。右栏不支持收起。
+- **评论正文是卡片的首要内容**（用户 2026-10-22 确认）：两种卡片都是「正文在最上（右栏卡片上方多一行引用）→ 近似快照 → 最底部的信息行」。时间点、「原文已变化」、相对时间、编辑/删除都是次要信息，放在信息行；收起按钮放在正文首行的最右侧。不显示类型图标（正文里的底色标记和气泡图标已能区分选区评论与点评论）。右栏卡片不支持收起。
 - **Mode A 在内嵌视图下打开评论入口**：第 1 期在 Mode A 不传 `onCommentDraft`，原因是草稿会进到看不见的右栏。内嵌视图下草稿卡片就在正文里，所以 Mode A + 内嵌视图恢复三个入口；Mode A + 右栏视图维持第 1 期的行为。
 - **内嵌视图不渲染右栏**：`notes-col` 整个不渲染，正文列按现有 flex 规则占满这块宽度（Mode E 的 72ch 上限仍在）。
 - **未定位区放在 `Reader` 之上**（在信息栏之前），只在内嵌视图出现，总是渲染（n 为 0 时也在，保证"添加评论"可用）。
@@ -147,12 +147,15 @@ git commit -m "feat(web): comment view state with inline/sidebar toggle"
   ```
 
 **行为：**
-- **外壳**负责：头部、近似快照、编辑状态、悬停联动、高度上报（`ResizeObserver`，有 `onHeightChange` 时才挂）、`autoEdit`；**条目**组件 `NoteEntry` 只负责显示或编辑一条文字。以后加回复、AI 回答只往 `noteEntries` 里加，要支持 Markdown 只改 `NoteEntry`。
-- **内嵌头部**（一行，从左到右）：收起箭头按钮（`aria-label` 为 `收起` 或 `展开`，文字 `▾` / `▸`）、类型图标（选区用 `❝`，点评论用 `‸`，无锚点不显示）、收起时的正文预览（见下方「收起」）、时间点 `@ mm:ss`（有 `mediaTimestamp` 时）、`原文已变化`（近似时）、`formatRelativeTime(createdAt)`、`编辑`、`删除`。
-- **内嵌卡片不显示锚点摘录**：原文就在卡片正上方。
-- **右栏**：正文上方新增一行引用（元素带 `data-quote` 和 class `sc-quote`）：选区评论显示 `anchor` 的第一行，`globals.css` 里 `.sc-quote` 限制最多两行（`display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden`），超出显示省略号；点评论显示 `插入点`；无锚点不显示。颜色 `var(--text-tertiary)`，字号 12px。其余与现在的 `NoteItem` 一致（悬停才显示编辑/删除；`isLinked` 时滚动到可见并加底色，编辑中不加底色）。
-- **近似快照**（两种 variant 都有，收起时不显示）：`prefix` + 加粗的 `anchor` + `suffix`；点评论在中间显示 `‸`。没有 `prefix/suffix` 的旧评论不显示快照。
-- **收起**（仅 inline）：只渲染头部这一行，头部在类型图标之后显示评论正文的第一行（单行，`text-overflow: ellipsis`，元素带 `data-preview`）；展开时不显示这段预览。
+- **外壳**负责：引用行、收起按钮、近似快照、信息行、编辑状态、悬停联动、高度上报（`ResizeObserver`，有 `onHeightChange` 时才挂）、`autoEdit`；**条目**组件 `NoteEntry` 只负责显示或编辑一条文字。以后加回复、AI 回答只往 `noteEntries` 里加，要支持 Markdown 只改 `NoteEntry`。
+- **卡片布局**（两种 variant 相同，从上到下）：
+  1. 引用行（仅右栏，见下）。
+  2. 正文区：条目列表（`NoteEntry`）。内嵌卡片在正文区首行最右侧放收起按钮（`aria-label` 为 `收起` 或 `展开`，文字 `▾` / `▸`）。
+  3. 近似快照（近似时）：`prefix` + 加粗的 `anchor` + `suffix`，点评论在中间显示 `‸`；没有 `prefix/suffix` 的旧评论不显示。12px，`var(--text-tertiary)`。
+  4. 信息行（元素带 `data-meta`，卡片的最后一个子元素）：左侧依次为时间点 `@ mm:ss`（有 `mediaTimestamp` 时，mono 字体、accent 色）、`原文已变化`（近似时）、`formatRelativeTime(createdAt)`，用 ` · ` 分隔；右侧 `编辑`、`删除`，悬停卡片时才显示。11.5px，`var(--text-tertiary)`。
+- **不显示类型图标**。**内嵌卡片不显示锚点摘录**：原文就在卡片正上方。
+- **右栏引用行**（元素带 `data-quote` 和 class `sc-quote`）：选区评论显示 `anchor` 的第一行，`globals.css` 里 `.sc-quote` 限制最多两行（`display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden`），超出显示省略号；点评论显示 `插入点`；无锚点不显示。颜色 `var(--text-tertiary)`，字号 12px。右栏其余交互与现在的 `NoteItem` 一致（`isLinked` 时滚动到可见并加底色，编辑中不加底色）。
+- **收起**（仅 inline）：整张卡片只剩一行——评论正文的第一行（单行，`text-overflow: ellipsis`，元素带 `data-preview`）加最右侧的展开按钮；正文区、快照、信息行都不渲染。展开时不渲染 `data-preview`。
 - **编辑**：⌘↵ 或失焦保存，Esc 放弃，规则与现在的 `NoteItem` 相同。
 - 内嵌卡片 `isLinked` 时加底色但**不**滚动。
 
@@ -176,6 +179,17 @@ it('NoteCard shows 原文已变化 when approximate', () => {
 });
 it('noteEntries turns the body into one entry', () => {
   expect(noteEntries(base)).toEqual([{ id: 'n1', kind: 'body', text: '一条笔记' }]);
+});
+it('body comes first and the meta line is last', () => {
+  const n = { ...base, mediaTimestamp: 65 };
+  const { container } = render(<NoteCard variant="inline" note={n} approximate isLinked={false} onHover={noop} onUpdate={noop} onDelete={noop} />);
+  const card = container.querySelector('[data-note-card]')!;
+  const meta = card.querySelector('[data-meta]')!;
+  expect(card.lastElementChild).toBe(meta);
+  expect(meta.textContent).toContain('@ 1:05');
+  expect(meta.textContent).toContain('原文已变化');
+  expect(meta.textContent).toContain('刚刚');
+  expect(card.textContent!.indexOf('一条笔记')).toBeLessThan(card.textContent!.indexOf('@ 1:05'));
 });
 it('inline card omits the anchor excerpt but shows time point and actions', () => {
   const n = { ...base, anchor: '第一行原文\n第二行', mediaTimestamp: 65 };
@@ -400,7 +414,7 @@ git commit -m "feat(web): inline card slots under anchored blocks via portals"
 **行为：**
 - **`DraftCard`**：内嵌样式的卡片（绿色描边），不显示锚点标签（位置就在正文里），一个自动聚焦的 textarea、提示 `⌘↵ 保存 · Esc 放弃`、`保存` 按钮。⌘↵ 或点保存：正文非空时 `addNote.mutate({ ...anchor, body, ...(hasMedia && currentTime > 0 ? { mediaTimestamp: Math.floor(currentTime) } : {}) })`，然后 `onDone()`；Esc：`onDone()`。
 - **`InlineCards`**：按 `ids` 顺序渲染；`DRAFT_ID` 渲染 `DraftCard`（`draft` 为 null 时跳过），其余渲染 `NoteCard variant="inline"`，`approximate` 取 `located[id]?.grade === 'approximate'`，`collapsed` 取 `collapsed.has(id)`。找不到对应 note 的 id 跳过。
-- **`UnlocatedZone`**：头部是一个切换按钮 `未定位评论（n）`（区域自身的展开状态，默认展开）和一个 `添加评论` 按钮。点 `添加评论` 在区域内显示 `DraftCard`，`anchor` 为 `{ anchor: '' }`。展开时用 `NoteCard variant="inline"` 列出 `notes`。
+- **`UnlocatedZone`**：一行：左侧标题 `未定位评论（n）`，右侧依次是 `添加评论` 按钮和收起/展开按钮（`▾` / `▸`，区域自身的展开状态，默认展开）。点 `添加评论` 在区域内显示 `DraftCard`，`anchor` 为 `{ anchor: '' }`。展开时用 `NoteCard variant="inline"` 列出 `notes`。
 
 - [ ] **Step 1: 写失败的测试**（用 `QueryClientProvider` 包一层，照 `notes-panel.test.tsx` 的 `renderWithClient`；`vi.spyOn(api, 'addNote')` 捕获请求）
 
@@ -420,7 +434,7 @@ it('inline cards render draft and notes in slot order', () => {
   // ids = ['b', DRAFT_ID, 'a'] → DOM 顺序：b 的卡片、草稿卡片、a 的卡片
 });
 it('collapsed state survives notes refetch', () => {
-  // collapsed = new Set(['a'])；rerender 时 notes 换成新数组（a 的 body 不变）→ a 仍只显示头部
+  // collapsed = new Set(['a'])；rerender 时 notes 换成新数组（a 的 body 不变）→ a 仍只显示收起行（data-preview）
 });
 it('unlocated zone lists notes and adds an anchorless note', async () => {
   // notes = [无锚点评论]；显示 '未定位评论（1）' 和该评论；点 '添加评论' → 出现 textarea；保存 → addNote 收到 anchor: ''
