@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useTask, useContent, useReveal, useMediaInfo, useHighlights, useAddHighlight, useDeleteHighlight, useNotes } from '@/hooks/use-tasks';
 import { Reader } from '@/components/reader';
 import { Toc, extractToc } from '@/components/toc';
@@ -12,6 +12,14 @@ import { useUiStore } from '@/stores/ui-store';
 import type { LayoutMode } from '@/stores/ui-store';
 import { usePlayerStore } from '@/stores/player-store';
 import { useMarkRead, useMarkUnread } from '@/hooks/use-read-state';
+import type { NoteAnchor } from '@/lib/api';
+import type { Located } from '@/lib/anchor';
+
+function sameLocated(a: Record<string, Located>, b: Record<string, Located>): boolean {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every((k) => b[k] && a[k].start === b[k].start && a[k].end === b[k].end && a[k].grade === b[k].grade);
+}
 
 export default function TaskDetail() {
   const { id = '' } = useParams();
@@ -41,7 +49,11 @@ export default function TaskDetail() {
   const setLayoutMode = useUiStore((s) => s.setLayoutMode);
   const [ccEnabled, setCcEnabled] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
-  const [pendingAnchor, setPendingAnchor] = useState<string>('');
+  const [draft, setDraft] = useState<NoteAnchor | null>(null);
+  const [located, setLocated] = useState<Record<string, Located>>({});
+  const onNotesLocated = useCallback((next: Record<string, Located>) => {
+    setLocated((prev) => (sameLocated(prev, next) ? prev : next));
+  }, []);
   const { data: notes = [] } = useNotes(id);
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
@@ -170,7 +182,7 @@ export default function TaskDetail() {
                    style={{ borderColor: 'var(--border-subtle)' }}>
                 <div className="flex">
                   {!isArticleTask && (['summary', 'article'] as const).map((t) => (
-                    <button key={t} onClick={() => setTab(t)}
+                    <button key={t} onClick={() => { if (t !== tab) { setTab(t); setDraft(null); } }}
                             className="py-2.5 mr-6 text-sm border-b-2 transition-colors cursor-pointer"
                             style={{
                               borderColor: tab === t ? 'var(--accent-9)' : 'transparent',
@@ -198,8 +210,10 @@ export default function TaskDetail() {
                       content={content}
                       frontmatter={tab === 'article' ? task.frontmatter : undefined}
                       highlights={highlights}
+                      doc={isArticleTask ? undefined : tab}
                       notes={notes}
-                      onAnchorSelect={(anchor) => setPendingAnchor(anchor)}
+                      onNotesLocated={onNotesLocated}
+                      onCommentDraft={layoutMode === 'A' ? undefined : setDraft}
                       onAddHighlight={(anchor, color) => addHighlight.mutate({ anchor, color })}
                       onDeleteHighlight={(hlId) => deleteHighlight.mutate(hlId)}
                       hoveredNoteId={hoveredNoteId}
@@ -212,9 +226,10 @@ export default function TaskDetail() {
                     <NotesPanel
                       taskId={id}
                       hasMedia={!!mediaKind}
-                      pendingAnchor={pendingAnchor}
-                      onAnchorConsumed={() => setPendingAnchor('')}
+                      pendingAnchor={draft}
+                      onAnchorConsumed={() => setDraft(null)}
                       articleRef={articleRef}
+                      located={located}
                       hoveredNoteId={hoveredNoteId}
                       onNoteHover={setHoveredNoteId}
                       focusNoteId={focusNoteId}

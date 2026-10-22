@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type Task, type Note, type Highlight } from '@/lib/api';
+import { api, type Task, type Note, type NoteAnchor, type Highlight } from '@/lib/api';
 
 export function useMediaInfo(id: string | undefined) {
   return useQuery({
@@ -77,7 +77,7 @@ export function useNotes(taskId: string | undefined) {
 export function useAddNote(taskId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { anchor?: string; mediaTimestamp?: number; body: string }) =>
+    mutationFn: (data: Partial<NoteAnchor> & { mediaTimestamp?: number; body: string }) =>
       api.addNote(taskId, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['task', taskId, 'notes'] }),
   });

@@ -1,20 +1,24 @@
-import { useMemo, useRef, useState, useCallback, useEffect } from 'react';
+import { useMemo, useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import { MarkdownPreview } from '@harveyzhang814/markdown-preview-core';
 import type { Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import { ArticleMetaBar } from './article-meta-bar';
-import { api, type Highlight, type Note } from '@/lib/api';
+import { api, type Highlight, type Note, type NoteAnchor, type NoteDoc } from '@/lib/api';
+import { buildTextIndex, caretRangeAt, offsetToPoint, rangeToOffsets, UI_ATTR, type TextIndex } from '@/lib/text-index';
+import { captureAnchor, locateAnchor, type Located } from '@/lib/anchor';
 
 interface ReaderProps {
   taskId?: string;
   content: string;
   frontmatter?: Record<string, unknown>;
   highlights?: Highlight[];
-  notes?: Pick<Note, 'id' | 'anchor'>[];
+  doc?: NoteDoc;
+  notes?: (Pick<Note, 'id'> & NoteAnchor)[];
+  onNotesLocated?: (located: Record<string, Located>) => void;
   hoveredNoteId?: string | null;
   onNoteHover?: (id: string | null) => void;
   onNoteAnchorClick?: (id: string) => void;
-  onAnchorSelect?: (anchor: string) => void;
+  onCommentDraft?: (a: NoteAnchor) => void;
   onAddHighlight?: (anchor: string, color: 'yellow' | 'green' | 'red' | 'blue') => void;
   onDeleteHighlight?: (id: string) => void;
 }
@@ -39,47 +43,39 @@ const COLORS: { key: 'yellow' | 'green' | 'red' | 'blue'; bg?: string; underline
 
 interface AnchorMarkItem {
   id: string;
-  anchor: string;
+  start: number;
+  end: number;
 }
 
+// Small speech-bubble icon for point notes; no text, so it stays out of the text index.
+const POINT_ICON_SVG =
+  '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">'
+  + '<path d="M2.5 3.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H7l-3 2.5V11h-.5a1 1 0 0 1-1-1z" '
+  + 'stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+
 function injectAnchorMarks<T extends AnchorMarkItem>(
-  article: HTMLElement,
+  root: HTMLElement,
   items: T[],
   markClass: string,
   decorate: (mark: HTMLElement, item: T) => void,
 ) {
   // Unwrap all previously injected marks of this class
-  article.querySelectorAll(`mark.${markClass}`).forEach((mark) => {
+  root.querySelectorAll(`mark.${markClass}`).forEach((mark) => {
     mark.replaceWith(...Array.from(mark.childNodes));
   });
 
   for (const item of items) {
-    // Search across the full concatenated text so an anchor that spans
-    // multiple text nodes (e.g. selection crossing into/out of a <strong>
-    // or <a>) can still be found — a single node's textContent won't
-    // contain it even though the anchor exists in the rendered text.
-    const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
-    const textNodes: Text[] = [];
-    let fullText = '';
-    let node: Text | null;
-    while ((node = walker.nextNode() as Text | null)) {
-      textNodes.push(node);
-      fullText += node.textContent ?? '';
-    }
-    const idx = fullText.indexOf(item.anchor);
-    if (idx === -1) continue;
-    const end = idx + item.anchor.length;
-
-    let pos = 0;
-    for (const tn of textNodes) {
-      const nodeStart = pos;
-      const nodeEnd = pos + (tn.textContent?.length ?? 0);
-      pos = nodeEnd;
-      if (nodeEnd <= idx || nodeStart >= end) continue;
+    // Wrapping splits text nodes but keeps the text, so offsets stay valid;
+    // re-index to map them onto the current nodes. A range may span several
+    // text nodes (e.g. into a <strong>, or across blocks) — wrap each slice.
+    const index = buildTextIndex(root);
+    for (const { node: tn, start: nodeStart } of index.segments) {
+      const nodeEnd = nodeStart + tn.data.length;
+      if (nodeEnd <= item.start || nodeStart >= item.end) continue;
 
       let target = tn;
-      const sliceStart = Math.max(0, idx - nodeStart);
-      const sliceEnd = Math.min(nodeEnd, end) - nodeStart;
+      const sliceStart = Math.max(0, item.start - nodeStart);
+      const sliceEnd = Math.min(nodeEnd, item.end) - nodeStart;
       if (sliceStart > 0) target = target.splitText(sliceStart);
       if (sliceEnd - sliceStart < (target.textContent?.length ?? 0)) target.splitText(sliceEnd - sliceStart);
 
@@ -92,9 +88,19 @@ function injectAnchorMarks<T extends AnchorMarkItem>(
   }
 }
 
-export function Reader({ taskId, content, frontmatter, highlights, notes, onAnchorSelect, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
+// Offsets of the current non-empty selection, or null if there is none or it leaves the indexed root.
+function selectionOffsets(index: TextIndex): { start: number; end: number } | null {
+  const sel = window.getSelection();
+  return sel && !sel.isCollapsed && sel.rangeCount ? rangeToOffsets(index, sel.getRangeAt(0)) : null;
+}
+
+export function Reader({ taskId, content, frontmatter, highlights, doc, notes, onNotesLocated, onCommentDraft, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
   const md = useMemo(() => content ?? '', [content]);
-  const articleRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // Latest callback, kept out of the injection effect's deps: callers may pass
+  // a fresh function each render, which would otherwise re-inject (and loop).
+  const onNotesLocatedRef = useRef(onNotesLocated);
+  useLayoutEffect(() => { onNotesLocatedRef.current = onNotesLocated; });
   const isArticleTask = taskId?.startsWith('article-') ?? false;
 
   const mdComponents: Components = useMemo(() => ({
@@ -108,7 +114,7 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
   }), [isArticleTask, taskId]);
 
   // ── Selection bubble ────────────────────────────────────────
-  const [bubble, setBubble] = useState<{ x: number; y: number; anchor: string } | null>(null);
+  const [bubble, setBubble] = useState<{ x: number; y: number; anchor: string; start: number; end: number } | null>(null);
 
   const handleMouseUp = useCallback(() => {
     const sel = window.getSelection();
@@ -116,10 +122,12 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
     const text = sel.toString().trim();
     if (!text) return;
     const range = sel.getRangeAt(0);
-    if (!articleRef.current?.contains(range.commonAncestorContainer)) return;
+    const body = bodyRef.current;
+    const offsets = body && rangeToOffsets(buildTextIndex(body), range);
+    if (!offsets) return;
     const rect = range.getBoundingClientRect();
     const anchor = text.slice(0, 200);
-    setBubble({ x: rect.left + rect.width / 2, y: rect.top, anchor });
+    setBubble({ x: rect.left + rect.width / 2, y: rect.top, anchor, ...offsets });
   }, []);
 
   useEffect(() => {
@@ -145,23 +153,46 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
   };
 
   const handleNoteClick = () => {
-    if (!bubble) return;
-    onAnchorSelect?.(bubble.anchor);
+    if (!bubble || !bodyRef.current) return;
+    onCommentDraft?.(captureAnchor(buildTextIndex(bodyRef.current), bubble.start, bubble.end, doc));
     window.getSelection()?.removeAllRanges();
     setBubble(null);
   };
 
-  // ── Context-menu delete overlay ──────────────────────────────
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; hlId: string } | null>(null);
+  // ── Context menu: comment here / delete highlight ────────────
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; hlId: string; draft?: NoteAnchor } | null>(null);
+
+  // Selection as it was at the right-button mousedown, before macOS selects the word under the cursor.
+  const preClickSelRef = useRef<{ sel: { start: number; end: number } | null } | null>(null);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    const body = bodyRef.current;
+    preClickSelRef.current = e.button === 2 && body ? { sel: selectionOffsets(buildTextIndex(body)) } : null;
+  }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    const mark = (e.target as Element).closest('mark.vdl-hl') as HTMLElement | null;
-    if (!mark) return;
+    const snapshot = preClickSelRef.current;
+    preClickSelRef.current = null;
+    if (e.shiftKey) return;  // Shift+right-click keeps the native menu
+    const target = e.target as Element;
+    const mark = target.closest('mark.vdl-hl') as HTMLElement | null;
+    const body = bodyRef.current;
+    let draft: NoteAnchor | undefined;
+    if (onCommentDraft && body?.contains(target)) {
+      // Right-click inside a non-empty selection comments on it; anywhere else, on the caret point.
+      const index = buildTextIndex(body);
+      const caretRange = caretRangeAt(e.clientX, e.clientY);
+      const caret = caretRange && rangeToOffsets(index, caretRange);
+      const sel = snapshot ? snapshot.sel : selectionOffsets(index);
+      const offsets = sel && caret && sel.start < sel.end && caret.start >= sel.start && caret.start <= sel.end ? sel : caret;
+      if (offsets) draft = captureAnchor(index, offsets.start, offsets.end, doc);
+    }
+    if (!mark && !draft) return;
     e.preventDefault();
-    const hlId = mark.dataset.hlId ?? '';
-    if (!hlId) return;
-    setCtxMenu({ x: e.clientX, y: e.clientY, hlId });
-  }, []);
+    const hlId = mark?.dataset.hlId ?? '';
+    if (!hlId && !draft) return;
+    setCtxMenu({ x: e.clientX, y: e.clientY, hlId, draft });
+  }, [onCommentDraft, doc]);
 
   useEffect(() => {
     if (!ctxMenu) return;
@@ -174,18 +205,50 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
     };
   }, [ctxMenu]);
 
+  const handleCommentHere = () => {
+    if (!ctxMenu?.draft) return;
+    onCommentDraft?.(ctxMenu.draft);
+    setCtxMenu(null);
+  };
+
   const handleDeleteHighlight = () => {
     if (!ctxMenu) return;
     onDeleteHighlight?.(ctxMenu.hlId);
     setCtxMenu(null);
   };
 
+  // ── `c` key: comment on the current selection or caret ───────
+  useEffect(() => {
+    if (!onCommentDraft) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'c' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement;
+      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
+      const sel = window.getSelection();
+      const body = bodyRef.current;
+      if (!body || !sel?.rangeCount) return;
+      const index = buildTextIndex(body);
+      const offsets = rangeToOffsets(index, sel.getRangeAt(0));
+      if (!offsets) return;
+      e.preventDefault();
+      onCommentDraft(captureAnchor(index, offsets.start, offsets.end, doc));
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onCommentDraft, doc]);
+
   // ── Post-render highlight injection ─────────────────────────
   useEffect(() => {
-    const article = articleRef.current;
-    if (!article) return;
+    const body = bodyRef.current;
+    if (!body) return;
     const sorted = highlights?.length ? [...highlights].sort((a, b) => a.createdAt - b.createdAt) : [];
-    injectAnchorMarks(article, sorted, 'vdl-hl', (mark, hl) => {
+    // First occurrence of the quoted text, as before.
+    const { text } = buildTextIndex(body);
+    const ranged = sorted.flatMap((hl) => {
+      const start = text.indexOf(hl.anchor);
+      return start === -1 ? [] : [{ ...hl, start, end: start + hl.anchor.length }];
+    });
+    injectAnchorMarks(body, ranged, 'vdl-hl', (mark, hl) => {
       mark.dataset.hlId = hl.id;
       mark.dataset.color = hl.color;
     });
@@ -193,38 +256,70 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
 
   // ── Post-render note-anchor injection ────────────────────────
   useEffect(() => {
-    const article = articleRef.current;
-    if (!article) return;
-    const anchored = notes?.length ? notes.filter((n) => n.anchor) : [];
-    injectAnchorMarks(article, anchored, 'vdl-note-anchor', (mark, note) => {
-      mark.dataset.noteId = note.id;
-      mark.addEventListener('mouseenter', () => onNoteHover?.(note.id));
-      mark.addEventListener('mouseleave', () => onNoteHover?.(null));
-      mark.addEventListener('click', () => onNoteAnchorClick?.(note.id));
-    });
-  }, [notes, md, onNoteHover, onNoteAnchorClick]);
+    const body = bodyRef.current;
+    if (!body) return;
+    const index = buildTextIndex(body);
+    const located: Record<string, Located> = {};
+    for (const note of notes ?? []) {
+      if (doc && note.doc && note.doc !== doc) continue;
+      const loc = locateAnchor(index, note);
+      if (loc) located[note.id] = loc;
+    }
+    const items = Object.entries(located).map(([id, loc]) => ({ id, start: loc.start, end: loc.end }));
+
+    const decorate = (el: HTMLElement, note: { id: string }) => {
+      el.dataset.noteId = note.id;
+      el.addEventListener('mouseenter', () => onNoteHover?.(note.id));
+      el.addEventListener('mouseleave', () => onNoteHover?.(null));
+      el.addEventListener('click', () => onNoteAnchorClick?.(note.id));
+    };
+    // Point notes: an icon at the offset. offsetToPoint resolves a block-edge
+    // offset to a node inside that block, so the icon stays in its block.
+    // Icons go in before marks are (re)wrapped, so they never end up inside a mark.
+    body.querySelectorAll('span.vdl-note-point').forEach((el) => el.remove());
+    for (const item of items.filter((it) => it.start === it.end)) {
+      const pt = offsetToPoint(buildTextIndex(body), item.start);
+      if (!pt) continue;
+      const icon = document.createElement('span');
+      icon.className = 'vdl-note-point';
+      icon.setAttribute(UI_ATTR, '');
+      icon.innerHTML = POINT_ICON_SVG;
+      decorate(icon, item);
+      // The icon can land inside an inline <a> (offset at the link's end); don't follow it.
+      icon.addEventListener('click', (e) => e.preventDefault());
+      const { node, offset } = pt;
+      const before = offset === 0 ? node : offset < node.data.length ? node.splitText(offset) : node.nextSibling;
+      node.parentNode?.insertBefore(icon, before);
+    }
+    injectAnchorMarks(body, items.filter((it) => it.start < it.end), 'vdl-note-anchor', decorate);
+
+    onNotesLocatedRef.current?.(located);
+  }, [notes, doc, md, onNoteHover, onNoteAnchorClick]);
 
   // ── Reverse hover sync: sidebar card → article mark ──────────
-  // NOTE: This effect depends on running AFTER the note-injection effect (deps [notes, md, ...])
+  // NOTE: This effect depends on running AFTER the note-injection effect (deps [notes, doc, md, ...])
   // to re-apply is-linked to the fresh marks. Relies on onNoteHover/onNoteAnchorClick being stable.
   useEffect(() => {
-    const article = articleRef.current;
-    if (!article) return;
-    article.querySelectorAll('mark.vdl-note-anchor').forEach((el) => {
+    const body = bodyRef.current;
+    if (!body) return;
+    body.querySelectorAll('mark.vdl-note-anchor, span.vdl-note-point').forEach((el) => {
       const markEl = el as HTMLElement;
       markEl.classList.toggle('is-linked', !!hoveredNoteId && markEl.dataset.noteId === hoveredNoteId);
     });
-  }, [hoveredNoteId, notes, md]);
+  }, [hoveredNoteId, notes, doc, md]);
 
   return (
     <>
-      <article ref={articleRef} className="prose-cn" onMouseUp={handleMouseUp} onContextMenu={handleContextMenu}>
+      <article className="prose-cn" onMouseDown={handleMouseDown} onMouseUp={handleMouseUp} onContextMenu={handleContextMenu}>
         <ArticleMetaBar frontmatter={frontmatter} />
-        <MarkdownPreview
-          content={md}
-          rehypePlugins={[rehypeHighlight]}
-          components={mdComponents}
-        />
+        <div data-sc-body ref={bodyRef}>
+          <MarkdownPreview
+            key={md}
+            content={md}
+            rehypePlugins={[rehypeHighlight]}
+            components={mdComponents}
+          />
+        </div>
       </article>
 
       {/* Selection toolbar */}
@@ -271,12 +366,12 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
             </button>
           ))}
 
-          {onAnchorSelect && (
+          {onCommentDraft && (
             <>
               <div style={{ width: 1, height: 14, background: 'var(--border-subtle)', margin: '0 2px' }} />
               <button
                 onClick={handleNoteClick}
-                title="添加笔记"
+                title="评论"
                 style={{
                   width: 22, height: 22,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -294,7 +389,7 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
         </div>
       )}
 
-      {/* Context-menu delete overlay */}
+      {/* Context menu */}
       {ctxMenu && (
         <div
           style={{
@@ -310,18 +405,34 @@ export function Reader({ taskId, content, frontmatter, highlights, notes, onAnch
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={handleDeleteHighlight}
-            style={{
-              display: 'block', width: '100%',
-              padding: '7px 14px',
-              fontSize: 13, textAlign: 'left',
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--status-err)',
-            }}
-          >
-            删除高亮
-          </button>
+          {ctxMenu.draft && (
+            <button
+              onClick={handleCommentHere}
+              style={{
+                display: 'block', width: '100%',
+                padding: '7px 14px',
+                fontSize: 13, textAlign: 'left',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text-primary)',
+              }}
+            >
+              在此处评论
+            </button>
+          )}
+          {ctxMenu.hlId && (
+            <button
+              onClick={handleDeleteHighlight}
+              style={{
+                display: 'block', width: '100%',
+                padding: '7px 14px',
+                fontSize: 13, textAlign: 'left',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--status-err)',
+              }}
+            >
+              删除高亮
+            </button>
+          )}
         </div>
       )}
     </>

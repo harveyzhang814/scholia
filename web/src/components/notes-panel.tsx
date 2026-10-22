@@ -3,36 +3,38 @@ import { usePlayerStore } from '@/stores/player-store';
 import { formatDuration } from '@/lib/time';
 import { useNotes, useAddNote, useUpdateNote, useDeleteNote } from '@/hooks/use-tasks';
 import { computePositions } from '@/lib/anchor-layout';
-import type { Note } from '@/lib/api';
+import { anchorKind, type Located } from '@/lib/anchor';
+import { BLOCK } from '@/lib/text-index';
+import type { Note, NoteAnchor } from '@/lib/api';
 
 interface NotesPanelProps {
   taskId: string;
   hasMedia: boolean;
-  pendingAnchor?: string;
+  pendingAnchor?: NoteAnchor | null;
   onAnchorConsumed?: () => void;
   articleRef?: RefObject<HTMLDivElement | null>;
   hoveredNoteId?: string | null;
   onNoteHover?: (id: string | null) => void;
   focusNoteId?: string | null;
   onFocusConsumed?: () => void;
+  located?: Record<string, Located>;
 }
 
-function resolveAnchorY(anchor: string, articleEl: HTMLElement): number | null {
-  const walker = document.createTreeWalker(articleEl, NodeFilter.SHOW_TEXT);
-  let node: Text | null;
-  while ((node = walker.nextNode() as Text | null)) {
-    if (node.textContent?.includes(anchor)) {
-      let el: HTMLElement | null = node.parentElement;
-      while (el && !['P', 'H1', 'H2', 'H3', 'H4', 'LI', 'BLOCKQUOTE'].includes(el.tagName)) {
-        el = el.parentElement;
-      }
-      if (!el) return null;
-      const elRect = el.getBoundingClientRect();
-      const artRect = articleEl.getBoundingClientRect();
-      return elRect.top - artRect.top + articleEl.scrollTop;
-    }
-  }
-  return null;
+// Top of the block holding the note's first mark/icon in the article (the mark itself if no block).
+function noteMarkY(noteId: string, articleEl: HTMLElement): number | null {
+  const mark = articleEl.querySelector<HTMLElement>(`[data-note-id="${noteId}"]`);
+  if (!mark) return null;
+  let block: HTMLElement | null = mark;
+  while (block && block !== articleEl && !BLOCK.has(block.tagName)) block = block.parentElement;
+  const el = block && block !== articleEl ? block : mark;
+  const elRect = el.getBoundingClientRect();
+  const artRect = articleEl.getBoundingClientRect();
+  return elRect.top - artRect.top + articleEl.scrollTop;
+}
+
+function anchorLabel(a: NoteAnchor): string {
+  if (anchorKind(a) === 'range') return `锚点：${a.anchor.slice(0, 40)}${a.anchor.length > 40 ? '…' : ''}`;
+  return a.prefix ? `插入点：…${a.prefix.slice(-12)}` : `插入点：${(a.suffix ?? '').slice(0, 12)}…`;
 }
 
 export function NoteItem({
@@ -44,6 +46,7 @@ export function NoteItem({
   onHover,
   autoEdit,
   onAutoEditConsumed,
+  approximate,
 }: {
   note: Note;
   onUpdate: (body: string) => void;
@@ -53,6 +56,7 @@ export function NoteItem({
   onHover: (id: string | null) => void;
   autoEdit: boolean;
   onAutoEditConsumed: () => void;
+  approximate?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.body);
@@ -102,6 +106,12 @@ export function NoteItem({
       {note.mediaTimestamp !== undefined && (
         <div className="text-xs mb-1" style={{ color: 'var(--accent-9)', fontFamily: 'var(--font-mono)' }}>
           @ {formatDuration(note.mediaTimestamp)}
+        </div>
+      )}
+
+      {approximate && (
+        <div className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>
+          原文已变化
         </div>
       )}
 
@@ -159,7 +169,7 @@ export function NoteItem({
 const ESTIMATED_HEIGHT = 72;
 const GAP = 8;
 
-export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, articleRef, hoveredNoteId, onNoteHover, focusNoteId, onFocusConsumed }: NotesPanelProps) {
+export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, articleRef, hoveredNoteId, onNoteHover, focusNoteId, onFocusConsumed, located }: NotesPanelProps) {
   const [draft, setDraft] = useState('');
   const currentTime = usePlayerStore((s) => s.currentTime);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -195,9 +205,9 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
   useLayoutEffect(() => {
     const el = articleRef?.current;
     if (!el) return;
-    const anchored = notes.filter((n) => n.anchor);
-    const layouts = anchored.map((n) => {
-      const anchorY = resolveAnchorY(n.anchor, el) ?? 0;
+    const placed = notes.filter((n) => located?.[n.id]);
+    const layouts = placed.map((n) => {
+      const anchorY = noteMarkY(n.id, el) ?? 0;
       const height = heights[n.id] ?? ESTIMATED_HEIGHT;
       return { id: n.id, anchorY, height };
     });
@@ -214,21 +224,21 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
       }
       return prev;
     });
-  }, [notes, heights, articleRef, articleHeight]);
+  }, [notes, heights, articleRef, articleHeight, located]);
 
   const submit = () => {
     if (!draft.trim()) return;
     addNote.mutate({
+      ...(pendingAnchor ?? { anchor: '' }),
       body: draft.trim(),
-      anchor: pendingAnchor ?? '',
       ...(hasMedia && currentTime > 0 ? { mediaTimestamp: Math.floor(currentTime) } : {}),
     });
     setDraft('');
     onAnchorConsumed?.();
   };
 
-  const unanchored = notes.filter((n) => !n.anchor);
-  const anchored = notes.filter((n) => !!n.anchor);
+  const unplaced = notes.filter((n) => !located?.[n.id]);
+  const placed = notes.filter((n) => located?.[n.id]);
 
   return (
     <div className="flex flex-col text-sm" style={{ minHeight: '100%' }}>
@@ -263,7 +273,7 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
             className="mb-2 text-xs px-2 py-1 rounded"
             style={{ background: 'var(--accent-3)', color: 'var(--accent-11)' }}
           >
-            锚点：{pendingAnchor.slice(0, 40)}{pendingAnchor.length > 40 ? '…' : ''}
+            {anchorLabel(pendingAnchor)}
           </div>
         )}
         <textarea
@@ -307,15 +317,15 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
         </div>
       </div>
 
-      {/* Unanchored notes (normal flow) */}
-      {(isLoading || unanchored.length > 0) && (
+      {/* Notes not located in the article (normal flow) */}
+      {(isLoading || unplaced.length > 0) && (
         <ul className="py-2">
           {isLoading && (
             <li className="px-4 py-6 text-center text-xs" style={{ color: 'var(--text-tertiary)' }}>
               加载中…
             </li>
           )}
-          {unanchored.map((note) => (
+          {unplaced.map((note) => (
             <NoteItem
               key={note.id}
               note={note}
@@ -331,10 +341,10 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
         </ul>
       )}
 
-      {/* Anchored notes (absolute layout zone) */}
-      {anchored.length > 0 && (
+      {/* Located notes (absolute layout zone) */}
+      {placed.length > 0 && (
         <div style={{ position: 'relative', height: articleHeight, flexShrink: 0 }}>
-          {anchored.map((note) => (
+          {placed.map((note) => (
             <ul
               key={note.id}
               style={{
@@ -355,6 +365,7 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
                 onHover={handleNoteHover}
                 autoEdit={focusNoteId === note.id}
                 onAutoEditConsumed={handleFocusConsumed}
+                approximate={located?.[note.id]?.grade === 'approximate'}
               />
             </ul>
           ))}
