@@ -5,7 +5,7 @@ export const UI_ATTR = 'data-sc-ui';
 export interface TextBlock { start: number; end: number; el: HTMLElement }  // [start, end) in text, excluding separator
 export interface TextIndex { root: HTMLElement; text: string; blocks: TextBlock[]; segments: { node: Text; start: number }[] }
 
-const BLOCK = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'PRE', 'TD', 'TH', 'DT', 'DD', 'FIGCAPTION']);
+export const BLOCK = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'PRE', 'TD', 'TH', 'DT', 'DD', 'FIGCAPTION']);
 // Whitespace-only text directly under these is formatting between blocks, not content
 // (unless both neighbours are inline, e.g. `<li><b>a</b> <i>b</i></li>`).
 const FORMAT_WS_PARENT = new Set(['DIV', 'SECTION', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR']);

@@ -59,6 +59,20 @@ describe('Reader unified anchors', () => {
     expect(icon!.hasAttribute('data-sc-ui')).toBe(true);
     expect(icon!.textContent).toBe('');
   });
+  it('clicking a point icon that lands inside a link does not follow the link', () => {
+    const onNoteAnchorClick = vi.fn();
+    const notes = [{ id: 'p', anchor: '', prefix: '前链接', suffix: '后', position: 3 }];
+    const { container } = render(
+      <Reader content={'前[链接](https://example.com)后'} notes={notes} onNoteAnchorClick={onNoteAnchorClick} />,
+    );
+    const icon = container.querySelector('span.vdl-note-point')!;
+    expect(icon.closest('a')).not.toBeNull();
+    const click = createEvent.click(icon);
+    fireEvent(icon, click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(onNoteAnchorClick).toHaveBeenCalledWith('p');
+  });
+
   it('reports located results with grades', () => {
     const onNotesLocated = vi.fn();
     const notes = [

@@ -4,6 +4,7 @@ import { formatDuration } from '@/lib/time';
 import { useNotes, useAddNote, useUpdateNote, useDeleteNote } from '@/hooks/use-tasks';
 import { computePositions } from '@/lib/anchor-layout';
 import { anchorKind, type Located } from '@/lib/anchor';
+import { BLOCK } from '@/lib/text-index';
 import type { Note, NoteAnchor } from '@/lib/api';
 
 interface NotesPanelProps {
@@ -19,13 +20,13 @@ interface NotesPanelProps {
   located?: Record<string, Located>;
 }
 
-// Top of the paragraph-level block holding the note's first mark/icon in the article.
+// Top of the block holding the note's first mark/icon in the article (the mark itself if no block).
 function noteMarkY(noteId: string, articleEl: HTMLElement): number | null {
-  let el = articleEl.querySelector<HTMLElement>(`[data-note-id="${noteId}"]`);
-  while (el && !['P', 'H1', 'H2', 'H3', 'H4', 'LI', 'BLOCKQUOTE'].includes(el.tagName)) {
-    el = el.parentElement;
-  }
-  if (!el) return null;
+  const mark = articleEl.querySelector<HTMLElement>(`[data-note-id="${noteId}"]`);
+  if (!mark) return null;
+  let block: HTMLElement | null = mark;
+  while (block && block !== articleEl && !BLOCK.has(block.tagName)) block = block.parentElement;
+  const el = block && block !== articleEl ? block : mark;
   const elRect = el.getBoundingClientRect();
   const artRect = articleEl.getBoundingClientRect();
   return elRect.top - artRect.top + articleEl.scrollTop;

@@ -285,6 +285,8 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
       icon.setAttribute(UI_ATTR, '');
       icon.innerHTML = POINT_ICON_SVG;
       decorate(icon, item);
+      // The icon can land inside an inline <a> (offset at the link's end); don't follow it.
+      icon.addEventListener('click', (e) => e.preventDefault());
       const { node, offset } = pt;
       const before = offset === 0 ? node : offset < node.data.length ? node.splitText(offset) : node.nextSibling;
       node.parentNode?.insertBefore(icon, before);

@@ -93,9 +93,12 @@ export function locateAnchor(index: TextIndex, a: NoteAnchor): Located | null {
 
   // Legacy note: only the quoted text, captured via selection.toString().
   if (a.prefix === undefined && a.suffix === undefined && a.position === undefined) {
-    const anchor = a.anchor.replace(/\s*\n\s*/g, '\n');
-    const start = text.indexOf(anchor);
-    return start === -1 ? null : { start, end: start + anchor.length, grade: 'exact' };
+    // Raw first (keeps blank lines/indentation in code blocks), then with line breaks normalized.
+    for (const anchor of [a.anchor, a.anchor.replace(/\s*\n\s*/g, '\n')]) {
+      const start = text.indexOf(anchor);
+      if (start !== -1) return { start, end: start + anchor.length, grade: 'exact' };
+    }
+    return null;
   }
 
   const prefix = a.prefix ?? '';

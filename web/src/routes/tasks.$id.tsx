@@ -213,7 +213,7 @@ export default function TaskDetail() {
                       doc={isArticleTask ? undefined : tab}
                       notes={notes}
                       onNotesLocated={onNotesLocated}
-                      onCommentDraft={setDraft}
+                      onCommentDraft={layoutMode === 'A' ? undefined : setDraft}
                       onAddHighlight={(anchor, color) => addHighlight.mutate({ anchor, color })}
                       onDeleteHighlight={(hlId) => deleteHighlight.mutate(hlId)}
                       hoveredNoteId={hoveredNoteId}

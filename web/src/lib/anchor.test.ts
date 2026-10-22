@@ -124,4 +124,8 @@ describe('locateAnchor', () => {
     expect(locateAnchor(i, { anchor: '第一段\n\n第二段' })).toEqual({ start: 0, end: 7, grade: 'exact' });
     expect(locateAnchor(i, { anchor: '不存在' })).toBeNull();
   });
+  it('legacy anchor keeps blank lines and indentation inside code blocks', () => {
+    const i = ix('<pre><code>foo\n\n    bar</code></pre>');
+    expect(locateAnchor(i, { anchor: 'foo\n\n    bar' })).toEqual({ start: 0, end: 12, grade: 'exact' });
+  });
 });
