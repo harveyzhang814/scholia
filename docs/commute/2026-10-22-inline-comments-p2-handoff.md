@@ -1,5 +1,5 @@
 ---
-status: 待验收
+status: 已验收
 date: 2026-10-22
 author_model: claude-opus-5-5
 acceptance: hard
@@ -151,3 +151,32 @@ target_node: 3b27cb4a-5455-416e-872d-ab9779743465
 ### 执行过程说明
 
 按文档要求使用 `superpowers:subagent-driven-development`：每个任务一个新实现者、一轮任务审查，Task 2 有 1 轮修复，最后对整条分支做了一次审查（结论「With fixes」，无 Critical，1 个 Important 已修）并对修复做了范围限定的复审（全部已处理）。**没有**执行该 skill 末尾的 `finishing-a-development-branch`（合并/推送/清理），因为文档要求不合并、不推送，交回原 session 验收。
+
+## 原 session 验收记录（2026-10-22）
+
+在本工作区（分支 `feature/inline-comments-p2`，HEAD `f5f19ca`，merge-base `3d449a0`）逐条重跑，不采信接手方结论。判成败的命令输出重定向到文件后取退出码，不接管道。
+
+| # | 锚点 | 结果 | 实跑证据 |
+|---|---|---|---|
+| 1 | 后端测试 | pass | `npm test` 退出码 0；7 个套件全部 `0 failed` |
+| 2 | 前端测试 + 计划用例 | pass | `cd web && npm test` 退出码 0，25 个文件 245 个用例。脚本从计划 Task 1–5 取出 36 个 `it('…')` 名，在 `web/src/**/*.test.ts(x)` 中缺失 0 个；`.skip/.only/.todo/xit/xdescribe` 无。测试文件 diff 中被删除的 `it/describe` 只有 `NoteItem isLinked/editing interaction` 及其两个用例（已迁到 `note-card.test.tsx`）；`tasks.$id.test.tsx` 的三个已有用例只在 `setState` 里加了 `commentView: 'sidebar'`，断言未变 |
+| 3 | 前端构建 | pass | `cd web && npm run build` 退出码 0（含 `tsc`） |
+| 4 | 旧组件与类型图标清除 | pass | `grep -rn "NoteItem" web/src`、`grep -rn "❝" web/src` 均无输出（退出码 1） |
+| 5 | 没有新依赖 | pass | 四个 package 文件的 diff 无输出 |
+| 6 | 改动范围 | pass | 共 20 个文件：18 个均在计划各 Task 的 Files 清单内（`globals.css` 在 Task 2 清单内，Task 4 和 `7ad4e54` 也改了它，属同一文件）；另两个是本交接文档和计划文档（计划只有交接时改的那 1 行） |
+| 7 | 手动检查记录 | pass | 6 项均有 pass/fail 与说明；第 1、2 项附了截图路径并与设计稿对照，截图文件在 `/tmp/scholia-p2-shots/` 下实际存在，抽看了 `01-article-inline.png`、`02-all-collapsed.png`：卡片在段落、列表项内、表格后、代码块后，收起后为一行预览加右侧按钮，与设计稿一致 |
+
+**回归面核对**：改动面只有 `web/src` 下的组件、lib、路由、store 和样式，以及两份文档。被波及组件的既有测试就是锚点 2 已跑的前端全集；后端未改动，锚点 1 已全跑。没有遗漏的其他回归测试。
+
+**对接手方偏差的裁决**：
+- `slotHost` 对 `td/th` 一律取外层 `TABLE`：接受，符合计划「不放进单元格」的意图。
+- Mode A 内嵌视图保留左栏列表：接受，这是计划和用户确认过的行为。
+- Task 4 额外改 `globals.css`、未定位区按钮用 `收起区域` / `展开区域`：接受。
+- `7ad4e54` 的两处 CSS 修复（未定位区与正文同宽、卡片用无衬线字体）：接受，设计稿优先。
+
+**记录给后续的观察（不影响本次结论）**：
+- `01-article-inline.png` 是修复前的截图，未定位区比正文宽；接手方已说明在 `7ad4e54` 修掉，本次没有在浏览器里复看修复后的样子。
+- 截图里收起按钮 `▾` / `▸` 渲染得很小，接近一个点，比设计稿的 11px 箭头更不显眼，建议后续单独调大。
+- 接手方列出的「未修复、留给后续的已知小问题」6 条照录，其中「写草稿时换位置会清空已输入文字」和「草稿锚点定位不到时界面上看不到」两条对用户最可感知，建议作为第 2 期后续修复。
+
+**结论：达成。** `status` 置为 `已验收`。
