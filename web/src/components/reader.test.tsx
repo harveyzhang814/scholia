@@ -382,3 +382,29 @@ describe('Reader inline card slots', () => {
     }
   });
 });
+
+describe('Reader sc markers', () => {
+  it('renders sc markers as hidden ui spans, not literal text', () => {
+    const { container } = render(<Reader content={'hello <!-- sc:3f9a2b1c -->world<!-- /sc:3f9a2b1c -->'} />);
+    const spans = container.querySelectorAll('span[data-sc-marker="3f9a2b1c"]');
+    expect(spans).toHaveLength(2);
+    expect(spans[0].getAttribute('data-sc-edge')).toBe('open');
+    expect(spans[1].getAttribute('data-sc-edge')).toBe('close');
+    expect(spans[0].hasAttribute('data-sc-ui')).toBe(true);
+    expect(container.textContent).toBe('hello world');
+  });
+
+  it('leaves other html comments as before', () => {
+    const { container } = render(<Reader content={'a <!-- note --> b'} />);
+    expect(container.textContent).toContain('<!-- note -->');
+  });
+
+  it('locates a note by its markers after the text changed', () => {
+    const content = '前面<!-- sc:aaaaaaaa -->改过的原文<!-- /sc:aaaaaaaa -->后面';
+    const notes = [{ id: 'm', anchor: '旧原文', prefix: '前面', suffix: '后面', position: 2, markerId: 'aaaaaaaa' }];
+    const onNotesLocated = vi.fn();
+    const { container } = render(<Reader content={content} notes={notes} onNotesLocated={onNotesLocated} />);
+    expect(container.querySelector('mark.vdl-note-anchor')!.textContent).toBe('改过的原文');
+    expect(onNotesLocated).toHaveBeenLastCalledWith({ m: { start: 2, end: 7, grade: 'exact' } });
+  });
+});

@@ -156,12 +156,16 @@ export interface Highlight {
 
 export type NoteDoc = 'summary' | 'article';
 
+export type MarkerEdge = 'start' | 'end' | 'point';
+export interface MarkerInsertion { offset: number; edge: MarkerEdge }
+
 export interface NoteAnchor {
   anchor: string;
   prefix?: string;
   suffix?: string;
   position?: number;
   doc?: NoteDoc;
+  markerId?: string;
 }
 
 export interface Note extends NoteAnchor {
@@ -279,6 +283,12 @@ export const api = {
 
   deleteNote: (taskId: string, noteId: string) =>
     request<void>(`/api/tasks/${taskId}/notes/${noteId}`, { method: 'DELETE' }),
+
+  addMarker: (taskId: string, noteId: string, data: { baseHash: string; insertions: MarkerInsertion[] }) =>
+    request<{ markerId: string; hash: string }>(`/api/tasks/${taskId}/notes/${noteId}/marker`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   listHighlights: (taskId: string) =>
     request<Highlight[]>(`/api/tasks/${taskId}/highlights`),

@@ -5,6 +5,8 @@ export const UI_ATTR = 'data-sc-ui';
 export const SLOT_ATTR = 'data-sc-slot';
 
 export interface TextBlock { start: number; end: number; el: HTMLElement }  // [start, end) in text, excluding separator
+// The part of a TextIndex that locating needs; lets callers pass plain text + block ranges.
+export interface PlainIndex { text: string; blocks: { start: number; end: number }[] }
 export interface TextIndex { root: HTMLElement; text: string; blocks: TextBlock[]; segments: { node: Text; start: number }[] }
 
 export const BLOCK = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'PRE', 'TD', 'TH', 'DT', 'DD', 'FIGCAPTION']);
@@ -73,7 +75,7 @@ export function buildTextIndex(root: HTMLElement): TextIndex {
   return { root, text, blocks, segments };
 }
 
-export function blockAt(index: TextIndex, offset: number): TextBlock | null {
+export function blockAt<B extends { start: number; end: number }>(index: { blocks: B[] }, offset: number): B | null {
   return index.blocks.find((b) => offset >= b.start && offset <= b.end) ?? null;
 }
 
@@ -108,6 +110,27 @@ export function boundaryToOffset(index: TextIndex, container: Node, offset: numb
 
   // Element boundary or skipped content at a block start: snap to the first indexed text node after it.
   return nextAt < index.segments.length ? index.segments[nextAt].start : index.text.length;
+}
+
+export type MarkerMap = Map<string, { open?: number; close?: number }>;
+
+// Text offsets of the sc marker spans under index.root; per id and edge, the first one in document order wins.
+export function markerOffsets(index: TextIndex): MarkerMap {
+  const map: MarkerMap = new Map();
+  index.root.querySelectorAll('span[data-sc-marker]').forEach((span) => {
+    const id = span.getAttribute('data-sc-marker');
+    const edge = span.getAttribute('data-sc-edge');
+    if (!id || (edge !== 'open' && edge !== 'close')) return;
+    const entry = map.get(id) ?? {};
+    if (entry[edge] !== undefined) return;
+    // Position (span, 0) rather than (parent, i): a close marker at a block's end then resolves to the
+    // end of that block's text instead of snapping to the next block's start.
+    const offset = boundaryToOffset(index, span, 0);
+    if (offset === null) return;
+    entry[edge] = offset;
+    map.set(id, entry);
+  });
+  return map;
 }
 
 export function rangeToOffsets(index: TextIndex, range: Range): { start: number; end: number } | null {

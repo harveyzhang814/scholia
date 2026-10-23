@@ -16,6 +16,7 @@ import { usePlayerStore } from '@/stores/player-store';
 import { useMarkRead, useMarkUnread } from '@/hooks/use-read-state';
 import type { NoteAnchor } from '@/lib/api';
 import type { Located } from '@/lib/anchor';
+import { stripScMarkers } from '@/lib/sc-marker';
 
 function sameLocated(a: Record<string, Located>, b: Record<string, Located>): boolean {
   const keys = Object.keys(a);
@@ -41,7 +42,7 @@ export default function TaskDetail() {
     mediaInfo?.audio?.exists ? 'audio' : null;
   const [tab, setTab] = useState<'summary' | 'article'>(isArticleTask ? 'article' : 'summary');
   const { data: content = '' } = useContent(id, tab);
-  const toc = useMemo(() => extractToc(content), [content]);
+  const toc = useMemo(() => extractToc(stripScMarkers(content)), [content]);
   const reveal = useReveal();
   const { data: highlights = [] } = useHighlights(id);
   const addHighlight = useAddHighlight(id);
@@ -99,7 +100,7 @@ export default function TaskDetail() {
 
   const onCopy = async () => {
     if (!content) return;
-    await navigator.clipboard.writeText(content);
+    await navigator.clipboard.writeText(stripScMarkers(content));
   };
 
   const onReveal = () => reveal.mutate(id);

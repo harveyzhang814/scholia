@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { render } from '@testing-library/react';
 import { Reader } from './reader';
 import { Toc, extractToc } from './toc';
+import { stripScMarkers } from '@/lib/sc-marker';
 
 beforeAll(() => {
   // jsdom has no IntersectionObserver implementation at all.
@@ -46,5 +47,11 @@ describe('Toc heading id assignment', () => {
 
     const tocLinks = Array.from(container.querySelectorAll('nav a'));
     expect(tocLinks.map((a) => a.getAttribute('href'))).toEqual(headings.map((h) => `#${h.id}`));
+  });
+});
+
+describe('toc', () => {
+  it('ignores sc markers in headings', () => {
+    expect(extractToc(stripScMarkers('## 标题<!-- sc:3f9a2b1c -->一'))[0].text).toBe('标题一');
   });
 });

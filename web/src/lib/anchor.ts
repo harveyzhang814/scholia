@@ -2,7 +2,7 @@
 
 import search from 'approx-string-match';
 import type { NoteAnchor, NoteDoc } from './api';
-import { blockAt, type TextBlock, type TextIndex } from './text-index';
+import { blockAt, type MarkerMap, type PlainIndex } from './text-index';
 
 export const CONTEXT_LEN = 32;
 export const ANCHOR_MAX = 200;
@@ -16,7 +16,7 @@ export function anchorKind(a: Pick<NoteAnchor, 'anchor' | 'prefix' | 'suffix'>):
   return a.prefix || a.suffix ? 'point' : 'none';
 }
 
-export function captureAnchor(index: TextIndex, start: number, end: number, doc?: NoteDoc): NoteAnchor {
+export function captureAnchor(index: PlainIndex, start: number, end: number, doc?: NoteDoc): NoteAnchor {
   const { text } = index;
   const origin = start;
   while (start < end && /\s/.test(text[start])) start++;
@@ -38,7 +38,7 @@ export function captureAnchor(index: TextIndex, start: number, end: number, doc?
 type Dir = -1 | 1;  // -1: context before `at` (prefix), 1: after (suffix)
 
 // Stored context sits right next to `at` inside at's block; an empty side fits only on the block edge.
-function fits(index: TextIndex, side: string, at: number, dir: Dir): boolean {
+export function fits(index: PlainIndex, side: string, at: number, dir: Dir): boolean {
   const b = blockAt(index, at);
   if (!b) return false;
   if (!side) return at === (dir < 0 ? b.start : b.end);
@@ -49,24 +49,25 @@ function fits(index: TextIndex, side: string, at: number, dir: Dir): boolean {
 
 // A fitting side scores 1; if it is shorter than CONTEXT_LEN (it hit a block edge at capture time)
 // and reaches an edge here too, that is an extra 0.5.
-function score(index: TextIndex, side: string, at: number, dir: Dir): number {
+function score(index: PlainIndex, side: string, at: number, dir: Dir): number {
   if (!fits(index, side, at, dir)) return 0;
   const b = blockAt(index, at)!;
   const edge = side.length < CONTEXT_LEN && at + dir * side.length === (dir < 0 ? b.start : b.end);
   return edge ? 1.5 : 1;
 }
 
-function occurrences(text: string, s: string): number[] {
+export function occurrences(text: string, s: string): number[] {
   const out: number[] = [];
   for (let i = text.indexOf(s); i !== -1; i = text.indexOf(s, i + 1)) out.push(i);
   return out;
 }
 
-interface Fuzzy { start: number; end: number; errors: number; block: TextBlock }
+type Block = PlainIndex['blocks'][number];
+interface Fuzzy { start: number; end: number; errors: number; block: Block }
 
 // Searched block by block: the library returns only the lowest-error tier, so a whole-text search
 // would let a cross-block match hide in-block ones.
-function fuzzy(index: TextIndex, side: string): Fuzzy[] {
+function fuzzy(index: PlainIndex, side: string): Fuzzy[] {
   if (!side) return [];
   const maxErrors = Math.floor(side.length * 0.25);
   return index.blocks.flatMap((block) =>
@@ -86,10 +87,26 @@ function best(ms: Fuzzy[], dist: (m: Fuzzy) => number): Fuzzy | undefined {
   );
 }
 
-export function locateAnchor(index: TextIndex, a: NoteAnchor): Located | null {
+export function locateAnchor(index: PlainIndex, a: NoteAnchor, markers?: MarkerMap): Located | null {
   const { text } = index;
   const kind = anchorKind(a);
   if (kind === 'none') return null;
+
+  // Step 0: the comment's sc markers in the source, when still present, beat any text matching.
+  const m = a.markerId ? markers?.get(a.markerId) : undefined;
+  if (m) {
+    const { open, close } = m;
+    if (kind === 'point') {
+      const p = open ?? close;
+      if (p !== undefined) return { start: p, end: p, grade: 'exact' };
+    } else if (open !== undefined && close !== undefined) {
+      if (open < close) return { start: open, end: close, grade: 'exact' };
+    } else if (open !== undefined) {
+      return { start: open, end: Math.min(open + a.anchor.length, text.length), grade: 'exact' };
+    } else if (close !== undefined) {
+      return { start: Math.max(close - a.anchor.length, 0), end: close, grade: 'exact' };
+    }
+  }
 
   // Legacy note: only the quoted text, captured via selection.toString().
   if (a.prefix === undefined && a.suffix === undefined && a.position === undefined) {

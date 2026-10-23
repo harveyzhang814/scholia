@@ -362,6 +362,307 @@ async function req(port, method, urlPath, body) {
     assert.equal(r.status, 404);
   });
 
+  // Inline-comment markers (phase 3): the only code path that rewrites source files.
+  const { sha256Hex } = require('../server/markers');
+  const MARKED_SRC = '---\ntitle: M\n---\n\n第一段文字。\n\n第二段文字。\n';
+  fs.writeFileSync(path.join(contentDir, 'marked.md'), MARKED_SRC);
+  const markerRe = /<!-- \/?sc:[0-9a-f]{8} -->/g;
+  const getBody = async (id, q = '') => (await req(port, 'GET', `/api/tasks/${id}/result/content${q}`)).body;
+  const addNote = async (id, extra) => (await req(port, 'POST', `/api/tasks/${id}/notes`, { anchor: '', body: 'p', ...extra })).body;
+  const mark = (id, noteId, body) => req(port, 'POST', `/api/tasks/${id}/notes/${noteId}/marker`, body);
+  const makeArticle = (name, raw) => { fs.writeFileSync(path.join(contentDir, `${name}.md`), raw); return `article-${name}`; };
+
+  await test('marker: writes a point marker into an article, keeps frontmatter', async () => {
+    const note = await addNote('article-marked', { prefix: '第一段', suffix: '文字。', position: 3 });
+    const body = await getBody('article-marked');
+    const offset = body.indexOf('第一段') + 3;
+    const r = await mark('article-marked', note.id, { baseHash: sha256Hex(body), insertions: [{ offset, edge: 'point' }] });
+    assert.equal(r.status, 200);
+    assert.match(r.body.markerId, /^[0-9a-f]{8}$/);
+    const id = r.body.markerId;
+    const expected = `---\ntitle: M\n---\n\n第一段<!-- sc:${id} -->文字。\n\n第二段文字。\n`;
+    assert.equal(fs.readFileSync(path.join(contentDir, 'marked.md'), 'utf8'), expected);
+    const notes = (await req(port, 'GET', '/api/tasks/article-marked/notes')).body;
+    assert.equal(notes.find((n) => n.id === note.id).markerId, id);
+    assert.equal(r.body.hash, sha256Hex(await getBody('article-marked')));
+    assert.equal(r.body.hash, sha256Hex(expected.slice('---\ntitle: M\n---\n'.length)));
+  });
+
+  await test('marker: writes start/end markers into the video doc named by note.doc', async () => {
+    const summary = path.join(workDir, taskId, 'writing', 'summary.md');
+    fs.writeFileSync(summary, '# S\n\n总结正文。\n');
+    const articleBefore = fs.readFileSync(path.join(workDir, taskId, 'writing', 'article.md'), 'utf8');
+    const note = await addNote(taskId, { anchor: '总结正文', doc: 'summary' });
+    const body = await getBody(taskId, '?type=summary');
+    const s = body.indexOf('总结正文');
+    const r = await mark(taskId, note.id, { baseHash: sha256Hex(body), insertions: [{ offset: s, edge: 'start' }, { offset: s + 4, edge: 'end' }] });
+    assert.equal(r.status, 200);
+    const id = r.body.markerId;
+    assert.equal(fs.readFileSync(summary, 'utf8'), `# S\n\n<!-- sc:${id} -->总结正文<!-- /sc:${id} -->。\n`);
+    assert.equal(fs.readFileSync(path.join(workDir, taskId, 'writing', 'article.md'), 'utf8'), articleBefore);
+    assert.equal(r.body.hash, sha256Hex(fs.readFileSync(summary, 'utf8')));
+  });
+
+  await test('marker: stale baseHash returns 409 and leaves the file untouched', async () => {
+    const aid = makeArticle('marked-stale', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-stale.md');
+    const note = await addNote(aid, {});
+    const body = await getBody(aid);
+    const r = await mark(aid, note.id, { baseHash: sha256Hex(body + 'x'), insertions: [{ offset: 0, edge: 'point' }] });
+    assert.equal(r.status, 409);
+    assert.equal(r.body.error, 'stale');
+    assert.equal(fs.readFileSync(file, 'utf8'), MARKED_SRC);
+    const notes = (await req(port, 'GET', `/api/tasks/${aid}/notes`)).body;
+    assert.equal(notes[0].markerId, undefined);
+  });
+
+  await test('marker: invalid insertions return 400', async () => {
+    const aid = makeArticle('marked-invalid', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-invalid.md');
+    const note = await addNote(aid, {});
+    const body = await getBody(aid);
+    const baseHash = sha256Hex(body);
+    const cases = [
+      [{ offset: body.length + 1, edge: 'point' }],
+      [{ offset: -1, edge: 'point' }],
+      [{ offset: 1.5, edge: 'point' }],
+      [{ offset: 1, edge: 'point' }, { offset: 2, edge: 'point' }],
+      [{ offset: 1, edge: 'start' }],
+      [{ offset: 5, edge: 'start' }, { offset: 5, edge: 'end' }],
+      [{ offset: 6, edge: 'start' }, { offset: 5, edge: 'end' }],
+      [{ offset: 1, edge: 'x' }],
+      [],
+      'nope',
+      undefined,
+    ];
+    for (const insertions of cases) {
+      const r = await mark(aid, note.id, { baseHash, insertions });
+      assert.equal(r.status, 400, `expected 400 for ${JSON.stringify(insertions)}`);
+      assert.equal(fs.readFileSync(file, 'utf8'), MARKED_SRC);
+    }
+    // boundary offsets (0 and bodyLength) are valid
+    const ok = await mark(aid, note.id, { baseHash, insertions: [{ offset: 0, edge: 'start' }, { offset: body.length, edge: 'end' }] });
+    assert.equal(ok.status, 200);
+    assert.notEqual(fs.readFileSync(file, 'utf8'), MARKED_SRC);
+  });
+
+  await test('marker: a lone end insertion writes only the closing marker, keeps frontmatter', async () => {
+    const aid = makeArticle('marked-end', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-end.md');
+    const note = await addNote(aid, { anchor: '第一段' });
+    const body = await getBody(aid);
+    const offset = body.indexOf('第一段') + 3;
+    const r = await mark(aid, note.id, { baseHash: sha256Hex(body), insertions: [{ offset, edge: 'end' }] });
+    assert.equal(r.status, 200);
+    const id = r.body.markerId;
+    assert.match(id, /^[0-9a-f]{8}$/);
+    const expected = `---\ntitle: M\n---\n\n第一段<!-- /sc:${id} -->文字。\n\n第二段文字。\n`;
+    assert.equal(fs.readFileSync(file, 'utf8'), expected);
+    assert.equal((expected.match(markerRe) || []).length, 1);
+    const notes = (await req(port, 'GET', `/api/tasks/${aid}/notes`)).body;
+    assert.equal(notes.find((n) => n.id === note.id).markerId, id);
+    assert.equal(r.body.hash, sha256Hex(await getBody(aid)));
+  });
+
+  await test('notes: DELETE removes a lone end marker and leaves the rest byte-identical', async () => {
+    const aid = makeArticle('marked-end-del', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-end-del.md');
+    const note = await addNote(aid, { anchor: '第二段' });
+    const body = await getBody(aid);
+    const r = await mark(aid, note.id, { baseHash: sha256Hex(body), insertions: [{ offset: body.indexOf('第二段') + 3, edge: 'end' }] });
+    assert.equal(r.status, 200);
+    assert.notEqual(fs.readFileSync(file, 'utf8'), MARKED_SRC);
+    const d = await req(port, 'DELETE', `/api/tasks/${aid}/notes/${note.id}`);
+    assert.equal(d.status, 204);
+    assert.equal(fs.readFileSync(file, 'utf8'), MARKED_SRC);
+  });
+
+  await test('marker: a lone start, or an end with anything else, returns 400', async () => {
+    const aid = makeArticle('marked-end-invalid', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-end-invalid.md');
+    const note = await addNote(aid, {});
+    const body = await getBody(aid);
+    const baseHash = sha256Hex(body);
+    const cases = [
+      [{ offset: 1, edge: 'start' }],
+      [{ offset: 1, edge: 'end' }, { offset: 2, edge: 'point' }],
+      [{ offset: 1, edge: 'point' }, { offset: 2, edge: 'end' }],
+      [{ offset: 1, edge: 'end' }, { offset: 2, edge: 'end' }],
+    ];
+    for (const insertions of cases) {
+      const r = await mark(aid, note.id, { baseHash, insertions });
+      assert.equal(r.status, 400, `expected 400 for ${JSON.stringify(insertions)}`);
+      assert.equal(fs.readFileSync(file, 'utf8'), MARKED_SRC);
+    }
+  });
+
+  await test('marker: marker text is generated by the server', async () => {
+    const aid = makeArticle('marked-text', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-text.md');
+    const note = await addNote(aid, {});
+    const body = await getBody(aid);
+    const r = await mark(aid, note.id, {
+      baseHash: sha256Hex(body), insertions: [{ offset: 2, edge: 'point', text: '<script>y</script>' }],
+      text: '<script>x</script>', id: 'deadbeef', markerId: 'cafebabe',
+    });
+    assert.equal(r.status, 200);
+    const after = fs.readFileSync(file, 'utf8');
+    assert.ok(!after.includes('script'));
+    assert.ok(!after.includes('deadbeef') && !after.includes('cafebabe'));
+    assert.equal(after.replace(markerRe, ''), MARKED_SRC);
+    assert.equal((after.match(markerRe) || []).length, 1);
+  });
+
+  await test('marker: a second write for the same note returns 409', async () => {
+    const aid = makeArticle('marked-twice', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-twice.md');
+    const note = await addNote(aid, {});
+    const body = await getBody(aid);
+    const first = await mark(aid, note.id, { baseHash: sha256Hex(body), insertions: [{ offset: 1, edge: 'point' }] });
+    assert.equal(first.status, 200);
+    const written = fs.readFileSync(file, 'utf8');
+    const second = await mark(aid, note.id, { baseHash: first.body.hash, insertions: [{ offset: 1, edge: 'point' }] });
+    assert.equal(second.status, 409);
+    assert.equal(second.body.error, 'already marked');
+    assert.equal(fs.readFileSync(file, 'utf8'), written);
+  });
+
+  await test('marker: unknown note returns 404', async () => {
+    const r = await mark('article-marked', 'no-such-note', { baseHash: 'x', insertions: [] });
+    assert.equal(r.status, 404);
+  });
+
+  await test('marker: video note without doc returns 400', async () => {
+    const note = await addNote(taskId, {});
+    const r = await mark(taskId, note.id, { baseHash: sha256Hex('x'), insertions: [{ offset: 0, edge: 'point' }] });
+    assert.equal(r.status, 400);
+    await req(port, 'DELETE', `/api/tasks/${taskId}/notes/${note.id}`);
+  });
+
+  await test('notes: DELETE removes only this note\'s markers', async () => {
+    const aid = makeArticle('marked-two', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-two.md');
+    const n1 = await addNote(aid, {});
+    const n2 = await addNote(aid, {});
+    let body = await getBody(aid);
+    const i1 = body.indexOf('第一段');
+    const r1 = await mark(aid, n1.id, { baseHash: sha256Hex(body), insertions: [{ offset: i1, edge: 'start' }, { offset: i1 + 3, edge: 'end' }] });
+    assert.equal(r1.status, 200);
+    body = await getBody(aid);
+    const i2 = body.indexOf('第二段');
+    const r2 = await mark(aid, n2.id, { baseHash: r1.body.hash, insertions: [{ offset: i2 + 3, edge: 'point' }] });
+    assert.equal(r2.status, 200);
+    const d = await req(port, 'DELETE', `/api/tasks/${aid}/notes/${n1.id}`);
+    assert.equal(d.status, 204);
+    assert.equal(fs.readFileSync(file, 'utf8'), `---\ntitle: M\n---\n\n第一段文字。\n\n第二段<!-- sc:${r2.body.markerId} -->文字。\n`);
+    const notes = (await req(port, 'GET', `/api/tasks/${aid}/notes`)).body;
+    assert.deepEqual(notes.map((n) => n.id), [n2.id]);
+  });
+
+  await test('notes: DELETE removes markers whose inner whitespace was altered', async () => {
+    const aid = makeArticle('marked-ws', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-ws.md');
+    const note = await addNote(aid, {});
+    const body = await getBody(aid);
+    const i = body.indexOf('第一段');
+    const r = await mark(aid, note.id, { baseHash: sha256Hex(body), insertions: [{ offset: i, edge: 'start' }, { offset: i + 3, edge: 'end' }] });
+    assert.equal(r.status, 200);
+    const id = r.body.markerId;
+    const edited = fs.readFileSync(file, 'utf8').replace(`<!-- sc:${id} -->`, `<!--sc:${id}-->`).replace(`<!-- /sc:${id} -->`, `<!--  /sc:${id}\t-->`);
+    assert.ok(edited.includes(`<!--sc:${id}-->`) && edited.includes(`<!--  /sc:${id}\t-->`));
+    fs.writeFileSync(file, edited);
+    const d = await req(port, 'DELETE', `/api/tasks/${aid}/notes/${note.id}`);
+    assert.equal(d.status, 204);
+    assert.equal(fs.readFileSync(file, 'utf8'), MARKED_SRC);
+  });
+
+  await test('notes: DELETE of a marked video note removes markers from its doc', async () => {
+    const summary = path.join(workDir, taskId, 'writing', 'summary.md');
+    const notes = (await req(port, 'GET', `/api/tasks/${taskId}/notes`)).body;
+    const marked = notes.find((n) => n.markerId && n.doc === 'summary');
+    assert.ok(marked);
+    const d = await req(port, 'DELETE', `/api/tasks/${taskId}/notes/${marked.id}`);
+    assert.equal(d.status, 204);
+    assert.equal(fs.readFileSync(summary, 'utf8'), '# S\n\n总结正文。\n');
+  });
+
+  await test('notes: DELETE of a marked video note whose doc file is gone still deletes the note', async () => {
+    const summary = path.join(workDir, taskId, 'writing', 'summary.md');
+    const note = await addNote(taskId, { anchor: '总结正文', doc: 'summary' });
+    const r = await mark(taskId, note.id, { baseHash: sha256Hex(await getBody(taskId, '?type=summary')), insertions: [{ offset: 1, edge: 'point' }] });
+    assert.equal(r.status, 200);
+    fs.unlinkSync(summary);
+    const d = await req(port, 'DELETE', `/api/tasks/${taskId}/notes/${note.id}`);
+    assert.equal(d.status, 204);
+    assert.ok(!fs.existsSync(summary));
+    const notes = (await req(port, 'GET', `/api/tasks/${taskId}/notes`)).body;
+    assert.ok(!notes.some((n) => n.id === note.id));
+  });
+
+  await test('notes: DELETE of an unmarked note does not touch the source file', async () => {
+    const aid = makeArticle('marked-untouched', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-untouched.md');
+    const note = await addNote(aid, {});
+    const before = { text: fs.readFileSync(file, 'utf8'), mtimeMs: fs.statSync(file).mtimeMs };
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const d = await req(port, 'DELETE', `/api/tasks/${aid}/notes/${note.id}`);
+    assert.equal(d.status, 204);
+    assert.equal(fs.readFileSync(file, 'utf8'), before.text);
+    assert.equal(fs.statSync(file).mtimeMs, before.mtimeMs);
+  });
+
+  // A stray Windows-1252 byte (0x93) at the end makes the file invalid UTF-8.
+  const nonUtf8 = (s) => Buffer.concat([Buffer.from(s, 'utf8'), Buffer.from([0x93, 0x0a])]);
+
+  await test('marker: a non-UTF-8 source file is refused and left byte-identical', async () => {
+    const file = path.join(contentDir, 'marked-latin.md');
+    const bytes = nonUtf8(MARKED_SRC);
+    fs.writeFileSync(file, bytes);
+    const aid = 'article-marked-latin';
+    const note = await addNote(aid, {});
+    const body = await getBody(aid);
+    const r = await mark(aid, note.id, { baseHash: sha256Hex(body), insertions: [{ offset: 0, edge: 'point' }] });
+    assert.equal(r.status, 422);
+    assert.ok(fs.readFileSync(file).equals(bytes));
+    const notes = (await req(port, 'GET', `/api/tasks/${aid}/notes`)).body;
+    assert.equal(notes.find((n) => n.id === note.id).markerId, undefined);
+  });
+
+  await test('notes: DELETE of a marked note on a non-UTF-8 file leaves the file and deletes the note', async () => {
+    const aid = makeArticle('marked-latin-del', MARKED_SRC);
+    const file = path.join(contentDir, 'marked-latin-del.md');
+    const note = await addNote(aid, {});
+    const r = await mark(aid, note.id, { baseHash: sha256Hex(await getBody(aid)), insertions: [{ offset: 0, edge: 'point' }] });
+    assert.equal(r.status, 200);
+    const bytes = nonUtf8(fs.readFileSync(file, 'utf8'));
+    fs.writeFileSync(file, bytes);
+    const d = await req(port, 'DELETE', `/api/tasks/${aid}/notes/${note.id}`);
+    assert.equal(d.status, 204);
+    assert.ok(fs.readFileSync(file).equals(bytes));
+    const notes = (await req(port, 'GET', `/api/tasks/${aid}/notes`)).body;
+    assert.ok(!notes.some((n) => n.id === note.id));
+  });
+
+  await test('notes: concurrent marker write and note creation lose nothing', async () => {
+    const aid = makeArticle('marked-race', MARKED_SRC);
+    const errors = [];
+    for (let round = 0; round < 10; round++) {
+      const a = await addNote(aid, { body: `a${round}` });
+      const body = await getBody(aid);
+      const results = await Promise.all([
+        mark(aid, a.id, { baseHash: sha256Hex(body), insertions: [{ offset: round, edge: 'point' }] }),
+        ...[0, 1, 2].map((k) => req(port, 'POST', `/api/tasks/${aid}/notes`, { anchor: '', body: `b${round}-${k}` })),
+      ]);
+      for (const r of results) if (r.status >= 500) errors.push(`round ${round}: ${r.status}`);
+      const notes = (await req(port, 'GET', `/api/tasks/${aid}/notes`)).body;
+      if (!notes.find((n) => n.id === a.id)?.markerId) errors.push(`round ${round}: note A lost its markerId`);
+      for (const r of results.slice(1)) {
+        if (r.status === 201 && !notes.some((n) => n.id === r.body.id)) errors.push(`round ${round}: created note lost`);
+      }
+    }
+    assert.deepEqual(errors, []);
+  });
+
   // Article content asset (images relative to the article's own directory)
   await test('content/asset serves an image resolved relative to the article file, not contentDir root', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/tasks/article-hash1/content/asset?path=${encodeURIComponent('../Image/pic.png')}&token=${TOKEN}`);
