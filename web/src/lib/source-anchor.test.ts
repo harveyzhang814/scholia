@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createElement } from 'react';
 import { render } from '@testing-library/react';
 import { Reader } from '@/components/reader';
@@ -102,15 +102,18 @@ describe('planMarkerInsertions', () => {
   });
 
   it('line-start rules keep block structure', () => {
-    // A start marker that would land at a line start is not written at all (the note stays text-located).
-    const cases: [md: string, anchor: string][] = [
-      ['段首文字', '段首'],                                                 // paragraph start
-      ['- 项目文字', '项目'],                                               // list item content start
-      ['> 引用文字', '引用'],                                               // blockquote content start
-      ['第一行\n第二行文字', '第二行'],                                     // after a soft line break
+    // A start marker that would land at a line start is not written: only the closing marker is.
+    const cases: [md: string, anchor: string, end: number][] = [
+      ['段首文字', '段首', 2],                                              // paragraph start
+      ['- 项目文字', '项目', 4],                                            // list item content start
+      ['> 引用文字', '引用', 4],                                            // blockquote content start
+      ['第一行\n第二行文字', '第二行', 7],                                  // after a soft line break
+      ['甲\n\n乙', '乙', 4],                                                // one character at a paragraph start
     ];
-    for (const [md, anchor] of cases) {
-      expect(planMarkerInsertions(md, range(md, anchor))).toBeNull();
+    for (const [md, anchor, end] of cases) {
+      const plan = planMarkerInsertions(md, range(md, anchor));
+      expect(plan).toEqual([{ offset: end, edge: 'end' }]);
+      expect(checkReparse(md, insert(md, plan!), 1)).toBe(true);
     }
     // So is a point at the very start of a paragraph.
     const md = '甲\n\n乙丙';
@@ -152,8 +155,9 @@ describe('planMarkerInsertions', () => {
   });
 
   it('aborts when the line-start shift empties a one-character range', () => {
-    const md = '甲\n\n乙';
-    expect(planMarkerInsertions(md, range(md, '乙'))).toBeNull();
+    // The end at the line start moves back onto the start: nothing left to wrap.
+    const md = '甲\n乙';
+    expect(planMarkerInsertions(md, { anchor: '\n', prefix: '甲', suffix: '乙', position: 1 })).toBeNull();
   });
 
   it('aborts inside inline code and code blocks', () => {
@@ -260,5 +264,38 @@ describe('checkReparse', () => {
   it('rejects a wrong marker count and inline changes', () => {
     expect(checkReparse('甲乙', '甲<!-- sc:00000000 -->乙', 2)).toBe(false);
     expect(checkReparse('前**甲乙**后', '前**<!-- sc:00000000 -->甲乙**后', 1)).toBe(false);  // strong lost
+  });
+});
+
+describe('end-only marker at a line start', () => {
+  const ID = 'abcd1234';
+  const withEnd = (md: string, offset: number) => md.slice(0, offset) + `<!-- /sc:${ID} -->` + md.slice(offset);
+  const marked = (container: HTMLElement) =>
+    [...container.querySelectorAll('mark.vdl-note-anchor')].map((m) => m.textContent).join('');
+
+  it('highlights the full selection, first character included, located by the closing marker', () => {
+    const md = '段首文字很重要。';
+    const note = range(md, '段首文字');
+    const plan = planMarkerInsertions(md, note);
+    expect(plan).toEqual([{ offset: 4, edge: 'end' }]);
+    const onNotesLocated = vi.fn();
+    const { container } = render(createElement(Reader, {
+      content: withEnd(md, plan![0].offset),
+      notes: [{ id: 'n', ...note, markerId: ID }],
+      onNotesLocated,
+    }));
+    expect(marked(container)).toBe('段首文字');
+    expect(onNotesLocated).toHaveBeenLastCalledWith({ n: { start: 0, end: 4, grade: 'exact' } });
+  });
+
+  it('still ends at the marker after the author edits the selected text', () => {
+    const note = range('段首文字很重要。', '段首文字');
+    for (const content of [withEnd('段首改写过的文字很重要。', 8), withEnd('短很重要。', 1)]) {
+      const onNotesLocated = vi.fn();
+      const close = content.indexOf('<!--');
+      expect(() => render(createElement(Reader, { content, notes: [{ id: 'n', ...note, markerId: ID }], onNotesLocated }))).not.toThrow();
+      const loc = onNotesLocated.mock.calls.at(-1)![0].n;
+      expect(loc).toEqual({ start: Math.max(close - note.anchor.length, 0), end: close, grade: 'exact' });
+    }
   });
 });
