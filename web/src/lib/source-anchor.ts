@@ -112,6 +112,20 @@ function isSurrogatePair(md: string, i: number): boolean {
   return hi >= 0xd800 && hi <= 0xdbff && lo >= 0xdc00 && lo <= 0xdfff;
 }
 
+// Syntax the renderer shows as plain text but other Markdown tools (Obsidian) parse: wikilinks / embeds,
+// $$…$$ blocks and $…$ inline math (unescaped, not across a blank line). A marker inside one would break
+// the link or the formula there. Pairing every `$` this way is deliberately broad: prices like
+// `$0.50-$0.80` lose their marker too.
+const FOREIGN_SPAN_RE = /\[\[[^\]\n]*\]\]|\$\$[\s\S]*?\$\$|(?<!\\)\$(?:[^$\\\n]|\\[\s\S]|\n(?![ \t]*\n))*?\$/g;
+
+function insideForeignSpan(md: string, offset: number): boolean {
+  for (const m of md.matchAll(FOREIGN_SPAN_RE)) {
+    if (m.index >= offset) return false;
+    if (offset < m.index + m[0].length) return true;
+  }
+  return false;
+}
+
 // Same order as the server's applyInsertions: largest offset first.
 function insertMarkers(md: string, plan: MarkerInsertion[], id: string): string {
   let out = md;
@@ -169,7 +183,7 @@ export function planMarkerInsertions(md: string, note: NoteAnchor): MarkerInsert
     if (endOnly && at !== src) return null;
     // Still within (or at an edge of) a verbatim text node, and not between the halves of a surrogate pair.
     const verbatim = index.segments.some((s) => s.insertable && at >= s.srcStart && at <= s.srcStart + s.text.length);
-    if (!verbatim || isSurrogatePair(md, at - 1)) return null;
+    if (!verbatim || isSurrogatePair(md, at - 1) || insideForeignSpan(md, at)) return null;
     plan.push({ offset: at, edge });
   }
   if (plan.length === 2 && plan[0].offset >= plan[1].offset) return null;
