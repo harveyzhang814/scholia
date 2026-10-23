@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "baseBranch": "staging",
   "config": {
     "outputDir": ".hskill/sync-design/html",
@@ -45,14 +45,42 @@
         "web/src/components/subtitle-list.tsx",
         "web/src/components/notes-panel.tsx",
         "web/src/components/mode-switcher.tsx",
-        "web/src/components/prose-theme-picker.tsx"
+        "web/src/components/prose-theme-picker.tsx",
+        "web/src/components/reader.tsx",
+        "web/src/components/toc.tsx",
+        "web/src/components/inline-notes.tsx",
+        "web/src/components/note-card.tsx",
+        "web/src/components/comment-view-toggle.tsx",
+        "web/src/components/subtitle-menu.tsx"
       ],
       "uiStates": [
         "模式A-视频优先（默认）",
         "模式F-剧场模式",
-        "模式B-阅读优先"
+        "模式B-阅读优先",
+        "内嵌视图（默认）",
+        "右栏视图",
+        "总结 tab",
+        "文章 tab",
+        "全部收起",
+        "草稿卡片",
+        "右栏待写锚点",
+        "未定位区收起",
+        "未定位区添加评论",
+        "评论编辑中",
+        "原文已变化",
+        "选区气泡",
+        "右键菜单",
+        "悬停联动",
+        "模式A-视频优先 + 内嵌（默认）",
+        "模式A + 右栏",
+        "文章 tab（另一 tab 的评论进未定位区）",
+        "模式F-剧场 + 内嵌/右栏",
+        "模式B-阅读优先 + 内嵌",
+        "模式B-阅读优先 + 右栏",
+        "草稿卡片（点评论，编辑中）",
+        "内嵌视图-全部收起（收起时显示正文预览）"
       ],
-      "lastSyncCommit": "175feca889cdea010a6435a80b43061b4c429615",
+      "lastSyncCommit": "81d3de7f58fa00cfe2af9ace589e1fa45da25661",
       "description": "视频任务详情页：播放器 + 字幕列表 + 文章/总结正文 + 笔记栏，支持 5 种布局模式切换（此稿覆盖 3 种代表性模式）"
     },
     {
@@ -63,13 +91,34 @@
         "web/src/routes/tasks.$id.tsx",
         "web/src/components/reader.tsx",
         "web/src/components/toc.tsx",
-        "web/src/components/notes-panel.tsx"
+        "web/src/components/notes-panel.tsx",
+        "web/src/components/inline-notes.tsx",
+        "web/src/components/note-card.tsx",
+        "web/src/components/comment-view-toggle.tsx",
+        "web/src/components/article-meta-bar.tsx"
       ],
       "uiStates": [
         "顶部-信息栏与正文标题同屏",
-        "向下滚动-信息栏随正文滚出视口"
+        "向下滚动-信息栏随正文滚出视口",
+        "内嵌视图-全部展开（默认）",
+        "内嵌视图-单卡收起",
+        "内嵌视图-全部收起",
+        "内嵌视图-编辑已有评论",
+        "内嵌视图-草稿卡片（点评论编辑中）",
+        "内嵌视图-近似（原文已变化+快照）",
+        "内嵌视图-文首未定位区",
+        "内嵌视图-未定位区收起",
+        "内嵌视图-未定位区添加无锚点评论",
+        "内嵌视图-正文列占满（不渲染右栏）",
+        "内嵌视图-右键在此处评论",
+        "右键高亮处-在此处评论与删除高亮",
+        "选中文字-浮动工具条",
+        "右栏视图（引用原文，最多两行）",
+        "右栏视图-右键评论后输入框带锚点标签",
+        "悬停正文锚点↔卡片联动高亮",
+        "无评论-空状态"
       ],
-      "lastSyncCommit": "175feca889cdea010a6435a80b43061b4c429615",
+      "lastSyncCommit": "81d3de7f58fa00cfe2af9ace589e1fa45da25661",
       "description": "文章任务详情页（模式 E 纯读）：正文列 + TOC + 笔记栏三栏布局，在 article-meta-bar-web 草稿基础上修正了无媒体任务下 header/tab-bar 的差异"
     },
     {
