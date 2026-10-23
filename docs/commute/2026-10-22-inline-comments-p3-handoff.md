@@ -1,5 +1,5 @@
 ---
-status: 待验收
+status: 已验收
 date: 2026-10-22
 author_model: claude-opus-5-5
 acceptance: hard
@@ -143,3 +143,38 @@ target_node: f4866fd8-3c72-4ea4-be22-8e566b9b3da9
    **这偏离了 plan 的 Global Constraints「行首规则」对开头/点标记的处理，也偏离了 Task 5 `planMarkerInsertions` 步骤 4/6 的描述和 Task 1 `validateInsertions` 的合法定义；`applyLineStartRule` 里 start/point 的右移分支保留但规划器不再使用。** 代价：起点靠选区长度推，选区文字被改后高亮会静默变窄且无「原文已变化」提示（D 项实测）；点评论在行首得不到标记保护。
 - 未修的 Minor：段尾的点评论不写标记（按 brief 规则）；带 BOM 的文件写不上标记；保存后正文大时主线程短暂卡顿；只读文件仍会被改写；双语条目的标记可能留在 `Origin`；重命名会替换 inode。
 - 其他：提交 `0ff0344`、`3fb4e7d` 的 trailer 署名为 `Claude Opus 5.5`，与会话约定的 `Claude Sonnet 5.5` 不一致，未重写历史。
+
+## 原 session 验收记录（2026-10-22，达成）
+
+被验提交：`fdfd9cf`（分支 `feature/inline-comments-p3`，merge-base `d68135c`）。所有命令在本工作区实跑，不采信自测结论。机器校验 `validate-handoff.sh` 退出码 0。
+
+| 锚点 | 结果 | 实跑依据 |
+|---|---|---|
+| 1 后端 | pass | `npm test` 退出码 0（各文件 `0 failed`，`server.test.js` 70 passed）；计划 Task 1 的 9 个用例名逐个以 `✓` 出现 |
+| 2 前端 | pass | `cd web && npm test` 退出码 0（30 文件、307 测试）；`vitest --reporter=json` 比对计划 Task 3–6 的 27 个 `it` 名，全部存在且 passed（`toc ignores sc markers in headings` 按 `describe`+`it` 全名匹配）；`web/src` 无 `.skip/.only/.todo/xit/xdescribe`；对 merge-base 的测试文件 diff 无被删除的 `it(`/`describe(`（只有一行 import 改写） |
+| 3 构建 | pass | `cd web && npm run build` 退出码 0（仅 chunk 体积警告） |
+| 4 依赖 | pass | `web/package.json` 只多 `remark-gfm ^4.0.1`、`remark-parse ^11.0.0`、`unified ^11.0.5`；根 `package.json` 无改动 |
+| 5 约定 | pass | `CLAUDE.md` 中 `never moved, renamed, or modified` 计数 0；第 40 行为含 `<!-- sc:` 的新约定 |
+| 6 范围 | pass（接受偏差） | 清单外两个文件：`server/article-source.js`（只多导出已有的 `parseFrontmatter`，新接口复用）、`web/src/hooks/use-tasks.test.tsx`（新增测试，覆盖 `useAddNote` 写标记接线）。都很小且直接服务计划任务，按接受的偏差记录。spec 改动属 Task 7 的 Files |
+| 7 手动检查 | pass（验收方在 HEAD 上重跑） | 见下 |
+| 8 Obsidian | 豁免（用户认可） | 用户 2026-10-22 在验收会话中确认认可此豁免；spec 对应行已写「不再适用」及原因 |
+
+**锚点 7 重跑**：接手方记录里的证据多为摘录，且第 3、4、6 项跑在 `b51c792` 旧提交上，所以验收方在 `fdfd9cf` 上用全新临时目录 `/tmp/scholia-p3-accept-Vbpb`（`SCHOLIA_CONFIG_FILE` 重定向，`~/.config/scholia/` 三个文件修改时间前后一致）重跑 6 项，全部 pass，`diff -u` 与快照留在该目录的 `before/` 下：
+1. 行中选区写一对标记、行中点评论写单个标记；页面无 `sc:`；两条都有 `markerId`。
+2. 段首、列表项首、引用块首的选区只写结尾标记，标题内选区写一对；所有标记去掉后与原文件逐字节相同；目录与「复制」内容不含 `sc:`；高亮首字完整；段首点评论不写标记、原文不变。
+3. 行内代码里的点评论：原文 diff 为空，无 `markerId`，仍定位。
+4. 保留标记改中间文字后刷新：高亮跟随，无「原文已变化」；删掉标记后刷新：退回文字定位并显示「原文已变化」。
+5. UI 删除一对标记的评论、API 删除只有结尾标记的评论：删除后文件 = 删除前去掉该评论标记，`cmp` 逐字节相同。
+6. 视频「总结」tab：标记写进 `writing/summary.md`，`writing/article.md` 与写入前 `cmp` 相同。
+
+**接受的偏差（用户在验收会话中认可）**
+- 行首规则：选区起点在行首只写结尾标记、点评论在行首不写（偏离计划 Global Constraints 的行首规则与 Task 1/5 的描述）。代价已在自测记录 D 项写明。
+- 锚点 8 豁免。
+- 锚点 6 的两个清单外文件。
+
+**回归面核对**：改动面（`git diff --name-only $(git merge-base staging HEAD)..HEAD`）为 `server/{index,markers,article-source}.js`、`web/src` 下的 reader/anchor/text-index/api/use-tasks/tasks.$id 及新文件、`CLAUDE.md`、spec、交接文档、`web/package{,-lock}.json`。被波及组件的既有测试即后端 `npm test` 全部文件与前端 `vitest` 全量，已在锚点 1、2 中全跑，全绿；无额外回归项。
+
+**后续问题（不影响本次验收）**
+- 保留标记改了被评论文字后，高亮跟随新文字，但卡片引用仍显示旧 `anchor`（`notes.json` 不回写，属本期范围外）。
+- UI 删除评论没有确认，原文标记同时被移除（删除无确认是既有行为）。
+- 自测记录列出的未修 Minor：段尾点评论不写标记、带 BOM 文件写不上、只读文件仍被改写、双语条目标记可能写进 `Origin`、重命名替换 inode、大正文保存后短暂卡顿。
