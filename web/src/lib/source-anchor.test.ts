@@ -120,6 +120,19 @@ describe('planMarkerInsertions', () => {
     expect(planMarkerInsertions(md, { anchor: '', prefix: '', suffix: '乙丙', position: 2 })).toBeNull();
   });
 
+  it('end-only plan aborts when the end had to move back from a line start', () => {
+    // The closing marker would sit before the true end, so start = close - anchor.length would slide back.
+    const cases: [md: string, anchor: string][] = [
+      ['前文段落。\n\nIt shipped in\n2024. Then more text.', 'It shipped in\n2024.'],
+      ['前文段落。\n\n发布于\n3) 之后', '发布于\n3)'],
+      ['甲\n\n乙丙\n2. 丁', '乙丙\n2.'],
+      ['foo\n+', '+'],
+    ];
+    for (const [md, anchor] of cases) {
+      expect(planMarkerInsertions(md, range(md, anchor))).toBeNull();
+    }
+  });
+
   it('point note at a line start writes no marker', () => {
     const cases: [md: string, firstChars: string][] = [
       ['甲\n\n乙丙', '乙丙'],

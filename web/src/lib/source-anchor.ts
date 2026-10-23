@@ -155,23 +155,24 @@ export function planMarkerInsertions(md: string, note: NoteAnchor): MarkerInsert
     ? [{ offset: loc.start, edge: 'point' }]
     : [{ offset: loc.start, edge: 'start' }, { offset: loc.end, edge: 'end' }];
   const plan: MarkerInsertion[] = [];
-  let skippedStart: number | null = null;
+  let endOnly = false;
   for (const { offset, edge } of wanted) {
     const src = toSource(index, offset, edge);
     if (src === null) return null;
     // A start/point marker at a line start would open an html block. A point note then gets no marker
     // (it stays text-located); a range keeps only its closing marker — the locator infers the start.
     if (edge === 'point' && isLineStart(md, src)) return null;
-    if (edge === 'start' && isLineStart(md, src)) { skippedStart = src; continue; }
+    if (edge === 'start' && isLineStart(md, src)) { endOnly = true; continue; }
     const at = applyLineStartRule(md, src, edge);
+    // The locator puts an end-only start at close - anchor.length, so the end must be the true end
+    // (which also keeps it after the skipped start).
+    if (endOnly && at !== src) return null;
     // Still within (or at an edge of) a verbatim text node, and not between the halves of a surrogate pair.
     const verbatim = index.segments.some((s) => s.insertable && at >= s.srcStart && at <= s.srcStart + s.text.length);
     if (!verbatim || isSurrogatePair(md, at - 1)) return null;
     plan.push({ offset: at, edge });
   }
   if (plan.length === 2 && plan[0].offset >= plan[1].offset) return null;
-  // End-only: the end (possibly moved back from a line start) must still come after the skipped start.
-  if (skippedStart !== null && plan[0].offset <= skippedStart) return null;
   return checkReparse(md, insertMarkers(md, plan, PLACEHOLDER_ID), plan.length) ? plan : null;
 }
 
