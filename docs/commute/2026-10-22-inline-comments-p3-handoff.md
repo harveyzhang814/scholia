@@ -1,5 +1,5 @@
 ---
-status: 执行中
+status: 待验收
 date: 2026-10-22
 author_model: claude-opus-5-5
 acceptance: hard
@@ -87,13 +87,14 @@ target_node: f4866fd8-3c72-4ea4-be22-8e566b9b3da9
 6. **改动没有超出计划**：`git diff --name-only $(git merge-base staging HEAD)..HEAD` 列出的文件都在计划各任务的 Files 清单里；例外只有本交接文档和 `web/package-lock.json`。
 7. **手动检查已逐项记录**：计划 Task 7 Step 2 的 6 项，每项在自测记录里写 pass 或 fail 并附简短说明；第 1、2、5、6 项要附原文文件改动前后的实际 diff（`diff` 或 `git diff --no-index` 的输出）作为证据。某项在本机无法完成的，写明原因，不能空着。
 8. **Obsidian 实测结论已写回**：spec「未确认项汇总」表里「Obsidian 对外部修改的合并行为」一行写上了实测结论和日期（计划 Task 7 Step 3）。
+   - *接手方批注（2026-10-22）：用户在会话中明确决定「不用考虑 Obsidian，以后都是 Scholia 自己打开」，本条不再适用，未做实测；spec 对应行已改写为「不再适用」并注明原因和日期。这是用户对判据的豁免，不是接手方自行放宽，验收时请向用户确认是否认可。*
 
 ### 原 session 写交接时的门禁核对（2026-10-22）
 
 - 机器校验：`validate-handoff.sh` 通过。
 - 冷读：分支、工作区、基线都已建好；计划里 Task 1 的 9 个后端用例名、Task 3–6 的 27 个前端用例名都可逐条核对；锚点 4–6 都是可直接判对错的命令。
 
-## 接手方自测记录（2026-10-22，进行中，锚点 8 待用户实测，尚未送验）
+## 接手方自测记录（2026-10-22，锚点 1–7 通过，锚点 8 经用户豁免，送验）
 
 被测提交：`13dfad2`（分支 `feature/inline-comments-p3`，基线 `d68135c`）。实现按 subagent-driven 完成：每个任务一名实现者加一名审查者，Task 1、6 各有一轮修复，另有整条分支审查加一轮修复。
 
@@ -106,7 +107,7 @@ target_node: f4866fd8-3c72-4ea4-be22-8e566b9b3da9
 | 5 约定 | pass | `grep -c "never moved, renamed, or modified" CLAUDE.md` → 0；第 40 行有含 `<!-- sc:` 的新约定 |
 | 6 范围 | pass，附两个清单外文件 | `git diff --name-only d68135c..HEAD` 全部落在计划各任务 Files 清单内，加交接文档和 `web/package-lock.json`；另有两个清单外文件：`server/article-source.js`（仅导出 `parseFrontmatter`，路由要复用，brief 的 `git add` 清单漏列）、`web/src/hooks/use-tasks.test.tsx`（覆盖 `useAddNote` 接线的跳过条件和缓存失效） |
 | 7 手动检查 | pass，但见下方说明 | 6 项在临时目录副本上实跑；行首规则两次改动后，第 1、2、5 项又在新代码上重跑（`12ff6ed`、`13dfad2` 各一次），见下 |
-| 8 Obsidian 实测 | **未完成，待用户在本机实测** | spec「未确认项汇总」表对应行尚未回填 |
+| 8 Obsidian 实测 | **用户豁免，不再适用** | 用户 2026-10-22 明确：不用考虑 Obsidian，以后文章都由 Scholia 自己打开。未做实测；spec「未确认项汇总」对应行已改写为「不再适用」并注明原因和日期，不是填了实测结论 |
 
 **锚点 7（计划 Task 7 Step 2，临时目录 `/tmp/scholia-p3-manual`，`SCHOLIA_CONFIG_FILE` 重定向，未碰真实目录，`~/.config/scholia` 修改时间未变）**
 
