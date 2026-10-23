@@ -201,6 +201,33 @@ describe('planMarkerInsertions', () => {
     expect(planMarkerInsertions(md2, range(md2, 'example'))).toBeNull();
   });
 
+  it('aborts inside wikilinks and $…$ spans that other Markdown tools parse', () => {
+    // The renderer shows these as plain text, but Obsidian would break the link or the formula.
+    const wiki = '见 [[Origin/Best Practices for Claude Code]] 一文';
+    expect(planMarkerInsertions(wiki, range(wiki, 'Best Practices'))).toBeNull();
+    expect(planMarkerInsertions(wiki, pointAfter(wiki, 'Best'))).toBeNull();
+    const embed = '图 ![[diagram.png|示意图]] 在此';
+    expect(planMarkerInsertions(embed, range(embed, '示意'))).toBeNull();
+    const money = '每次 $0.50-$0.80 不等';
+    expect(planMarkerInsertions(money, range(money, '0.50-$0.8'))).toBeNull();
+    const math = '公式 $E = mc^2$ 成立';
+    expect(planMarkerInsertions(math, range(math, 'mc'))).toBeNull();
+    const block = '前文\n$$\nx + y\n$$\n后文';
+    expect(planMarkerInsertions(block, range(block, 'x + y'))).toBeNull();
+  });
+
+  it('still marks text next to wikilinks and lone or escaped dollar signs', () => {
+    const wiki = '见 [[Origin/Note]] 一文';
+    const w = wiki.indexOf('一文');
+    expect(planMarkerInsertions(wiki, range(wiki, '一文'))).toEqual([{ offset: w, edge: 'start' }, { offset: w + 2, edge: 'end' }]);
+    const price = '价格 $10/月起，很便宜';
+    const p = price.indexOf('很便宜');
+    expect(planMarkerInsertions(price, range(price, '很便宜'))).toEqual([{ offset: p, edge: 'start' }, { offset: p + 3, edge: 'end' }]);
+    const after = '公式 $x$ 之后的文字';
+    const a = after.indexOf('之后');
+    expect(planMarkerInsertions(after, range(after, '之后'))).toEqual([{ offset: a, edge: 'start' }, { offset: a + 2, edge: 'end' }]);
+  });
+
   it('aborts when only an approximate match exists', () => {
     const before = '第一段里有一句很重要的话在这里。';
     const note = range(before, '很重要的话');
