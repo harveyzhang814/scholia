@@ -22,12 +22,14 @@ function validateInsertions(insertions, bodyLength) {
   }
   const count = (edge) => insertions.filter((i) => i.edge === edge).length;
   if (insertions.length === 1 && count('point') === 1) return null;
+  // A lone closing marker: the selection starts at a line start, where an opening one can't go.
+  if (insertions.length === 1 && count('end') === 1) return null;
   if (insertions.length === 2 && count('start') === 1 && count('end') === 1) {
     const start = insertions.find((i) => i.edge === 'start');
     const end = insertions.find((i) => i.edge === 'end');
     return start.offset < end.offset ? null : 'start must come before end';
   }
-  return 'expected one point or one start+end pair';
+  return 'expected one point, one end, or one start+end pair';
 }
 
 // Inserts from the highest offset down so earlier offsets stay valid.
