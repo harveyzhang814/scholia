@@ -6,11 +6,7 @@ import { VoicePendingCard } from '@/components/voice-pending-card';
 import { DRAFT_ID } from '@/components/reader';
 import type { Located } from '@/lib/anchor';
 import type { Note, NoteAnchor } from '@/lib/api';
-import type { VoicePending } from '@/hooks/use-voice-comments';
-
-// Pseudo-note id prefixes the detail page adds to the Reader's notes: a processing card, and the live recording.
-const VOICE_PREFIX = 'voice:';
-const VOICE_REC_PREFIX = 'voice-rec:';
+import { VOICE_PREFIX, VOICE_REC_PREFIX, type VoicePending } from '@/hooks/use-voice-comments';
 
 interface CardsCommon {
   taskId: string;

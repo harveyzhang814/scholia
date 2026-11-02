@@ -120,7 +120,7 @@ function selectionOffsets(index: TextIndex): { start: number; end: number } | nu
 }
 
 // Keys pressed in a field are typing, not shortcuts.
-function isTypingTarget(t: HTMLElement): boolean {
+export function isTypingTarget(t: HTMLElement): boolean {
   return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable;
 }
 

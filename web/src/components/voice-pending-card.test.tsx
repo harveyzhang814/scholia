@@ -64,6 +64,29 @@ describe('VoicePendingCard', () => {
     expect(getByText('丢弃')).toBeInTheDocument();
   });
 
+  it('failed unavailable card is a connection-lost card with only 丢弃', () => {
+    const { queryByText, getByText } = render(
+      <VoicePendingCard
+        item={item({ phase: 'failed', failure: { code: 'unavailable', canRetry: false, taskId: null } })}
+        variant="inline" onRetry={noop} onDiscard={noop} />,
+    );
+    expect(getByText('CocoScribe 连接中断')).toBeInTheDocument();
+    expect(queryByText('重试')).toBeNull();
+    expect(getByText('丢弃')).toBeInTheDocument();
+  });
+
+  it('failed save_failed card explains the write failure and has only 丢弃', () => {
+    const { queryByText, getByText } = render(
+      <VoicePendingCard
+        item={item({ phase: 'failed', failure: { code: 'save_failed', canRetry: false, taskId: null } })}
+        variant="inline" onRetry={noop} onDiscard={noop} />,
+    );
+    expect(getByText('保存失败')).toBeInTheDocument();
+    expect(getByText('文字已整理好，但没能写入评论文件')).toBeInTheDocument();
+    expect(queryByText('重试')).toBeNull();
+    expect(getByText('丢弃')).toBeInTheDocument();
+  });
+
   it('sidebar variant shows the anchor quote, 插入点 for point anchors', () => {
     const range = render(<VoicePendingCard item={item({})} variant="sidebar" onRetry={noop} onDiscard={noop} />);
     expect(range.container.querySelector('.sc-quote')!.textContent).toBe('注意力机制能够并行处理序列数据');

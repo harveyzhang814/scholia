@@ -36,7 +36,7 @@ Warm neutral base with a single sage-green accent. Correction (2026-07-11 full a
 | Tertiary text | `#868782` (updated 2026-07-11, was `#6B6C69` at ~3.29:1) |
 | Accent | `#7DAE7D` |
 
-All warm-toned (no blue-gray mixed in) — consistent per the "warm or cool consistently" rule. No purple/violet anywhere — good, avoids the AI-slop gradient trap.
+All warm-toned (no blue-gray mixed in) — consistent per the "warm or cool consistently" rule. No purple/violet anywhere — good, avoids the AI-slop gradient trap. (One scoped exception, below: indigo `#8B5CF6` is the voice-comment "整理中" phase color, used only on the pending card's border, icon and spinner — never on text or backgrounds.)
 
 **语音评论阶段色** (`--coco-*` in `:root`, identical in light and dark). Borrowed from the CocoScribe floating window so the two apps read as one pipeline. Non-text only: dots, borders, icons, spinners — never body or label text. Failure uses the existing `--status-err`.
 

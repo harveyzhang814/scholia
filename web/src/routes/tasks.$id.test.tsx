@@ -26,6 +26,8 @@ const h = vi.hoisted(() => ({
 
 // Stand-in for useVoiceComments: start/stop flip a local recording, as the real hook does once the server answers.
 vi.mock('@/hooks/use-voice-comments', () => ({
+  VOICE_PREFIX: 'voice:',
+  VOICE_REC_PREFIX: 'voice-rec:',
   useVoiceComments: (taskId: string, enabled: boolean) => {
     h.voiceArgs.push([taskId, enabled]);
     const [recording, setRecording] = useState<{ id: string; anchor: NoteAnchor; startedAt: number } | null>(null);

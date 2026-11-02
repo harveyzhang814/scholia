@@ -11,7 +11,7 @@ import { ProseThemePicker } from '@/components/prose-theme-picker';
 import { CommentViewToggle } from '@/components/comment-view-toggle';
 import { InlineCards, UnlocatedZone } from '@/components/inline-notes';
 import { VoiceBar, VoiceToast } from '@/components/voice-bar';
-import { useVoiceComments } from '@/hooks/use-voice-comments';
+import { useVoiceComments, VOICE_PREFIX, VOICE_REC_PREFIX } from '@/hooks/use-voice-comments';
 import { useUiStore } from '@/stores/ui-store';
 import type { LayoutMode } from '@/stores/ui-store';
 import { usePlayerStore } from '@/stores/player-store';
@@ -73,7 +73,7 @@ function TaskDetailPage() {
   const readerNotes = useMemo(() => [
     ...notes,
     ...voice.pending.map((p) => ({ id: p.id, ...p.anchor })),
-    ...(voice.recording ? [{ id: `voice-rec:${voice.recording.id}`, ...voice.recording.anchor }] : []),
+    ...(voice.recording ? [{ id: `${VOICE_REC_PREFIX}${voice.recording.id}`, ...voice.recording.anchor }] : []),
   ], [notes, voice.pending, voice.recording]);
   const voiceCancelRef = useRef(voice.cancel);
   useEffect(() => { voiceCancelRef.current = voice.cancel; });
@@ -93,7 +93,7 @@ function TaskDetailPage() {
   const allCollapsed = notes.every((n) => collapsed.has(n.id));
   // Voice pseudo-note marks have no card to collapse or open for editing.
   const onNoteAnchorClick = useCallback((noteId: string) => {
-    if (noteId.startsWith('voice:') || noteId.startsWith('voice-rec:')) return;
+    if (noteId.startsWith(VOICE_PREFIX) || noteId.startsWith(VOICE_REC_PREFIX)) return;
     if (inline) toggleCollapsed(noteId); else setFocusNoteId(noteId);
   }, [inline, toggleCollapsed]);
   const articleRef = useRef<HTMLDivElement>(null);

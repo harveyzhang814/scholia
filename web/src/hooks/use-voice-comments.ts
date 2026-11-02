@@ -13,6 +13,10 @@ export interface VoicePending {
 
 type Recording = { id: string; anchor: NoteAnchor; startedAt: number };
 
+// Pseudo-note id prefixes the detail page adds to the Reader's notes. globals.css selects `[data-note-id^="voice-rec:"]`, so keep that value in sync.
+export const VOICE_PREFIX = 'voice:';
+export const VOICE_REC_PREFIX = 'voice-rec:';
+
 const HINT_KEY = 'voice-hint-dismissed';
 const UNAVAILABLE = 'CocoScribe 未运行，语音评论暂不可用';
 const TOAST_MS = 2600;
@@ -122,7 +126,7 @@ export function useVoiceComments(taskId: string, enabled: boolean) {
     if (!rec) return;
     recordingRef.current = null;
     setRecording(null);
-    const id = `voice:${rec.id}`;
+    const id = `${VOICE_PREFIX}${rec.id}`;
     const durationSec = Math.round((Date.now() - rec.startedAt) / 1000);
     setPending((list) => [...list, { id, anchor: rec.anchor, durationSec, phase: 'transcribing' }]);
     follow(id, (onPhase) => api.stopVoice(rec.id, onPhase));

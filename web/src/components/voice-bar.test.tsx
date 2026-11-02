@@ -31,6 +31,22 @@ describe('VoiceBar', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it('VoiceBar ignores Escape from a text field but not from the body', () => {
+    const onCancel = vi.fn();
+    const { unmount } = render(
+      <VoiceBar startedAt={Date.now()} anchor={anchor} showHint={false} onStop={noop} onCancel={onCancel} onDismissHint={noop} />,
+    );
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    fireEvent.keyDown(textarea, { key: 'Escape' });
+    expect(onCancel).not.toHaveBeenCalled();
+    textarea.remove();
+
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
   it('VoiceBar shows the hint only when showHint and 知道了 calls onDismissHint', () => {
     const onDismissHint = vi.fn();
     const props = { startedAt: Date.now(), anchor, onStop: noop, onCancel: noop, onDismissHint };

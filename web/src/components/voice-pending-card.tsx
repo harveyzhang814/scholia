@@ -12,7 +12,10 @@ export function voiceFailureCopy(code: string, canRetry: boolean): { reason: str
     case 'connection_lost':
     case 'transport':
     case 'app_not_running':
+    case 'unavailable':
       return { reason: 'CocoScribe 连接中断', hint: '' };
+    case 'save_failed':
+      return { reason: '保存失败', hint: '文字已整理好，但没能写入评论文件' };
     default:
       return { reason: '转写或整理失败', hint: canRetry ? '录音还在 CocoScribe 里，重试不用重录' : '' };
   }

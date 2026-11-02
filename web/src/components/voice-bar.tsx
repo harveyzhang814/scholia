@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { formatDuration } from '@/lib/time';
 import { anchorKind } from '@/lib/anchor';
 import type { NoteAnchor } from '@/lib/api';
+import { isTypingTarget } from '@/components/reader';
 
 const ANCHOR_PREVIEW = 40;
 
@@ -25,7 +26,8 @@ export function VoiceBar({ startedAt, anchor, showHint, onStop, onCancel, onDism
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
+      // Esc inside a field means "leave the field", not "cancel the recording".
+      if (e.key === 'Escape' && !(e.target instanceof HTMLElement && isTypingTarget(e.target))) onCancel();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);

@@ -63,7 +63,11 @@ async function makeServer(voiceClient) {
   const server = http.createServer(app.callback());
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const port = server.address().port;
-  const close = () => { server.closeAllConnections(); return new Promise((r) => server.close(r)); };
+  const close = async () => {
+    server.closeAllConnections();
+    await new Promise((r) => server.close(r));
+    fs.rmSync(tmp, { recursive: true, force: true });
+  };
   return { port, close, contentDir };
 }
 
