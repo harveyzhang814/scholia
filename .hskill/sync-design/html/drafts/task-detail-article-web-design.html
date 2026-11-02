@@ -1,0 +1,1353 @@
+<meta charset="utf-8">
+<title>文章任务详情页（纯读模式）— 设计稿：语音评论</title>
+<style>
+  /* ── Tokens（与 web/src/styles/globals.css 一致） ── */
+  :root {
+    --bg-canvas:     #F9F8F4;
+    --bg-surface:    #FFFFFF;
+    --bg-elevated:   #F1EFE9;
+    --border-subtle: #E5E2DA;
+    --border-strong: #CFCBC0;
+    --text-primary:   #2C2A24;
+    --text-secondary: #67645E;
+    --text-tertiary:  #6E6961;
+    --accent-3:  #EBF1E8;
+    --accent-9:  #5A8A5A;
+    --accent-10: #466F46;
+    --accent-11: #3D5E3D;
+    --accent-12: #243B24;
+    --status-ok:   #4A8A5A;
+    --status-err:  #B05050;
+    --status-busy: #C28A3D;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    /* 语音评论阶段色：沿用 CocoScribe 悬浮窗的颜色语言（float-window-architecture.md），明暗模式同值；只用于圆点、边框、图标，不用于文字 */
+    --coco-recording:    #FF6B47;
+    --coco-transcribing: #20D5C4;
+    --coco-refining:     #8B5CF6;
+    --coco-done:         #34D399;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-canvas:     #1A1A18;
+      --bg-surface:    #232322;
+      --bg-elevated:   #2A2A28;
+      --border-subtle: #2E2E2B;
+      --border-strong: #3D3E3B;
+      --text-primary:   #E8E8E6;
+      --text-secondary: #9A9B98;
+      --text-tertiary:  #868782;
+      --accent-3:  #2A3A2A;
+      --accent-9:  #7DAE7D;
+      --accent-10: #6FA06F;
+      --accent-11: #9BC79B;
+      --accent-12: #C8E0C8;
+    }
+  }
+
+  /* ── 基础重置（对应 Tailwind preflight 中与本页有关的部分） ── */
+  *, ::before, ::after { box-sizing: border-box; margin: 0; padding: 0; border: 0 solid; }
+  html, body {
+    background: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { font-size: inherit; font-weight: inherit; }
+  ul { list-style: none; }
+  a { color: inherit; text-decoration: inherit; }
+  button, textarea { font: inherit; color: inherit; background: transparent; cursor: pointer; }
+  textarea { cursor: text; }
+  svg { display: block; vertical-align: middle; }
+  mark { color: inherit; background: none; }
+  [hidden] { display: none !important; }
+  .chinese { line-height: 1.75; }
+
+  /* ── 预览外壳（页面标题、状态切换栏、说明） ── */
+  .page { max-width: 1440px; margin: 0 auto; padding: 48px 24px 96px; }
+  .page-title { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+  .page-sub { font-size: 13px; color: var(--text-secondary); margin: 0 0 24px; line-height: 1.6; max-width: 960px; }
+  .page-sub code, .caption code {
+    font-family: var(--font-mono);
+    background: var(--bg-elevated);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+  .state-switch-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin: 0 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .state-switch { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .state-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    transition: background 120ms, border-color 120ms, color 120ms;
+  }
+  .state-btn:hover { background: var(--bg-elevated); }
+  .state-btn.active {
+    border-color: var(--accent-9);
+    color: var(--accent-10);
+    background: var(--accent-3);
+    font-weight: 500;
+  }
+  .switch-gap { height: 16px; }
+  .caption { margin-top: 20px; font-size: 12px; color: var(--text-tertiary); line-height: 1.7; max-width: 960px; }
+  .caption strong { color: var(--text-secondary); font-weight: 600; }
+
+  /* ── 详情页外壳（无媒体文章任务：ModeSwitcher、甘特图入口不渲染） ── */
+  .detail-frame {
+    position: relative;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-surface);
+  }
+  .frame-header {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .frame-header .left { display: flex; align-items: center; gap: 16px; min-width: 0; }
+  .back-btn { font-size: 14px; color: var(--text-tertiary); }
+  .frame-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .frame-header .right { display: flex; align-items: center; gap: 12px; }
+  .header-btn { font-size: 14px; padding: 4px 8px; border-radius: 4px; color: var(--text-tertiary); transition: opacity 150ms; }
+  .header-btn:hover { opacity: 0.7; }
+  .mark-unread { font-size: 14px; color: var(--text-tertiary); }
+  .mark-unread:hover { color: var(--text-secondary); }
+  .kbd-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-tertiary); }
+  .kbd { padding: 2px 4px; border-radius: 4px; border: 1px solid var(--border-subtle); }
+
+  /* ── 评论视图切换（CommentViewToggle）：选中项只换成 text-primary，不加粗 ── */
+  .view-toggle { display: flex; align-items: center; }
+  .view-toggle button[aria-pressed="true"] { color: var(--text-primary); }
+
+  /* ── Tab 栏（文章任务无 总结/文章 切换；右侧 全部收起 / 复制 / 显示文件） ── */
+  .tab-bar {
+    padding: 0 48px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .tab-bar .tabs { display: flex; }
+  .tab-actions { display: flex; align-items: center; gap: 12px; padding: 12px 0; font-size: 12px; }
+  .tab-actions button { color: var(--text-tertiary); }
+  .tab-actions button:hover { color: var(--text-secondary); }
+
+  /* ── 内容行：滚动容器包住 正文列 | TOC | 笔记栏（右栏视图才有） ── */
+  .scroll-area { height: 720px; overflow-y: auto; }
+  .article-notes-row { display: flex; margin: 0; width: 100%; }
+  .article-col { flex: 1; min-width: 0; padding: 56px 48px; }
+  .notes-col {
+    width: 260px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border-subtle);
+    padding: 0;
+    position: relative;
+  }
+  [data-mode="E"] .notes-col { display: flex !important; flex-direction: column; }
+  /* 内嵌视图不渲染右栏，正文列占满 */
+  .detail-frame[data-view="inline"] .notes-col { display: none !important; }
+  .detail-frame[data-view="sidebar"] .inline-only { display: none !important; }
+
+  /* ── ArticleMetaBar（YAML 头部信息栏，在 article.prose-cn 内、正文之上） ── */
+  .meta-bar { padding-bottom: 16px; margin-bottom: 8px; border-bottom: 1px solid var(--border-subtle); font-size: 12px; line-height: 1.6; }
+  .meta-scalar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 24px; }
+  .meta-field { min-width: 0; }
+  .meta-label { font-family: var(--font-mono); color: var(--text-tertiary); opacity: 0.7; margin-bottom: 2px; }
+  .meta-value { color: var(--text-secondary); overflow-wrap: anywhere; }
+  .meta-array-row { margin-top: 8px; }
+  .meta-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { padding: 2px 6px; border-radius: 4px; background: var(--bg-elevated); color: var(--text-secondary); }
+
+  /* ── 正文排版 .prose-cn（默认主题） ── */
+  .prose-cn {
+    font-family: var(--prose-font-family, var(--font-sans));
+    line-height: var(--prose-line-height, 1.85);
+    font-size: var(--prose-font-size, 15px);
+    color: var(--text-primary);
+  }
+  .prose-cn h1 { font-size: var(--prose-h1-size, 26px); font-weight: 700; margin: 40px 0 16px; letter-spacing: -0.02em; color: var(--text-primary); }
+  .prose-cn h2 { font-size: var(--prose-h2-size, 20px); font-weight: 600; margin: 32px 0 12px; letter-spacing: -0.005em; }
+  .prose-cn h3 { font-size: var(--prose-h3-size, 15.5px); font-weight: 600; margin: 22px 0 8px; }
+  .prose-cn p { margin: 14px 0; }
+  .prose-cn strong { color: var(--text-primary); font-weight: 600; }
+  .prose-cn ul { padding-left: 20px; margin: 12px 0; list-style-type: disc; }
+  .prose-cn li { margin: 8px 0; }
+  /* 纯读模式 E：正文与未定位区同宽，72ch 上限居中 */
+  [data-mode="E"] .prose-cn,
+  [data-mode="E"] .sc-unlocated-zone {
+    max-width: var(--prose-max-width, 72ch);
+    margin-inline: auto;
+  }
+
+  /* ── TOC（toc.tsx：w-44 px-6 py-14，nav sticky top-14；只收 h2 / h3，h3 缩进 12px） ── */
+  .toc { width: 176px; padding: 56px 24px; flex-shrink: 0; }
+  .toc nav { position: sticky; top: 56px; }
+  .toc-item { display: block; padding: 4px 0; font-size: 12.5px; color: var(--text-tertiary); transition: color 150ms; }
+  .toc-item.level-3 { padding-left: 12px; }
+  .toc-item.active { color: var(--text-primary); font-weight: 500; }
+
+  /* ── 高亮 / 笔记锚点 / 点评论图标（与 globals.css 一致） ── */
+  mark.vdl-hl { background: transparent; border-radius: 2px; cursor: context-menu; }
+  mark.vdl-hl[data-color="yellow"] { background: rgba(255, 214, 0, 0.35); }
+  mark.vdl-note-anchor {
+    background: rgba(207, 203, 192, 0.34);
+    border-bottom: 1px dotted var(--text-tertiary);
+    border-radius: 2px;
+    cursor: pointer;
+    padding: 0 1px;
+    transition: background 120ms, box-shadow 120ms;
+  }
+  mark.vdl-note-anchor.is-linked {
+    background: var(--accent-3);
+    border-bottom-color: var(--accent-9);
+    box-shadow: inset 0 0 0 1px var(--accent-9);
+  }
+  .vdl-note-point { color: var(--text-tertiary); cursor: pointer; margin: 0 1px; transition: color 120ms; }
+  .vdl-note-point.is-linked { color: var(--accent-9); }
+  .vdl-note-point svg { display: inline-block; vertical-align: -1px; }
+
+  /* ── 选中文字浮动工具条（anchor-bubble）：四色高亮 + 评论 ── */
+  .anchor-bubble {
+    position: absolute;
+    z-index: 50;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: var(--bg-surface);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    border: 1px solid var(--border-subtle);
+  }
+  .bubble-btn { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 3px; }
+  .bubble-swatch { width: 12px; height: 12px; display: inline-block; border-radius: 2px; }
+  .bubble-divider { width: 1px; height: 14px; background: var(--border-subtle); margin: 0 2px; }
+  .bubble-comment { color: var(--text-secondary); }
+  .bubble-voice { position: relative; color: var(--text-secondary); }
+  .bubble-btn:disabled { opacity: 0.35; cursor: default; }
+  /* CocoScribe 未运行时，悬停置灰的语音按钮出现的提示 */
+  .voice-tip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: -6px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11.5px;
+    white-space: nowrap;
+    background: var(--text-primary);
+    color: var(--bg-surface);
+  }
+  /* 浏览器原生选区的示意，取系统选区色 */
+  .mock-selection { background: Highlight; color: HighlightText; }
+
+  /* ── 右键菜单：在此处评论 / 删除高亮（右键落在高亮上才有） ── */
+  .ctx-menu {
+    position: absolute;
+    z-index: 100;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    overflow: hidden;
+  }
+  .ctx-menu button { display: block; width: 100%; padding: 7px 14px; font-size: 13px; text-align: left; color: var(--text-primary); }
+  .ctx-menu button.danger { color: var(--status-err); }
+  .ctx-menu button:disabled { color: var(--text-tertiary); cursor: default; }
+  .ctx-row { display: flex !important; align-items: center; justify-content: space-between; gap: 16px; }
+  .ctx-key { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
+  .ctx-hint { display: none; font-size: 11px; }
+  .ctx-menu button:disabled .ctx-hint { display: inline; }
+  .ctx-menu button:disabled .ctx-key { display: none; }
+
+  /* ── 评论卡片 .sc-note-card（内嵌 / 右栏两种 variant 共用结构；与 globals.css 一致）
+     布局：正文 → 近似快照 → 信息行；收起按钮在正文首行最右。卡片用无衬线 UI 字号，不继承 .prose-cn。 ── */
+  .sc-note-card {
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.6;
+    text-indent: 0;
+    transition: background 120ms, box-shadow 120ms;
+  }
+  .sc-note-card[data-variant="inline"] {
+    margin: 12px 0;
+    padding: 10px 12px 8px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+  }
+  .sc-note-card[data-variant="sidebar"] {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 12px;
+  }
+  .sc-note-card[data-collapsed] { padding-bottom: 10px; }
+  .sc-note-card p { margin: 0; text-indent: 0; }
+  .sc-card-main { display: flex; align-items: flex-start; gap: 8px; }
+  .sc-card-entries { flex: 1; min-width: 0; }
+  .sc-card-entry { white-space: pre-wrap; cursor: text; }
+  .sc-card-toggle {
+    flex-shrink: 0;
+    width: 20px; height: 20px; margin: 1px -4px 0 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; border-radius: 3px;
+    color: var(--text-tertiary); font-size: 11px; cursor: pointer;
+  }
+  .sc-card-toggle:hover { background: var(--border-subtle); }
+  .sc-card-preview {
+    flex: 1; min-width: 0;
+    color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sc-card-snapshot {
+    margin-top: 6px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: var(--bg-surface);
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+  .sc-note-card[data-variant="sidebar"] .sc-card-snapshot { font-size: 11.5px; }
+  .sc-card-snapshot strong { color: var(--text-secondary); font-weight: 600; }
+  .sc-card-meta {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 6px;
+    font-size: 11.5px; color: var(--text-tertiary);
+    white-space: nowrap;
+  }
+  .sc-card-sep { opacity: 0.6; }
+  .sc-card-actions { margin-left: auto; display: flex; gap: 10px; opacity: 0; transition: opacity 120ms; }
+  .sc-card-actions button { color: inherit; cursor: pointer; }
+  .sc-note-card:hover .sc-card-actions { opacity: 1; }
+  .sc-card-textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--accent-9);
+    border-radius: 4px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font: inherit;
+    resize: none;
+    outline: none;
+  }
+  /* 待写卡片（DraftCard）：绿色描边，底部提示 + 保存（空内容时保存按钮置灰） */
+  .sc-note-card[data-draft] { background: var(--bg-surface); border-color: var(--accent-9); }
+  .sc-card-edit-foot {
+    margin-top: 6px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11.5px; color: var(--text-tertiary);
+  }
+  .sc-card-save {
+    padding: 3px 10px; border-radius: 4px;
+    border: 1px solid var(--accent-9); background: var(--accent-9);
+    color: #fff; font-size: 12px; cursor: pointer;
+  }
+  .sc-card-save:disabled { border-color: var(--border-subtle); background: var(--bg-elevated); color: var(--text-tertiary); cursor: default; }
+  /* 右栏卡片的引用原文：首行，最多两行，超出省略 */
+  .sc-quote {
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+
+  /* ── 文首未定位区（UnlocatedZone）：只在内嵌视图出现，位于信息栏之上，与正文列同宽 ── */
+  .sc-unlocated-zone {
+    margin: 0 0 20px;
+    padding: 6px 12px 8px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-family: var(--prose-font-family, var(--font-sans));
+    font-size: var(--prose-font-size, 15px);
+  }
+  .sc-zone-head, .sc-zone-list { font-family: var(--font-sans); font-size: 12px; }
+  .sc-zone-head { display: flex; align-items: center; gap: 8px; min-height: 26px; }
+  .sc-zone-title { font-weight: 500; }
+  .sc-zone-add { margin-left: auto; color: var(--accent-10); cursor: pointer; }
+  .sc-zone-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .sc-zone-list .sc-note-card[data-variant="inline"] { margin: 0; }
+
+  /* ── 右栏 NotesPanel（右栏视图）：标题与输入框 sticky，卡片按锚点所在块的纵坐标绝对定位 ── */
+  .notes-panel { display: flex; flex-direction: column; min-height: 100%; font-size: 14px; }
+  .notes-head {
+    position: sticky; top: 0; z-index: 10;
+    padding: 10px 16px;
+    font-size: 12px; font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .notes-count { color: var(--text-tertiary); }
+  .notes-input {
+    position: sticky; top: 36px; z-index: 10;
+    padding: 12px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .notes-pending { margin-bottom: 8px; padding: 4px 8px; border-radius: 4px; font-size: 12px; background: var(--accent-3); color: var(--accent-11); }
+  .notes-textarea {
+    display: block;
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.6;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    resize: none;
+    outline: none;
+  }
+  .notes-input-foot { margin-top: 8px; display: flex; align-items: center; justify-content: space-between; }
+  .notes-save {
+    padding: 4px 12px; border-radius: 4px; font-size: 12px;
+    background: var(--accent-9); color: white;
+    border: 1px solid var(--border-subtle);
+    transition: background 0.15s;
+  }
+  .notes-save:disabled { background: var(--bg-elevated); color: var(--text-tertiary); cursor: default; }
+  .notes-unplaced { padding: 8px 0; }
+  .notes-abs { position: relative; flex-shrink: 0; }
+  .notes-abs > ul { position: absolute; top: 0; width: 100%; list-style: none; }
+  .notes-empty { padding: 24px 16px; text-align: center; font-size: 12px; color: var(--text-tertiary); }
+
+  /* ── 语音评论：录音条（滚动容器顶部 sticky，录音期间始终可见；录音 = 珊瑚色） ── */
+  .voice-bar {
+    position: sticky; top: 0; z-index: 20;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--coco-recording) 8%, var(--bg-surface));
+    border-bottom: 1px solid color-mix(in srgb, var(--coco-recording) 30%, var(--border-subtle));
+  }
+  .voice-bar-row { display: flex; align-items: center; gap: 8px; padding: 8px 48px; }
+  .voice-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--coco-recording); animation: voice-pulse 1.4s ease-in-out infinite; }
+  @keyframes voice-pulse { 50% { opacity: 0.35; } }
+  .voice-label { color: var(--text-primary); font-weight: 500; }
+  .voice-timer { font-family: var(--font-mono); color: var(--text-primary); }
+  .voice-sep { opacity: 0.6; }
+  .voice-anchor { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-tertiary); }
+  .voice-actions { margin-left: auto; display: flex; gap: 14px; flex-shrink: 0; }
+  .voice-actions button { display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); }
+  .voice-actions button:hover { color: var(--text-primary); }
+  .voice-actions .kbd { font-size: 11px; padding: 0 4px; line-height: 16px; }
+  /* 首次录音时录音条下方的一次性提示：提醒关掉 CocoScribe 的弹窗与自动复制 */
+  .voice-hint {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 8px 48px 10px;
+    border-top: 1px dashed color-mix(in srgb, var(--coco-recording) 30%, var(--border-subtle));
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+  .voice-hint strong { color: var(--text-primary); font-weight: 500; }
+  .voice-hint button { flex-shrink: 0; margin-left: auto; color: var(--accent-10); font-weight: 500; }
+
+  /* ── 语音评论：正文锚点（录音中锁定 → 停止后与普通评论锚点同样式） ── */
+  .voice-locked {
+    background: color-mix(in srgb, var(--coco-recording) 14%, transparent);
+    border-bottom: 1px dashed var(--coco-recording);
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+  .voice-anchor-mark {
+    background: rgba(207, 203, 192, 0.34);
+    border-bottom: 1px dotted var(--text-tertiary);
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+
+  /* ── 语音评论占位卡片：转写中（青）→ 整理中（靛紫）→ 完成（绿色描边闪一下后即普通评论卡片）；失败用 Scholia 的 status-err ── */
+  .sc-voice-state { display: none; }
+  .sc-note-card[data-voice-state="transcribing"] { --phase: var(--coco-transcribing); }
+  .sc-note-card[data-voice-state="refining"]     { --phase: var(--coco-refining); }
+  .sc-note-card[data-voice-state="transcribing"] .is-processing,
+  .sc-note-card[data-voice-state="refining"] .is-processing { display: flex; }
+  .sc-note-card[data-voice-state="failed"] .is-failed,
+  .sc-note-card[data-voice-state="done"] .is-done { display: block; }
+  .sc-note-card[data-variant="inline"][data-voice-state="transcribing"],
+  .sc-note-card[data-variant="inline"][data-voice-state="refining"] {
+    background: var(--bg-surface);
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--phase) 60%, var(--border-subtle));
+  }
+  .sc-note-card[data-variant="inline"][data-voice-state="failed"] { background: var(--bg-surface); border-color: color-mix(in srgb, var(--status-err) 45%, var(--border-subtle)); }
+  .sc-note-card[data-voice-flash] { animation: voice-done 1.4s ease-out; }
+  @keyframes voice-done { from { box-shadow: 0 0 0 1.5px var(--coco-done); } to { box-shadow: 0 0 0 1.5px transparent; } }
+  .is-processing { align-items: center; gap: 6px; color: var(--text-secondary); }
+  .is-processing .sc-voice-icon { color: var(--phase); }
+  .sc-voice-icon { flex-shrink: 0; color: var(--text-tertiary); }
+  .sc-voice-steps { color: var(--text-tertiary); }
+  .sc-voice-steps b { font-weight: 500; color: var(--text-primary); }
+  .sc-voice-spin {
+    width: 11px; height: 11px; flex-shrink: 0;
+    border-radius: 50%;
+    border: 1.5px solid var(--border-subtle);
+    border-top-color: var(--phase);
+    animation: sc-spin 0.9s linear infinite;
+  }
+  @keyframes sc-spin { to { transform: rotate(360deg); } }
+  .sc-voice-dur { margin-left: auto; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-tertiary); }
+  .sc-voice-reason { display: flex; align-items: center; gap: 6px; color: var(--status-err); }
+  .sc-voice-reason .sc-voice-icon { color: var(--status-err); }
+  .sc-voice-actions { margin-left: auto; display: flex; gap: 10px; }
+  .sc-voice-actions button { color: var(--text-secondary); }
+  .sc-voice-actions button[data-voice-act="retry"] { color: var(--accent-10); font-weight: 500; }
+
+  /* ── 语音评论：CocoScribe 未运行时按 v 出现的轻提示（详情页外壳底部居中） ── */
+  .voice-toast {
+    position: absolute; left: 50%; bottom: 24px; z-index: 120;
+    transform: translateX(-50%);
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    background: var(--text-primary);
+    color: var(--bg-surface);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+
+  /* ── 演示辅助（仅本稿使用，非源码类名）：用 CSS 切换静态画面 ── */
+  .mock-collapsed { display: none; }
+  .sc-note-card[data-collapsed] .mock-collapsed { display: flex; }
+  .mock-expanded { display: contents; }
+  .sc-note-card[data-collapsed] .mock-expanded { display: none; }
+  .sc-note-card[data-editing] .sc-card-actions { display: none; }
+  /* 联动强调态：源码以行内样式写在卡片上，编辑中不加 */
+  .sc-note-card.mock-linked:not([data-editing]) { background: var(--accent-3); box-shadow: inset 2px 0 0 var(--accent-9); }
+  .mock-approx { display: none; }
+  .detail-frame[data-approx] .mock-approx { display: inline; }
+  .detail-frame[data-approx] p.mock-approx { display: block; }
+  .detail-frame[data-empty] [data-note-card]:not([data-draft]),
+  .detail-frame[data-empty] .vdl-note-point,
+  .detail-frame[data-empty] .notes-unplaced,
+  .detail-frame[data-empty] .notes-count,
+  .detail-frame[data-empty] #collapse-all { display: none !important; }
+  .detail-frame[data-empty] mark.vdl-note-anchor { background: none; border: 0; padding: 0; box-shadow: none; cursor: auto; }
+  .notes-empty { display: none; }
+  .detail-frame[data-empty] .notes-empty { display: block; }
+</style>
+<svg class="sd-sprite" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+<symbol id="sd-icon-2"><rect x="5.5" y="1.5" width="5" height="8" rx="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+<symbol id="sd-icon-1"><path d="M2.5 3.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H7l-3 2.5V11h-.5a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div class="page">
+  <h1 class="page-title">文章任务详情页（纯读模式 E · 无媒体）· 设计稿：语音评论</h1>
+  <p class="page-sub">
+    对应实现：<code>web/src/routes/tasks.$id.tsx</code>（文章任务、无媒体分支）、<code>reader.tsx</code>、<code>toc.tsx</code>、<code>notes-panel.tsx</code>、<code>inline-notes.tsx</code>、<code>note-card.tsx</code>、<code>comment-view-toggle.tsx</code>、<code>article-meta-bar.tsx</code>。
+    评论有「内嵌」「右栏」两种视图，头部 ✦ 旁切换，选择存 <code>localStorage</code> 的 <code>comment-view</code>，默认内嵌。
+    下方按钮切换状态，也可用 URL hash 直达，如 <code>#state=draft</code>、<code>#view=sidebar</code>、<code>#state=all-collapsed</code>；画面内的箭头、正文标记、气泡图标、卡片文字都可以直接点，悬停标记或卡片看联动。
+    <strong>本稿在完成稿基础上新增语音评论</strong>（设计见 <code>docs/superpowers/specs/2026-11-02-voice-comments-design.md</code>）：选中文字后点工具条上的麦克风或按 <code>v</code> 开始录音，再按 <code>v</code> 或点「结束」保存，<code>Esc</code> 取消；保存后演示「转写中 → 整理中 → 完成」，约 3 秒。
+  </p>
+
+  <div class="state-switch-label">评论视图</div>
+  <div class="state-switch" id="view-switch">
+    <button class="state-btn active" data-view="inline">内嵌（默认）</button>
+    <button class="state-btn" data-view="sidebar">右栏</button>
+  </div>
+
+  <div class="state-switch-label">状态（需要特定视图的会自动切过去）</div>
+  <div class="state-switch" id="state-switch">
+    <button class="state-btn active" data-state="top">顶部（打开页面时）</button>
+    <button class="state-btn" data-state="scrolled">向下滚动</button>
+    <button class="state-btn" data-state="one-collapsed" data-need-view="inline">单卡收起</button>
+    <button class="state-btn" data-state="all-collapsed" data-need-view="inline">全部收起</button>
+    <button class="state-btn" data-state="editing" data-need-view="inline">编辑已有评论</button>
+    <button class="state-btn" data-state="linked">悬停联动</button>
+    <button class="state-btn" data-state="selection">选中文字 → 工具条</button>
+    <button class="state-btn" data-state="ctxmenu">右键 →「在此处评论」</button>
+    <button class="state-btn" data-state="ctxmenu-hl">右键高亮处</button>
+    <button class="state-btn" data-state="draft" data-need-view="inline">草稿卡片</button>
+    <button class="state-btn" data-state="pending" data-need-view="sidebar">右栏输入框带锚点</button>
+    <button class="state-btn" data-state="approx">近似（原文已变化）</button>
+    <button class="state-btn" data-state="zone-collapsed" data-need-view="inline">未定位区收起</button>
+    <button class="state-btn" data-state="zone-adding" data-need-view="inline">未定位区添加评论</button>
+    <button class="state-btn" data-state="empty">无评论</button>
+  </div>
+
+  <div class="state-switch-label">语音评论（本稿新增）</div>
+  <div class="state-switch" id="voice-switch">
+    <button class="state-btn" data-state="voice-recording">录音中</button>
+    <button class="state-btn" data-state="voice-firstrun">首次录音 · 设置提示</button>
+    <button class="state-btn" data-state="voice-transcribing" data-need-view="inline">转写中</button>
+    <button class="state-btn" data-state="voice-processing" data-need-view="inline">整理中 · 下一段在录</button>
+    <button class="state-btn" data-state="voice-processing-sidebar" data-need-view="sidebar">处理中（右栏）</button>
+    <button class="state-btn" data-state="voice-failed-retry">失败 · 可重试</button>
+    <button class="state-btn" data-state="voice-failed-noaudio">失败 · 仅丢弃</button>
+    <button class="state-btn" data-state="voice-off">CocoScribe 未运行（工具条 + 按 v）</button>
+    <button class="state-btn" data-state="voice-off-ctx">CocoScribe 未运行（右键）</button>
+  </div>
+  <div class="switch-gap"></div>
+
+<!-- ── 文章详情页 ── 覆盖：顶部-信息栏与正文标题同屏 | 向下滚动-信息栏随正文滚出视口 | 内嵌视图-全部展开（默认） | 内嵌视图-单卡收起 | 内嵌视图-全部收起 | 内嵌视图-编辑已有评论 | 内嵌视图-草稿卡片（点评论编辑中） | 内嵌视图-近似（原文已变化+快照） | 内嵌视图-文首未定位区 | 内嵌视图-未定位区收起 | 内嵌视图-未定位区添加无锚点评论 | 内嵌视图-正文列占满（不渲染右栏） | 内嵌视图-右键在此处评论 | 右键高亮处-在此处评论与删除高亮 | 选中文字-浮动工具条 | 右栏视图（引用原文，最多两行） | 右栏视图-右键评论后输入框带锚点标签 | 悬停正文锚点↔卡片联动高亮 | 无评论-空状态 | 录音中-录音条 | 处理中-占位卡片（内嵌，多张并存） | 处理中-占位卡片（右栏） | 失败-可重试 | 失败-仅丢弃 | CocoScribe 未运行 | 处理中-转写中 | 处理中-整理中 | 首次录音-CocoScribe 设置提示 -->
+  <div class="detail-frame" id="frame" data-view="inline">
+    <!-- ── 头部 ── -->
+    <header class="frame-header">
+      <div class="left">
+        <button class="back-btn">←</button>
+        <h1 class="frame-title chinese">深度学习中的注意力机制综述</h1>
+      </div>
+      <div class="right">
+        <button class="header-btn" title="文章主题">✦</button>
+        <div class="view-toggle">
+          <button class="header-btn" aria-pressed="true" data-toggle-view="inline">内嵌</button>
+          <button class="header-btn" aria-pressed="false" data-toggle-view="sidebar">右栏</button>
+        </div>
+        <button class="mark-unread">标记为未读</button>
+        <div class="kbd-wrap"><kbd class="kbd">⌘K</kbd></div>
+      </div>
+    </header>
+
+    <!-- ── Tab 栏 ── 覆盖：内嵌视图-全部收起 -->
+    <div class="tab-bar">
+      <div class="tabs"></div>
+      <div class="tab-actions">
+        <button class="inline-only" id="collapse-all">全部收起</button>
+        <button>复制</button>
+        <button>显示文件</button>
+      </div>
+    </div>
+
+    <div class="scroll-area" id="scroll-area">
+      <!-- ── 录音条 ── 覆盖：录音中-录音条 | 处理中-占位卡片（内嵌，多张并存） | 首次录音-CocoScribe 设置提示 -->
+      <div class="voice-bar" id="voice-bar" hidden>
+        <div class="voice-bar-row">
+          <span class="voice-dot"></span>
+          <span class="voice-label">录音中</span>
+          <span class="voice-timer" id="voice-timer">0:00</span>
+          <span class="voice-sep">·</span>
+          <span class="voice-anchor" id="voice-anchor"></span>
+          <span class="voice-actions">
+            <button id="voice-stop">结束并保存 <kbd class="kbd">v</kbd></button>
+            <button id="voice-cancel">取消 <kbd class="kbd">Esc</kbd></button>
+          </span>
+        </div>
+        <!-- ── 首次录音提示 ── 覆盖：首次录音-CocoScribe 设置提示 -->
+        <div class="voice-hint" id="voice-hint" hidden>
+          <span>第一次用语音评论：请在 CocoScribe 设置里关掉 <strong>「转录完成后弹出编辑窗口」</strong> 和 <strong>「Copy transcript to clipboard」</strong>，否则每条语音评论结束后 CocoScribe 都会弹出自己的窗口、并覆盖你的剪贴板。Scholia 读不到 CocoScribe 的设置，这条提示只出现一次。</span>
+          <button id="voice-hint-ok">知道了</button>
+        </div>
+      </div>
+      <div class="layout-shell" data-mode="E">
+        <div class="article-notes-row">
+          <div class="article-col" id="article-col">
+
+            <!-- ── 未定位区 ── 覆盖：内嵌视图-文首未定位区 | 内嵌视图-未定位区收起 | 内嵌视图-未定位区添加无锚点评论 -->
+            <div class="sc-unlocated-zone inline-only" id="zone">
+              <div class="sc-zone-head">
+                <span class="sc-zone-title">未定位评论（<span id="zone-count">1</span>）</span>
+                <button class="sc-zone-add" id="zone-add">添加评论</button>
+                <button class="sc-card-toggle" aria-label="收起区域" id="zone-toggle">▾</button>
+              </div>
+              <div class="sc-zone-list" id="zone-list">
+                <div class="sc-note-card" data-variant="inline" data-draft id="zone-draft" hidden>
+                  <textarea rows="3" placeholder="写下评论…" class="sc-card-textarea"></textarea>
+                  <div class="sc-card-edit-foot">
+                    <span>⌘↵ 保存 · Esc 放弃</span>
+                    <button class="sc-card-save" disabled>保存</button>
+                  </div>
+                </div>
+                <div class="sc-note-card" data-note-card="z1" data-variant="inline">
+                  <div class="sc-card-main mock-collapsed">
+                    <span class="sc-card-preview">整体读完再回头对照第三节的实验设计。</span>
+                    <button class="sc-card-toggle" aria-label="展开">▸</button>
+                  </div>
+                  <div class="mock-expanded">
+                    <div class="sc-card-main">
+                      <div class="sc-card-entries"><p class="sc-card-entry">整体读完再回头对照第三节的实验设计。</p></div>
+                      <button class="sc-card-toggle" aria-label="收起">▾</button>
+                    </div>
+                    <div class="sc-card-meta"><span>5 天前</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <article class="prose-cn" id="article">
+              <!-- ── 信息栏 ── 覆盖：顶部-信息栏与正文标题同屏 -->
+              <div class="meta-bar">
+                <div class="meta-scalar-grid">
+                  <div class="meta-field"><div class="meta-label">Date</div><div class="meta-value">2024-01-01</div></div>
+                  <div class="meta-field"><div class="meta-label">Author</div><div class="meta-value">Jane Doe</div></div>
+                  <div class="meta-field"><div class="meta-label">Source Url</div><div class="meta-value">arxiv.org/abs/2024.03158v2-attention-survey-full-paper</div></div>
+                </div>
+                <div class="meta-array-row">
+                  <div class="meta-label">Tags</div>
+                  <div class="meta-chips"><span class="chip">ai</span><span class="chip">machine-learning</span><span class="chip">nlp</span></div>
+                </div>
+              </div>
+
+              <div data-sc-body id="body">
+                <h1>深度学习中的注意力机制综述</h1>
+
+                <p>注意力机制自 2017 年 Transformer 架构提出以来，已成为现代深度学习模型的核心组件之一。本文从基础原理出发，系统梳理其在<mark class="vdl-hl" data-color="yellow" id="hl-target">自然语言处理</mark>、<mark class="vdl-note-anchor" data-note-id="n1">计算机视觉等领域的演化路径</mark>，并讨论其计算代价。</p>
+                <!-- ── 槽位 p1 ── -->
+                <div data-sc-ui data-sc-slot="1" class="inline-only">
+                  <div class="sc-note-card" data-note-card="n1" data-variant="inline">
+                    <div class="sc-card-main mock-collapsed">
+                      <span class="sc-card-preview">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</span>
+                      <button class="sc-card-toggle" aria-label="展开">▸</button>
+                    </div>
+                    <div class="mock-expanded">
+                      <div class="sc-card-main">
+                        <div class="sc-card-entries"><p class="sc-card-entry">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</p></div>
+                        <button class="sc-card-toggle" aria-label="收起">▾</button>
+                      </div>
+                      <div class="sc-card-meta"><span>3 天前</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <p>与传统的循环神经网络相比，<span id="sel-target" data-voice-id="v1">注意力机制能够并行处理序列数据</span>，同时更好地捕捉长距离依赖关系<span class="vdl-note-point" data-sc-ui data-note-id="n2"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><use href="#sd-icon-1"/></svg></span>。这一特性让它成为大规模预训练的首选架构，<span id="ctx-target" data-voice-id="v2">也带来了平方级的显存开销</span>。</p>
+                <!-- ── 槽位 p2 ── 覆盖：内嵌视图-草稿卡片（点评论编辑中） | 内嵌视图-近似（原文已变化+快照） -->
+                <div data-sc-ui data-sc-slot="2" class="inline-only">
+                  <!-- ── 语音占位卡片 v1（锚点在 n2 之前，排在它前面） ── 覆盖：处理中-占位卡片（内嵌，多张并存） | 处理中-转写中 | 处理中-整理中 | 失败-可重试 | 失败-仅丢弃 -->
+                  <div class="sc-note-card" data-variant="inline" data-voice-card="v1" data-note-card="v1" hidden>
+                    <div class="sc-voice-state is-processing"><svg class="sc-voice-icon" width="12" height="12" viewBox="0 0 16 16" fill="none"><use href="#sd-icon-2"/></svg><span class="sc-voice-steps" data-voice-phase></span><span class="sc-voice-spin"></span><span class="sc-voice-dur">0:14</span></div>
+                    <div class="sc-voice-state is-failed">
+                      <div class="sc-voice-reason"><svg class="sc-voice-icon" width="12" height="12" viewBox="0 0 16 16" fill="none"><use href="#sd-icon-2"/></svg><span data-voice-reason>转写或整理失败</span></div>
+                      <div class="sc-card-meta"><span data-voice-hint></span><span class="sc-voice-actions"><button data-voice-act="retry">重试</button><button data-voice-act="discard">丢弃</button></span></div>
+                    </div>
+                    <div class="sc-voice-state is-done">
+                      <div class="sc-card-main mock-collapsed">
+                        <span class="sc-card-preview">并行只对训练成立，推理时还是一个词一个词生成，这里的说法要加个限定。</span>
+                        <button class="sc-card-toggle" aria-label="展开">▸</button>
+                      </div>
+                      <div class="mock-expanded">
+                        <div class="sc-card-main">
+                          <div class="sc-card-entries"><p class="sc-card-entry">并行只对训练成立，推理时还是一个词一个词生成，这里的说法要加个限定。</p></div>
+                          <button class="sc-card-toggle" aria-label="收起">▾</button>
+                        </div>
+                        <div class="sc-card-meta"><span>刚刚</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="sc-note-card" data-note-card="n2" data-variant="inline">
+                    <div class="sc-card-main mock-collapsed">
+                      <span class="sc-card-preview">这里可以补一句：长距离依赖在 RNN 里是靠门控缓解的，不是根治。</span>
+                      <button class="sc-card-toggle" aria-label="展开">▸</button>
+                    </div>
+                    <div class="mock-expanded">
+                      <div class="sc-card-main">
+                        <div class="sc-card-entries"><p class="sc-card-entry">这里可以补一句：长距离依赖在 RNN 里是靠门控缓解的，不是根治。</p></div>
+                        <button class="sc-card-toggle" aria-label="收起">▾</button>
+                      </div>
+                      <p class="sc-card-snapshot mock-approx">注意力机制能够并行处理序列数据，同时更好地捕捉长距离依赖<strong>‸</strong>。这一特性使其成为大规模预训练的首选</p>
+                      <div class="sc-card-meta"><span class="mock-approx">原文已变化</span><span class="sc-card-sep mock-approx">·</span><span>昨天</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                    </div>
+                  </div>
+                  <!-- ── 语音占位卡片 v2（锚点在 n2 之后） ── 覆盖：处理中-占位卡片（内嵌，多张并存） -->
+                  <div class="sc-note-card" data-variant="inline" data-voice-card="v2" data-note-card="v2" hidden>
+                    <div class="sc-voice-state is-processing"><svg class="sc-voice-icon" width="12" height="12" viewBox="0 0 16 16" fill="none"><use href="#sd-icon-2"/></svg><span class="sc-voice-steps" data-voice-phase></span><span class="sc-voice-spin"></span><span class="sc-voice-dur">0:09</span></div>
+                    <div class="sc-voice-state is-failed">
+                      <div class="sc-voice-reason"><svg class="sc-voice-icon" width="12" height="12" viewBox="0 0 16 16" fill="none"><use href="#sd-icon-2"/></svg><span data-voice-reason>转写或整理失败</span></div>
+                      <div class="sc-card-meta"><span data-voice-hint></span><span class="sc-voice-actions"><button data-voice-act="retry">重试</button><button data-voice-act="discard">丢弃</button></span></div>
+                    </div>
+                    <div class="sc-voice-state is-done">
+                      <div class="sc-card-main mock-collapsed">
+                        <span class="sc-card-preview">显存开销要分训练和推理看，推理时 KV cache 才是大头。</span>
+                        <button class="sc-card-toggle" aria-label="展开">▸</button>
+                      </div>
+                      <div class="mock-expanded">
+                        <div class="sc-card-main">
+                          <div class="sc-card-entries"><p class="sc-card-entry">显存开销要分训练和推理看，推理时 KV cache 才是大头。</p></div>
+                          <button class="sc-card-toggle" aria-label="收起">▾</button>
+                        </div>
+                        <div class="sc-card-meta"><span>刚刚</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="sc-note-card" data-variant="inline" data-draft id="slot-draft" hidden>
+                    <textarea rows="3" placeholder="写下评论…" class="sc-card-textarea"></textarea>
+                    <div class="sc-card-edit-foot">
+                      <span>⌘↵ 保存 · Esc 放弃</span>
+                      <button class="sc-card-save" disabled>保存</button>
+                    </div>
+                  </div>
+                </div>
+
+                <h2>主要变体</h2>
+                <ul>
+                  <li>自注意力：序列内部各位置两两计算相关性。</li>
+                  <li>交叉注意力：查询来自一个序列，<mark class="vdl-note-anchor" data-note-id="n3">键和值来自另一个序列，这让解码器在生成每个词时都能回看编码器对整句输入的全部表示</mark>。
+                    <!-- ── 槽位 li（列表项内部末尾） ── -->
+                    <div data-sc-ui data-sc-slot="3" class="inline-only">
+                      <div class="sc-note-card" data-note-card="n3" data-variant="inline">
+                        <div class="sc-card-main mock-collapsed">
+                          <span class="sc-card-preview">编码器-解码器结构里就是这个。</span>
+                          <button class="sc-card-toggle" aria-label="展开">▸</button>
+                        </div>
+                        <div class="mock-expanded">
+                          <div class="sc-card-main">
+                            <div class="sc-card-entries"><p class="sc-card-entry">编码器-解码器结构里就是这个。</p></div>
+                            <button class="sc-card-toggle" aria-label="收起">▾</button>
+                          </div>
+                          <div class="sc-card-meta"><span>昨天</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li>稀疏注意力：只在局部窗口内计算，降低开销。</li>
+                </ul>
+
+                <h2 id="h-cost">计算代价</h2>
+                <p>标准自注意力需要为序列中每一对位置计算相关性分数，序列长度翻倍，计算量和显存都变成原来的四倍<span class="vdl-note-point" data-sc-ui data-note-id="n4"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><use href="#sd-icon-1"/></svg></span>。在长文档、高分辨率图像这类输入上，这是最先遇到的瓶颈。</p>
+                <!-- ── 槽位 p3 ── -->
+                <div data-sc-ui data-sc-slot="4" class="inline-only">
+                  <div class="sc-note-card" data-note-card="n4" data-variant="inline">
+                    <div class="sc-card-main mock-collapsed">
+                      <span class="sc-card-preview">FlashAttention 不改变这个复杂度，只是把常数压下来了。</span>
+                      <button class="sc-card-toggle" aria-label="展开">▸</button>
+                    </div>
+                    <div class="mock-expanded">
+                      <div class="sc-card-main">
+                        <div class="sc-card-entries"><p class="sc-card-entry">FlashAttention 不改变这个复杂度，只是把常数压下来了。</p></div>
+                        <button class="sc-card-toggle" aria-label="收起">▾</button>
+                      </div>
+                      <div class="sc-card-meta"><span>2 小时前</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <h3>稀疏化与线性化</h3>
+                <p>一类做法只让每个位置关注局部窗口和少数全局位置；另一类用核函数近似 softmax，把复杂度降到线性。两者都以一定的精度损失换取更长的上下文。</p>
+                <p>工程上还有另一条路：不改变数学结果，只重排计算顺序、减少显存读写。它在实际训练中往往收益最大，因为瓶颈常常不在算力，而在内存带宽。</p>
+
+                <h2>小结</h2>
+                <p>注意力机制的核心价值在于让模型按需取用上下文。理解它的代价结构，比记住各种变体的名字更有助于判断一个模型能处理多长的输入。</p>
+                <p>选择变体时，先问输入有多长、能接受多大的精度损失，再看硬件的显存与带宽，答案通常就清楚了。</p>
+              </div>
+            </article>
+          </div>
+
+          <!-- ── TOC ── 覆盖：向下滚动-信息栏随正文滚出视口 -->
+          <aside class="toc">
+            <nav id="toc">
+              <a class="toc-item active" data-target="主要变体">主要变体</a>
+              <a class="toc-item" data-target="计算代价">计算代价</a>
+              <a class="toc-item level-3" data-target="稀疏化与线性化">稀疏化与线性化</a>
+              <a class="toc-item" data-target="小结">小结</a>
+            </nav>
+          </aside>
+
+          <!-- ── 右栏笔记栏 ── 覆盖：右栏视图（引用原文，最多两行） | 右栏视图-右键评论后输入框带锚点标签 -->
+          <aside class="notes-col">
+            <div class="notes-panel">
+              <div class="notes-head">笔记<span class="notes-count"> · 5</span></div>
+              <div class="notes-input">
+                <div class="notes-pending" id="pending-chip" hidden>插入点：…大规模预训练的首选架构，</div>
+                <textarea rows="3" placeholder="写下笔记…" class="notes-textarea" id="notes-textarea"></textarea>
+                <div class="notes-input-foot">
+                  <span></span>
+                  <button class="notes-save" disabled>保存</button>
+                </div>
+              </div>
+
+              <ul class="notes-unplaced">
+                <li>
+                  <div class="sc-note-card" data-note-card="z1" data-variant="sidebar">
+                    <div class="sc-card-main"><div class="sc-card-entries"><p class="sc-card-entry">整体读完再回头对照第三节的实验设计。</p></div></div>
+                    <div class="sc-card-meta"><span>5 天前</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                  </div>
+                </li>
+              </ul>
+
+              <div class="notes-abs" id="notes-abs">
+                <ul data-place="n1"><li>
+                  <div class="sc-note-card" data-note-card="n1" data-variant="sidebar">
+                    <div class="sc-quote">计算机视觉等领域的演化路径</div>
+                    <div class="sc-card-main"><div class="sc-card-entries"><p class="sc-card-entry">这段关于视觉领域演化路径的表述值得展开，后面补一节对比图。</p></div></div>
+                    <div class="sc-card-meta"><span>3 天前</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                  </div>
+                </li></ul>
+                <!-- ── 右栏语音占位卡片 v1（排在 n2 前） ── 覆盖：处理中-占位卡片（右栏） | 失败-可重试 | 失败-仅丢弃 -->
+                <ul data-place="v1" hidden><li>
+                  <div class="sc-note-card" data-variant="sidebar" data-voice-card="v1">
+                    <div class="sc-quote">注意力机制能够并行处理序列数据</div>
+                    <div class="sc-voice-state is-processing"><svg class="sc-voice-icon" width="12" height="12" viewBox="0 0 16 16" fill="none"><use href="#sd-icon-2"/></svg><span class="sc-voice-steps" data-voice-phase></span><span class="sc-voice-spin"></span><span class="sc-voice-dur">0:14</span></div>
+                    <div class="sc-voice-state is-failed">
+                      <div class="sc-voice-reason"><svg class="sc-voice-icon" width="12" height="12" viewBox="0 0 16 16" fill="none"><use href="#sd-icon-2"/></svg><span data-voice-reason>转写或整理失败</span></div>
+                      <div class="sc-card-meta"><span data-voice-hint></span><span class="sc-voice-actions"><button data-voice-act="retry">重试</button><button data-voice-act="discard">丢弃</button></span></div>
+                    </div>
+                    <div class="sc-voice-state is-done">
+                      <div class="sc-card-main"><div class="sc-card-entries"><p class="sc-card-entry">并行只对训练成立，推理时还是一个词一个词生成，这里的说法要加个限定。</p></div></div>
+                      <div class="sc-card-meta"><span>刚刚</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                    </div>
+                  </div>
+                </li></ul>
+                <ul data-place="n2"><li>
+                  <div class="sc-note-card" data-note-card="n2" data-variant="sidebar">
+                    <div class="sc-quote">插入点</div>
+                    <div class="sc-card-main"><div class="sc-card-entries"><p class="sc-card-entry">这里可以补一句：长距离依赖在 RNN 里是靠门控缓解的，不是根治。</p></div></div>
+                    <p class="sc-card-snapshot mock-approx">注意力机制能够并行处理序列数据，同时更好地捕捉长距离依赖<strong>‸</strong>。这一特性使其成为大规模预训练的首选</p>
+                    <div class="sc-card-meta"><span class="mock-approx">原文已变化</span><span class="sc-card-sep mock-approx">·</span><span>昨天</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                  </div>
+                </li></ul>
+                <!-- ── 右栏语音占位卡片 v2 ── 覆盖：处理中-占位卡片（右栏） -->
+                <ul data-place="v2" hidden><li>
+                  <div class="sc-note-card" data-variant="sidebar" data-voice-card="v2">
+                    <div class="sc-quote">也带来了平方级的显存开销</div>
+                    <div class="sc-voice-state is-processing"><svg class="sc-voice-icon" width="12" height="12" viewBox="0 0 16 16" fill="none"><use href="#sd-icon-2"/></svg><span class="sc-voice-steps" data-voice-phase></span><span class="sc-voice-spin"></span><span class="sc-voice-dur">0:09</span></div>
+                    <div class="sc-voice-state is-failed">
+                      <div class="sc-voice-reason"><svg class="sc-voice-icon" width="12" height="12" viewBox="0 0 16 16" fill="none"><use href="#sd-icon-2"/></svg><span data-voice-reason>转写或整理失败</span></div>
+                      <div class="sc-card-meta"><span data-voice-hint></span><span class="sc-voice-actions"><button data-voice-act="retry">重试</button><button data-voice-act="discard">丢弃</button></span></div>
+                    </div>
+                    <div class="sc-voice-state is-done">
+                      <div class="sc-card-main"><div class="sc-card-entries"><p class="sc-card-entry">显存开销要分训练和推理看，推理时 KV cache 才是大头。</p></div></div>
+                      <div class="sc-card-meta"><span>刚刚</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                    </div>
+                  </div>
+                </li></ul>
+                <ul data-place="n3"><li>
+                  <div class="sc-note-card" data-note-card="n3" data-variant="sidebar">
+                    <div class="sc-quote">键和值来自另一个序列，这让解码器在生成每个词时都能回看编码器对整句输入的全部表示</div>
+                    <div class="sc-card-main"><div class="sc-card-entries"><p class="sc-card-entry">编码器-解码器结构里就是这个。</p></div></div>
+                    <div class="sc-card-meta"><span>昨天</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                  </div>
+                </li></ul>
+                <ul data-place="n4"><li>
+                  <div class="sc-note-card" data-note-card="n4" data-variant="sidebar">
+                    <div class="sc-quote">插入点</div>
+                    <div class="sc-card-main"><div class="sc-card-entries"><p class="sc-card-entry">FlashAttention 不改变这个复杂度，只是把常数压下来了。</p></div></div>
+                    <div class="sc-card-meta"><span>2 小时前</span><span class="sc-card-actions"><button data-act="edit">编辑</button><button>删除</button></span></div>
+                  </div>
+                </li></ul>
+              </div>
+
+              <div class="notes-empty">暂无笔记</div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 浮层 ── 覆盖：选中文字-浮动工具条 | 内嵌视图-右键在此处评论 | 右键高亮处-在此处评论与删除高亮 -->
+    <div class="anchor-bubble" id="bubble" hidden>
+      <button class="bubble-btn" title="yellow"><span class="bubble-swatch" style="background: rgba(255, 214, 0, 0.8);"></span></button>
+      <button class="bubble-btn" title="green"><span class="bubble-swatch" style="background: rgba(74, 222, 128, 0.8);"></span></button>
+      <button class="bubble-btn" title="red"><span class="bubble-swatch" style="background: rgba(248, 113, 113, 0.8);"></span></button>
+      <button class="bubble-btn" title="blue"><span class="bubble-swatch" style="border-bottom: 2px solid rgba(59, 130, 246, 0.9);"></span></button>
+      <div class="bubble-divider"></div>
+      <button class="bubble-btn bubble-comment" title="评论">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11.5 1.5a1.5 1.5 0 0 1 2.121 2.121l-8.5 8.5L2 13l.879-3.121 8.621-8.379z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <!-- ── 工具条语音按钮 ── 覆盖：选中文字-浮动工具条 | CocoScribe 未运行 -->
+      <button class="bubble-btn bubble-voice" id="bubble-voice" title="语音评论（v）">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><use href="#sd-icon-2"/></svg>
+      </button>
+      <span class="voice-tip" id="voice-tip" hidden>CocoScribe 未运行</span>
+    </div>
+    <div class="ctx-menu" id="ctx-menu" hidden>
+      <button id="ctx-comment">在此处评论</button>
+      <!-- ── 右键语音评论 ── 覆盖：内嵌视图-右键在此处评论 | 右键高亮处-在此处评论与删除高亮 | CocoScribe 未运行 -->
+      <button class="ctx-row" id="ctx-voice"><span>语音评论</span><span class="ctx-key">v</span><span class="ctx-hint">CocoScribe 未运行</span></button>
+      <button class="danger" id="ctx-delete-hl">删除高亮</button>
+    </div>
+    <!-- ── 轻提示 ── 覆盖：CocoScribe 未运行 -->
+    <div class="voice-toast" id="voice-toast" hidden>CocoScribe 未运行，语音评论暂不可用</div>
+  </div>
+
+<!-- ── 说明 ── -->
+  <p class="caption">
+    <strong>卡片</strong>：评论正文在最上，收起按钮 ▾ / ▸ 在正文首行最右；近似定位时正文下方出现原文快照（捕获时的前后文，锚点处加粗，点评论用 ‸）；最底一行是「原文已变化」（近似时）与相对时间，右侧「编辑 / 删除」悬停时出现。点正文文字或「编辑」原地进入编辑，⌘↵ 或失焦保存，Esc 放弃。
+    <strong>内嵌卡片</strong>不显示锚点原文，收起后只剩正文首行（单行省略）+ ▸。<strong>右栏卡片</strong>多一行引用原文（<code>.sc-quote</code>，首行，最多两行省略；点评论显示「插入点」，无锚点评论不显示），不能收起。
+  </p>
+  <p class="caption">
+    <strong>槽位</strong>：卡片插在锚点所在块之后（段落、标题、引用、代码块、表格）；列表项则在 <code>li</code> 内部末尾。同一块的多条评论共用一个槽位，按位置排序，草稿卡片按自己的位置混排；草稿在正文里没有标记。
+    <strong>点击</strong>正文标记或气泡图标：内嵌视图下切换对应卡片收起；右栏视图下对应卡片滚到可见并进入编辑。
+    <strong>新建评论</strong>：选中文字后工具条上的笔形按钮、右键菜单「在此处评论」（有选区时评论选区，否则评论光标处）、或按 <code>c</code>；Shift + 右键保留浏览器原生菜单。内嵌视图生成草稿卡片，右栏视图把锚点带进右栏输入框。
+  </p>
+  <p class="caption">
+    <strong>未定位区</strong>只在内嵌视图出现，位于信息栏之上，与正文列同宽：无锚点评论、在正文里找不到位置的评论都在这里；「添加评论」新建无锚点评论；▾ / ▸ 只收起这一块。没有这类评论时仍保留一行「未定位评论（0）」。
+    <strong>全部收起 / 全部展开</strong>在 tab 栏「复制」之前，仅内嵌视图且有评论时出现；全部卡片（含未定位区里的）都收起时显示「全部展开」。
+    <strong>内嵌视图</strong>不渲染右栏，正文列占满（纯读模式下正文有 72ch 上限，宽度看不出变化）。原文里的 <code>&lt;!-- sc:… --&gt;</code> 位置标记渲染为不可见的空元素，复制时剔除，界面上没有可见变化。
+  </p>
+  <p class="caption">
+    <strong>语音评论（本稿新增）</strong>：入口是工具条上的麦克风、右键菜单「语音评论」，或者按 <code>v</code>。有选区就评论选区，没有就评论光标处，判定和 <code>c</code> 相同。只在文章页出现。开始录音的那一刻锚点就锁定了（红色虚线底），之后选区怎么变都不影响。
+    <strong>录音条</strong>固定在滚动区顶部，滚动时一直可见，显示计时和锚点原文。按 <code>v</code> 或点「结束并保存」就停止并保存，按 <code>Esc</code> 或点「取消」就丢弃。录音期间工具条和右键菜单里的语音入口会置灰，因为麦克风是独占的。
+    <strong>阶段颜色</strong>沿用 CocoScribe 悬浮窗的颜色：珊瑚色是录音，青色是转写，靛紫色是整理，绿色是完成。这些颜色只用在圆点、边框、图标和转圈动画上，文字仍然用 Scholia 的文字色。失败用 Scholia 的红色。录音条上没有波形：拿不到真实音量，画假波形的话，就会出现一直在动、最后却报「没有录到声音」的矛盾。
+    <strong>占位卡片</strong>停止后立刻出现在锚点位置，内嵌和右栏两种视图里的位置和普通评论一样。卡片会依次显示「转写中… → 整理」和「转写 → 整理中…」，边框和转圈动画的颜色随阶段变化。阶段由「停止」请求的流式响应逐个推送过来。上一段还在处理时，就可以录下一段，所以可能同时有多张占位卡片。处理完会直接变成普通评论卡片，和手写评论没有区别，正文锚点也换成普通评论的样式。
+    <strong>失败</strong>时，有可重试的情况，比如 Ollama 整理失败，卡片上显示「重试」和「丢弃」，重试不用重新录音。没有录到声音、CocoScribe 连接中断这类情况只能「丢弃」。占位卡片不会存盘，刷新页面后就没了。
+    <strong>首次录音</strong>时，录音条下方会多出一条一次性提示，提醒用户去 CocoScribe 里关掉「转录完成后弹出编辑窗口」和「Copy transcript to clipboard」。因为 <code>silent</code> 模式只隐藏录音浮窗，挡不住 CocoScribe 的编辑窗口，也挡不住自动复制。
+    <strong>CocoScribe 未运行</strong>时，工具条上的麦克风和右键菜单里的「语音评论」会置灰并提示原因，按 <code>v</code> 会在底部弹出轻提示。手动评论完全不受影响。
+  </p>
+</div>
+
+<script>
+  var frame = document.getElementById('frame');
+  var scrollArea = document.getElementById('scroll-area');
+  var articleCol = document.getElementById('article-col');
+  var body = document.getElementById('body');
+  var zone = document.getElementById('zone');
+  var zoneList = document.getElementById('zone-list');
+  var zoneToggle = document.getElementById('zone-toggle');
+  var zoneDraft = document.getElementById('zone-draft');
+  var slotDraft = document.getElementById('slot-draft');
+  var collapseAll = document.getElementById('collapse-all');
+  var bubble = document.getElementById('bubble');
+  var ctxMenu = document.getElementById('ctx-menu');
+  var pendingChip = document.getElementById('pending-chip');
+  var notesTextarea = document.getElementById('notes-textarea');
+  var NOTE_IDS = ['z1', 'n1', 'n2', 'n3', 'n4'];
+  var collapsed = {};
+  var zoneOpen = true, zoneAdding = false;
+  function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function view() { return frame.getAttribute('data-view'); }
+
+  // ── 收起：卡片、全部收起按钮、未定位区 ──
+  function syncCollapse() {
+    $$('.sc-note-card[data-variant="inline"][data-note-card]').forEach(function (c) {
+      c.toggleAttribute('data-collapsed', !!collapsed[c.getAttribute('data-note-card')]);
+    });
+    collapseAll.textContent = NOTE_IDS.every(function (id) { return collapsed[id]; }) ? '全部展开' : '全部收起';
+  }
+  function toggleCard(id) { collapsed[id] = !collapsed[id]; syncCollapse(); }
+  function syncZone() {
+    var empty = frame.hasAttribute('data-empty');
+    zoneToggle.textContent = zoneOpen ? '▾' : '▸';
+    zoneToggle.setAttribute('aria-label', zoneOpen ? '收起区域' : '展开区域');
+    zoneDraft.hidden = !zoneAdding;
+    zoneList.hidden = !(zoneOpen && (zoneAdding || !empty));
+    document.getElementById('zone-count').textContent = empty ? '0' : '1';
+  }
+  $$('.sc-note-card[data-variant="inline"][data-note-card] .sc-card-toggle').forEach(function (t) {
+    t.addEventListener('click', function () { toggleCard(t.closest('[data-note-card]').getAttribute('data-note-card')); });
+  });
+  collapseAll.addEventListener('click', function () {
+    var all = NOTE_IDS.every(function (id) { return collapsed[id]; });
+    NOTE_IDS.forEach(function (id) { collapsed[id] = !all; });
+    syncCollapse();
+  });
+  zoneToggle.addEventListener('click', function () { zoneOpen = !zoneOpen; syncZone(); });
+  document.getElementById('zone-add').addEventListener('click', function () {
+    zoneOpen = true; zoneAdding = true; syncZone();
+    zoneDraft.querySelector('textarea').focus({ preventScroll: true });
+  });
+
+  // ── 草稿卡片：空内容时保存置灰；Esc 放弃 ──
+  $$('[data-draft]').forEach(function (d) {
+    var ta = d.querySelector('textarea'), btn = d.querySelector('.sc-card-save');
+    ta.addEventListener('input', function () { btn.disabled = !ta.value.trim(); });
+    ta.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { ta.value = ''; btn.disabled = true; d.hidden = true; if (d === zoneDraft) { zoneAdding = false; syncZone(); } }
+    });
+  });
+  notesTextarea.addEventListener('input', function () {
+    notesTextarea.parentNode.querySelector('.notes-save').disabled = !notesTextarea.value.trim();
+  });
+
+  // ── 编辑已有评论：正文换成 textarea，信息行的编辑/删除隐藏 ──
+  function startEdit(card) {
+    if (card.hasAttribute('data-editing')) return;
+    var p = card.querySelector('.sc-card-entry');
+    var ta = document.createElement('textarea');
+    ta.className = 'sc-card-textarea';
+    ta.rows = 3;
+    ta.value = p.textContent;
+    p.hidden = true;
+    p.after(ta);
+    card.setAttribute('data-editing', '');
+    card.classList.remove('mock-linked');
+    ta.focus({ preventScroll: true });
+    function done(save) {
+      if (!card.hasAttribute('data-editing')) return;
+      if (save && ta.value.trim()) p.textContent = ta.value.trim();
+      card.removeAttribute('data-editing');
+      ta.remove(); p.hidden = false;
+    }
+    card._finishEdit = done;
+    ta.addEventListener('blur', function () { done(true); });
+    ta.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { ta.value = ''; ta.blur(); }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) ta.blur();
+    });
+  }
+  function stopAllEdits() { $$('.sc-note-card[data-editing]').forEach(function (c) { c._finishEdit(false); }); }
+  $$('.sc-card-entry').forEach(function (p) {
+    p.addEventListener('click', function () { startEdit(p.closest('.sc-note-card')); });
+  });
+  $$('[data-act="edit"]').forEach(function (b) {
+    b.addEventListener('click', function () { startEdit(b.closest('.sc-note-card')); });
+  });
+
+  // ── 悬停联动（标记 / 图标 ↔ 卡片，两种视图都有） ──
+  function setLinked(id) {
+    $$('[data-note-id]').forEach(function (el) { el.classList.toggle('is-linked', !!id && el.getAttribute('data-note-id') === id); });
+    $$('[data-note-card]').forEach(function (el) { el.classList.toggle('mock-linked', !!id && el.getAttribute('data-note-card') === id); });
+  }
+  $$('[data-note-id], [data-note-card]').forEach(function (el) {
+    var id = el.getAttribute('data-note-id') || el.getAttribute('data-note-card');
+    el.addEventListener('mouseenter', function () { setLinked(id); });
+    el.addEventListener('mouseleave', function () { setLinked(null); });
+  });
+
+  // 点正文标记 / 气泡图标：内嵌视图切换收起；右栏视图让卡片进入编辑
+  $$('[data-note-id]').forEach(function (m) {
+    m.addEventListener('click', function () {
+      var id = m.getAttribute('data-note-id');
+      if (view() === 'inline') toggleCard(id);
+      else startEdit(document.querySelector('.notes-col [data-note-card="' + id + '"]'));
+    });
+  });
+
+  // ── 右栏：卡片按锚点所在块的纵坐标排布，重叠时依次下推（间距 8px） ──
+  function layoutSidebar() {
+    var region = document.getElementById('notes-abs');
+    region.style.height = articleCol.scrollHeight + 'px';
+    var colTop = articleCol.getBoundingClientRect().top;
+    var items = $$('ul[data-place]', region).filter(function (ul) { return !ul.hidden; }).map(function (ul) {
+      var id = ul.getAttribute('data-place');
+      var mark = articleCol.querySelector('[data-note-id="' + id + '"], [data-voice-id="' + id + '"]');
+      var block = mark.closest('p, li, h1, h2, h3, blockquote, pre, td, th') || mark;
+      return { ul: ul, y: block.getBoundingClientRect().top - colTop, h: ul.offsetHeight };
+    }).sort(function (a, b) { return a.y - b.y; });
+    var cursor = 0;
+    items.forEach(function (it) {
+      var top = Math.max(it.y, cursor);
+      it.ul.style.top = top + 'px';
+      cursor = top + it.h + 8;
+    });
+  }
+
+  // ── TOC 当前项：视口上部 30% 内最靠上的标题；都不在时保持原样 ──
+  var headings = $$('h2, h3', body);
+  function syncToc() {
+    var r = scrollArea.getBoundingClientRect();
+    var hit = headings.filter(function (h) {
+      var t = h.getBoundingClientRect().top;
+      return t >= r.top && t <= r.top + r.height * 0.3;
+    })[0];
+    if (!hit) return;
+    $$('#toc .toc-item').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-target') === hit.textContent); });
+  }
+  scrollArea.addEventListener('scroll', syncToc);
+
+  // ── 视图切换（页面按钮 + 头部开关同步） ──
+  function setView(v) {
+    frame.setAttribute('data-view', v);
+    $$('[data-toggle-view]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-toggle-view') === v ? 'true' : 'false'); });
+    $$('#view-switch .state-btn').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-view') === v); });
+    if (v === 'sidebar') layoutSidebar();
+  }
+  $$('#view-switch .state-btn').forEach(function (b) { b.addEventListener('click', function () { setView(b.getAttribute('data-view')); }); });
+  $$('[data-toggle-view]').forEach(function (b) { b.addEventListener('click', function () { setView(b.getAttribute('data-toggle-view')); }); });
+
+  // ── 浮层定位（相对详情页外壳） ──
+  function placeAt(el, x, y) {
+    var f = frame.getBoundingClientRect();
+    el.style.left = (x - f.left) + 'px';
+    el.style.top = (y - f.top) + 'px';
+    el.hidden = false;
+  }
+  function scrollToEl(el, offset) {
+    scrollArea.scrollTop += el.getBoundingClientRect().top - scrollArea.getBoundingClientRect().top - offset;
+  }
+
+  // ── 语音评论（演示）：录音条、锚点锁定、占位卡片 处理中 / 失败 / 完成 ──
+  var voiceBar = document.getElementById('voice-bar');
+  var voiceTimer = document.getElementById('voice-timer');
+  var voiceAnchor = document.getElementById('voice-anchor');
+  var voiceToast = document.getElementById('voice-toast');
+  var voiceTip = document.getElementById('voice-tip');
+  var bubbleVoice = document.getElementById('bubble-voice');
+  var ctxVoice = document.getElementById('ctx-voice');
+  var VOICE_IDS = ['v1', 'v2'];
+  var recId = null, recStart = 0, recTick = null, voiceTimers = [], ctxVoiceId = null;
+  function voiceTarget(id) { return document.querySelector('[data-voice-id="' + id + '"]'); }
+  function setVoice(id, st, reason) {
+    $$('[data-voice-card="' + id + '"]').forEach(function (c) {
+      (c.closest('ul[data-place]') || c).hidden = !st;
+      if (st) c.setAttribute('data-voice-state', st); else c.removeAttribute('data-voice-state');
+      c.removeAttribute('data-voice-flash');
+      if (st === 'transcribing' || st === 'refining') {
+        c.querySelector('[data-voice-phase]').innerHTML = st === 'transcribing' ? '<b>转写中…</b> → 整理' : '转写 → <b>整理中…</b>';
+      }
+      if (st === 'done') c.setAttribute('data-voice-flash', '');
+      if (st === 'failed') {
+        var retry = reason !== 'no_audio';
+        c.querySelector('[data-voice-reason]').textContent = retry ? '转写或整理失败' : '没有录到声音';
+        c.querySelector('[data-voice-hint]').textContent = retry ? '录音还在 CocoScribe 里，重试不用重录' : '检查麦克风后重新录一段';
+        c.querySelector('[data-voice-act="retry"]').hidden = !retry;
+      }
+    });
+    voiceTarget(id).classList.toggle('voice-anchor-mark', !!st);
+    if (view() === 'sidebar') layoutSidebar();
+  }
+  // 演示时序：转写 1.6s → 整理 1.6s → 完成（真实时长取决于 CocoScribe 的模型）
+  function processVoice(id) {
+    setVoice(id, 'transcribing');
+    voiceTimers.push(setTimeout(function () { setVoice(id, 'refining'); }, 1600));
+    voiceTimers.push(setTimeout(function () { setVoice(id, 'done'); }, 3200));
+  }
+  function fmt(sec) { return Math.floor(sec / 60) + ':' + ('0' + sec % 60).slice(-2); }
+  function startRec(id, elapsed) {
+    if (recId || frame.hasAttribute('data-voice-off')) return;
+    var t = voiceTarget(id);
+    recId = id; recStart = Date.now() - (elapsed || 0) * 1000;
+    t.classList.remove('mock-selection');
+    t.classList.add('voice-locked');
+    voiceAnchor.textContent = '评论「' + t.textContent + '」';
+    bubble.hidden = true; ctxMenu.hidden = true;
+    voiceBar.hidden = false;
+    var tick = function () { voiceTimer.textContent = fmt(Math.floor((Date.now() - recStart) / 1000)); };
+    tick(); recTick = setInterval(tick, 500);
+  }
+  function endRec(save) {
+    if (!recId) return;
+    var id = recId; recId = null;
+    clearInterval(recTick);
+    voiceBar.hidden = true;
+    voiceTarget(id).classList.remove('voice-locked');
+    if (save) processVoice(id);
+  }
+  function voiceOff() {
+    frame.setAttribute('data-voice-off', '');
+    bubbleVoice.disabled = true; ctxVoice.disabled = true;
+  }
+  function showToast() {
+    voiceToast.hidden = false;
+    voiceTimers.push(setTimeout(function () { voiceToast.hidden = true; }, 2600));
+  }
+  bubbleVoice.addEventListener('click', function () { startRec('v1'); });
+  bubbleVoice.addEventListener('mouseenter', function () { if (bubbleVoice.disabled) voiceTip.hidden = false; });
+  bubbleVoice.addEventListener('mouseleave', function () { if (!frame.hasAttribute('data-voice-off')) voiceTip.hidden = true; });
+  ctxVoice.addEventListener('click', function () { ctxMenu.hidden = true; if (ctxVoiceId) startRec(ctxVoiceId); });
+  document.getElementById('voice-stop').addEventListener('click', function () { endRec(true); });
+  document.getElementById('voice-cancel').addEventListener('click', function () { endRec(false); });
+  document.getElementById('voice-hint-ok').addEventListener('click', function () { document.getElementById('voice-hint').hidden = true; });
+  $$('[data-voice-act]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var id = b.closest('[data-voice-card]').getAttribute('data-voice-card');
+      if (b.getAttribute('data-voice-act') === 'retry') processVoice(id); else setVoice(id, null);
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT') return;
+    if (e.key === 'Escape' && recId) { endRec(false); return; }
+    if (e.key !== 'v' || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (recId) { endRec(true); return; }
+    if (frame.hasAttribute('data-voice-off')) { showToast(); return; }
+    if (!bubble.hidden) startRec('v1');
+  });
+
+  // ── 状态 ──
+  function reset() {
+    if (recId) { clearInterval(recTick); recId = null; }
+    voiceBar.hidden = true;
+    document.getElementById('voice-hint').hidden = true;
+    voiceTimers.forEach(clearTimeout); voiceTimers = [];
+    VOICE_IDS.forEach(function (id) { setVoice(id, null); voiceTarget(id).classList.remove('voice-locked'); });
+    frame.removeAttribute('data-voice-off');
+    bubbleVoice.disabled = false; ctxVoice.disabled = false;
+    voiceTip.hidden = true; voiceToast.hidden = true;
+    ctxVoiceId = null;
+    stopAllEdits();
+    NOTE_IDS.concat(VOICE_IDS).forEach(function (id) { collapsed[id] = false; });
+    zoneOpen = true; zoneAdding = false;
+    frame.removeAttribute('data-approx');
+    frame.removeAttribute('data-empty');
+    slotDraft.hidden = true;
+    $$('[data-draft] textarea').forEach(function (t) { t.value = ''; });
+    $$('[data-draft] .sc-card-save').forEach(function (b) { b.disabled = true; });
+    bubble.hidden = true; ctxMenu.hidden = true;
+    document.getElementById('sel-target').classList.remove('mock-selection');
+    pendingChip.hidden = true;
+    setLinked(null);
+    scrollArea.scrollTop = 0;
+    $$('#toc .toc-item').forEach(function (a, i) { a.classList.toggle('active', i === 0); });
+  }
+  var STATES = {
+    top: function () {},
+    scrolled: function () { scrollToEl(document.getElementById('h-cost'), 24); syncToc(); },
+    'one-collapsed': function () { collapsed.n1 = true; },
+    'all-collapsed': function () { NOTE_IDS.forEach(function (id) { collapsed[id] = true; }); },
+    editing: function () { startEdit(document.querySelector('.article-col [data-note-card="n1"]')); },
+    linked: function () { setLinked('n1'); },
+    selection: function () {
+      var t = document.getElementById('sel-target');
+      t.classList.add('mock-selection');
+      var r = t.getBoundingClientRect();
+      placeAt(bubble, r.left + r.width / 2, r.top - 40);
+    },
+    ctxmenu: function () {
+      ctxVoiceId = 'v2';
+      var r = document.getElementById('ctx-target').getClientRects()[0];
+      ctxMenu.querySelector('#ctx-delete-hl').hidden = true;
+      placeAt(ctxMenu, r.left + 2, r.top + r.height / 2);
+    },
+    'ctxmenu-hl': function () {
+      var r = document.getElementById('hl-target').getClientRects()[0];
+      ctxMenu.querySelector('#ctx-delete-hl').hidden = false;
+      placeAt(ctxMenu, r.left + r.width / 2, r.top + r.height / 2);
+    },
+    draft: function () {
+      slotDraft.hidden = false;
+      scrollToEl(slotDraft, 260);
+      slotDraft.querySelector('textarea').focus({ preventScroll: true });
+    },
+    pending: function () { pendingChip.hidden = false; notesTextarea.focus({ preventScroll: true }); },
+    approx: function () { frame.setAttribute('data-approx', ''); scrollToEl(document.querySelector('.article-col [data-note-id="n2"]'), 240); },
+    'zone-collapsed': function () { zoneOpen = false; },
+    'zone-adding': function () { zoneAdding = true; setTimeout(function () { zoneDraft.querySelector('textarea').focus({ preventScroll: true }); }); },
+    empty: function () { frame.setAttribute('data-empty', ''); },
+    'voice-recording': function () { STATES.selection(); startRec('v1', 12); },
+    'voice-firstrun': function () { STATES.selection(); startRec('v1', 2); document.getElementById('voice-hint').hidden = false; },
+    'voice-transcribing': function () { setVoice('v1', 'transcribing'); scrollToEl(document.getElementById('sel-target'), 140); },
+    'voice-processing': function () {
+      setVoice('v1', 'refining');
+      ctxVoiceId = 'v2'; startRec('v2', 5);
+      scrollToEl(document.getElementById('sel-target'), 140);
+    },
+    'voice-processing-sidebar': function () { setVoice('v1', 'transcribing'); scrollToEl(document.querySelector('.notes-col [data-voice-card="v1"]'), 200); },
+    'voice-failed-retry': function () { setVoice('v1', 'failed', 'transcription_failed'); scrollToEl(document.getElementById('sel-target'), 140); },
+    'voice-failed-noaudio': function () { setVoice('v1', 'failed', 'no_audio'); scrollToEl(document.getElementById('sel-target'), 140); },
+    'voice-off': function () { voiceOff(); STATES.selection(); voiceTip.hidden = false; voiceToast.hidden = false; },
+    'voice-off-ctx': function () { voiceOff(); STATES.ctxmenu(); }
+  };
+  function applyState(key) {
+    var btn = document.querySelector('.state-btn[data-state="' + key + '"]');
+    if (!btn) return;
+    $$('.state-btn[data-state]').forEach(function (b) { b.classList.toggle('active', b === btn); });
+    var need = btn.getAttribute('data-need-view');
+    if (need && need !== view()) setView(need);
+    reset();
+    syncCollapse(); syncZone();
+    STATES[key]();
+    syncCollapse(); syncZone();
+    if (view() === 'sidebar') layoutSidebar();
+  }
+  $$('.state-btn[data-state]').forEach(function (b) {
+    b.addEventListener('click', function () { applyState(b.getAttribute('data-state')); });
+  });
+
+  // 视图默认值与真实实现一致：读不到偏好时为 inline
+  setView('inline');
+  syncCollapse(); syncZone();
+
+  // 直达：#view=sidebar、#state=draft，可用 & 组合
+  function applyHash() {
+    var params = {};
+    location.hash.slice(1).split('&').forEach(function (kv) { var p = kv.split('='); if (p[1]) params[p[0]] = decodeURIComponent(p[1]); });
+    setView(params.view === 'sidebar' ? 'sidebar' : 'inline');
+    applyState(params.state || 'top');
+  }
+  applyHash();
+  window.addEventListener('hashchange', applyHash);
+  window.addEventListener('resize', function () { if (view() === 'sidebar') layoutSidebar(); });
+</script>

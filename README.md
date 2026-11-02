@@ -1,6 +1,6 @@
 # Scholia
 
-本地优先的知识注解工具。在你已有的内容（VDL 视频、Obsidian 文章）上直接高亮和做笔记，注解与原文绑定，永远存在本地。
+本地优先的阅读与批注工具。在你已有的内容（VDL 视频、Obsidian 文章）上直接高亮和做笔记，批注与原文绑定，永远存在本地。Scholia 是独立产品，不作为其他项目的插件；定位见 [docs/adr/2026-11-02-scholia-positioning.md](docs/adr/2026-11-02-scholia-positioning.md)。
 
 ## 安装
 
