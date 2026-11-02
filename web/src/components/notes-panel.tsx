@@ -49,6 +49,23 @@ function anchorLabel(a: NoteAnchor): string {
 const ESTIMATED_HEIGHT = 72;
 const GAP = 8;
 
+// List item reporting its height as NoteCard does, for cards without their own measuring (voice pending cards).
+function MeasuredItem({ id, onHeightChange, children }: {
+  id: string;
+  onHeightChange: (id: string, h: number) => void;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => onHeightChange(id, el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [id, onHeightChange]);
+  return <li ref={ref}>{children}</li>;
+}
+
 export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, articleRef, hoveredNoteId, onNoteHover, focusNoteId, onFocusConsumed, located, voicePending = NO_PENDING, onVoiceRetry, onVoiceDiscard, flashNoteId }: NotesPanelProps) {
   const [draft, setDraft] = useState('');
   const currentTime = usePlayerStore((s) => s.currentTime);
@@ -246,7 +263,7 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
                 listStyle: 'none',
               }}
             >
-              <li>{pendingCard(item)}</li>
+              <MeasuredItem id={item.id} onHeightChange={onHeightChange}>{pendingCard(item)}</MeasuredItem>
             </ul>
           ))}
           {placed.map((note) => (

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ReactElement } from 'react';
-import { render, fireEvent, waitFor, getByText } from '@testing-library/react';
+import { render, fireEvent, waitFor, getByText, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NotesPanel } from './notes-panel';
 import { api, type Note } from '@/lib/api';
@@ -86,6 +86,37 @@ describe('NotesPanel', () => {
     expect(container.querySelector('[data-note-card="c"]')).toHaveAttribute('data-voice-flash');
     expect(container.querySelectorAll('.sc-note-card')).toHaveLength(2);
     expect(getByText(container, (_, el) => el?.tagName === 'DIV' && el.textContent === '笔记 · 1')).toBeInTheDocument();
+  });
+
+  it('lays out the next card below a pending voice card at its measured height', async () => {
+    const observed: { cb: ResizeObserverCallback; el: Element }[] = [];
+    globalThis.ResizeObserver = class ResizeObserver {
+      constructor(private cb: ResizeObserverCallback) {}
+      observe(el: Element) { observed.push({ cb: this.cb, el }); }
+      unobserve() {}
+      disconnect() {}
+    } as any;
+    vi.spyOn(api, 'listNotes').mockResolvedValue([{ ...note, id: 'c', anchor: 'x' }]);
+    const article = document.createElement('div');
+    article.innerHTML = '<p><mark data-note-id="voice:s1">y</mark></p><p><mark data-note-id="c">x</mark></p>';
+    const [p1, p2] = Array.from(article.querySelectorAll('p'));
+    p1.getBoundingClientRect = () => ({ top: 100 } as DOMRect);
+    p2.getBoundingClientRect = () => ({ top: 120 } as DOMRect);
+    const located = {
+      'voice:s1': { start: 0, end: 1, grade: 'exact' as const },
+      c: { start: 2, end: 3, grade: 'exact' as const },
+    };
+    const voicePending: VoicePending[] = [{ id: 'voice:s1', anchor: { anchor: 'y' }, durationSec: 4, phase: 'failed',
+      failure: { code: 'refine_failed', canRetry: true, taskId: 'coco-1' } }];
+    const { findByText, container } = renderWithClient(
+      <NotesPanel taskId="t" hasMedia={false} articleRef={{ current: article }} located={located} voicePending={voicePending} />);
+    const card = (await findByText(note.body)).closest('ul')!;
+    await waitFor(() => expect(card.style.top).toBe('180px'));  // estimate until the pending card is measured
+
+    const li = container.querySelector('[data-voice-state="failed"]')!.closest('li')!;
+    Object.defineProperty(li, 'offsetHeight', { configurable: true, value: 150 });
+    act(() => observed.filter((o) => o.el === li).forEach((o) => o.cb([], {} as ResizeObserver)));
+    await waitFor(() => expect(card.style.top).toBe('258px'));  // 100 + 150 + 8
   });
 
   it('unlocated anchored notes render in the top list', async () => {
