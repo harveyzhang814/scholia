@@ -32,7 +32,21 @@ interface ReaderProps {
   onCommentDraft?: (a: NoteAnchor) => void;
   onAddHighlight?: (anchor: string, color: 'yellow' | 'green' | 'red' | 'blue') => void;
   onDeleteHighlight?: (id: string) => void;
+  voice?: {   // given (article page): voice comment entries — `v`, bubble mic, context menu
+    state: 'ready' | 'recording' | 'unavailable';
+    onStart: (a: NoteAnchor) => void;
+    onStop: () => void;
+    onUnavailable: () => void;
+  };
 }
+
+type VoiceState = NonNullable<ReaderProps['voice']>['state'];
+
+// Why the voice entries are disabled, by state.
+const VOICE_REASON: Record<Exclude<VoiceState, 'ready'>, string> = {
+  recording: '正在录音',
+  unavailable: 'CocoScribe 未运行',
+};
 
 // Article images are often referenced via paths relative to the source .md
 // file (e.g. ../Image/img_1.jpg), which the browser can't resolve on its
@@ -105,13 +119,62 @@ function selectionOffsets(index: TextIndex): { start: number; end: number } | nu
   return sel && !sel.isCollapsed && sel.rangeCount ? rangeToOffsets(index, sel.getRangeAt(0)) : null;
 }
 
-export function Reader({ taskId, content, frontmatter, highlights, doc, notes, onNotesLocated, draft, renderInline, onCommentDraft, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick }: ReaderProps) {
+// Keys pressed in a field are typing, not shortcuts.
+function isTypingTarget(t: HTMLElement): boolean {
+  return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable;
+}
+
+// Anchor for the `c` / `v` keys: the current selection, or the caret if collapsed; null if it leaves the body.
+function anchorAtSelection(body: HTMLElement | null, doc?: NoteDoc): NoteAnchor | null {
+  const sel = window.getSelection();
+  if (!body || !sel?.rangeCount) return null;
+  const index = buildTextIndex(body);
+  const offsets = rangeToOffsets(index, sel.getRangeAt(0));
+  return offsets && captureAnchor(index, offsets.start, offsets.end, doc);
+}
+
+// Mic button in the selection bubble. A disabled button doesn't get hover events in every
+// browser, so it ignores the pointer and its wrapper carries the hover that shows the reason.
+function VoiceBubbleButton({ state, onClick }: { state: VoiceState; onClick: () => void }) {
+  const [hover, setHover] = useState(false);
+  const disabled = state !== 'ready';
+  return (
+    <span style={{ display: 'flex' }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <button
+        className="bubble-btn bubble-voice"
+        onClick={onClick}
+        disabled={disabled}
+        title="语音评论（v）"
+        style={{
+          width: 22, height: 22,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'none', border: 'none', padding: 0,
+          cursor: disabled ? 'default' : 'pointer',
+          pointerEvents: disabled ? 'none' : undefined,
+          borderRadius: 3, color: 'var(--text-secondary)',
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" stroke="currentColor" strokeWidth="1.4"/>
+          <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+        </svg>
+      </button>
+      {disabled && <span className="voice-tip" hidden={!hover}>{VOICE_REASON[state]}</span>}
+    </span>
+  );
+}
+
+export function Reader({ taskId, content, frontmatter, highlights, doc, notes, onNotesLocated, draft, renderInline, onCommentDraft, onAddHighlight, onDeleteHighlight, hoveredNoteId, onNoteHover, onNoteAnchorClick, voice }: ReaderProps) {
   const md = useMemo(() => content ?? '', [content]);
   const bodyRef = useRef<HTMLDivElement>(null);
   // Latest callback, kept out of the injection effect's deps: callers may pass
   // a fresh function each render, which would otherwise re-inject (and loop).
   const onNotesLocatedRef = useRef(onNotesLocated);
   useLayoutEffect(() => { onNotesLocatedRef.current = onNotesLocated; });
+  // Same for voice: callers rebuild it (and its callbacks) every render; the `v` listener reads the latest.
+  const voiceRef = useRef(voice);
+  useLayoutEffect(() => { voiceRef.current = voice; });
+  const hasVoice = !!voice;
   const isArticleTask = taskId?.startsWith('article-') ?? false;
 
   const mdComponents: Components = useMemo(() => ({
@@ -171,6 +234,13 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
     setBubble(null);
   };
 
+  const handleVoiceClick = () => {
+    if (!bubble || !bodyRef.current) return;
+    voice?.onStart(captureAnchor(buildTextIndex(bodyRef.current), bubble.start, bubble.end, doc));
+    window.getSelection()?.removeAllRanges();
+    setBubble(null);
+  };
+
   // ── Context menu: comment here / delete highlight ────────────
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; hlId: string; draft?: NoteAnchor } | null>(null);
 
@@ -192,7 +262,7 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
     const mark = target.closest('mark.vdl-hl') as HTMLElement | null;
     const body = bodyRef.current;
     let draft: NoteAnchor | undefined;
-    if (onCommentDraft && body?.contains(target)) {
+    if ((onCommentDraft || hasVoice) && body?.contains(target)) {
       // Right-click inside a non-empty selection comments on it; anywhere else, on the caret point.
       const index = buildTextIndex(body);
       const caretRange = caretRangeAt(e.clientX, e.clientY);
@@ -206,7 +276,7 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
     const hlId = mark?.dataset.hlId ?? '';
     if (!hlId && !draft) return;
     setCtxMenu({ x: e.clientX, y: e.clientY, hlId, draft });
-  }, [onCommentDraft, doc]);
+  }, [onCommentDraft, hasVoice, doc]);
 
   useEffect(() => {
     if (!ctxMenu) return;
@@ -225,6 +295,12 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
     setCtxMenu(null);
   };
 
+  const handleVoiceHere = () => {
+    if (!ctxMenu?.draft) return;
+    voice?.onStart(ctxMenu.draft);
+    setCtxMenu(null);
+  };
+
   const handleDeleteHighlight = () => {
     if (!ctxMenu) return;
     onDeleteHighlight?.(ctxMenu.hlId);
@@ -237,20 +313,36 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'c' || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement;
-      if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
+      if (isTypingTarget(t)) return;
       if (t.closest(`[${SLOT_ATTR}]`)) return;
-      const sel = window.getSelection();
-      const body = bodyRef.current;
-      if (!body || !sel?.rangeCount) return;
-      const index = buildTextIndex(body);
-      const offsets = rangeToOffsets(index, sel.getRangeAt(0));
-      if (!offsets) return;
+      const anchor = anchorAtSelection(bodyRef.current, doc);
+      if (!anchor) return;
       e.preventDefault();
-      onCommentDraft(captureAnchor(index, offsets.start, offsets.end, doc));
+      onCommentDraft(anchor);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onCommentDraft, doc]);
+
+  // ── `v` key: start voice on the selection or caret (as `c`); stop while recording ──
+  useEffect(() => {
+    if (!hasVoice) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const v = voiceRef.current;
+      if (!v || e.key !== 'v' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement;
+      if (isTypingTarget(t)) return;
+      if (v.state === 'recording') { e.preventDefault(); v.onStop(); return; }
+      if (v.state === 'unavailable') { e.preventDefault(); v.onUnavailable(); return; }
+      if (t.closest(`[${SLOT_ATTR}]`)) return;
+      const anchor = anchorAtSelection(bodyRef.current, doc);
+      if (!anchor) return;
+      e.preventDefault();
+      v.onStart(anchor);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [hasVoice, doc]);
 
   // ── Post-render highlight injection ─────────────────────────
   useEffect(() => {
@@ -415,9 +507,11 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
             </button>
           ))}
 
+          {(onCommentDraft || voice) && (
+            <div style={{ width: 1, height: 14, background: 'var(--border-subtle)', margin: '0 2px' }} />
+          )}
           {onCommentDraft && (
             <>
-              <div style={{ width: 1, height: 14, background: 'var(--border-subtle)', margin: '0 2px' }} />
               <button
                 onClick={handleNoteClick}
                 title="评论"
@@ -435,6 +529,7 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
               </button>
             </>
           )}
+          {voice && <VoiceBubbleButton state={voice.state} onClick={handleVoiceClick} />}
         </div>
       )}
 
@@ -454,7 +549,7 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          {ctxMenu.draft && (
+          {ctxMenu.draft && onCommentDraft && (
             <button
               onClick={handleCommentHere}
               style={{
@@ -466,6 +561,27 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
               }}
             >
               在此处评论
+            </button>
+          )}
+          {ctxMenu.draft && voice && (
+            <button
+              className="ctx-row"
+              onClick={handleVoiceHere}
+              disabled={voice.state !== 'ready'}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+                width: '100%',
+                padding: '7px 14px',
+                fontSize: 13, textAlign: 'left',
+                background: 'none', border: 'none',
+                cursor: voice.state === 'ready' ? 'pointer' : 'default',
+                color: voice.state === 'ready' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              }}
+            >
+              <span>语音评论</span>
+              {voice.state === 'ready'
+                ? <span className="ctx-key" style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-tertiary)' }}>v</span>
+                : <span className="ctx-hint" style={{ fontSize: 11 }}>{VOICE_REASON[voice.state]}</span>}
             </button>
           )}
           {ctxMenu.hlId && (
