@@ -25,9 +25,13 @@
     "release:local": "npm pack && npm install -g scholia-$(node -p \"require('./package.json').version\").tgz && rm scholia-*.tgz"
   },
   "dependencies": {
+    "@harveyzhang814/host-client": "^0.3.0",
     "@koa/router": "^15.7.0",
     "js-yaml": "^5.2.1",
     "koa": "^2.15.0",
     "koa-bodyparser": "^4.4.0"
-  }
+  },
+  "bundleDependencies": [
+    "@harveyzhang814/host-client"
+  ]
 }
