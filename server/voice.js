@@ -5,6 +5,12 @@ const crypto = require('crypto');
 // own UI, and never pause for editing (the note is saved as soon as it completes).
 const SESSION_OPTS = { mode: 'comprehend', silent: true, awaitEdit: false };
 const RETRY_OPTS = { awaitEdit: false };
+const DEFAULT_START_TIMEOUT_MS = 20000;
+
+// Never awaited: the SDK queues cancel() behind `started`, so it may never settle.
+function cancelQuietly(session) {
+  try { Promise.resolve(session.cancel()).catch(() => {}); } catch { /* same */ }
+}
 
 function fail(code, message, taskId = null, canRetry = false) {
   return { ok: false, code, message, taskId, canRetry };
@@ -14,12 +20,13 @@ function fail(code, message, taskId = null, canRetry = false) {
 // listeners attached up front and a "done" promise that resolves (never rejects)
 // to an Outcome on the first terminal event, so a result is persisted and the
 // registry entry removed whether or not anyone is awaiting stop().
-function createVoice({ getClient, saveNote }) {
+function createVoice({ getClient, saveNote, startTimeoutMs = DEFAULT_START_TIMEOUT_MS }) {
   const registry = new Map();
 
   function track(session, taskId, anchor, onPhase) {
     const id = crypto.randomUUID();
-    const entry = { session, onPhase, done: null, whenRecording: null };
+    const entry = { id, session, onPhase, done: null, whenRecording: null, abandon: null };
+    let abandoned = false;
     let resolveRecording;
     entry.whenRecording = new Promise((resolve) => { resolveRecording = resolve; });
     registry.set(id, entry);
@@ -35,7 +42,20 @@ function createVoice({ getClient, saveNote }) {
         resolve(outcome);
       };
 
+      // A start that never reported `recording` is given up on: the entry leaves the
+      // registry and every later event for it is ignored (nothing is ever saved).
+      entry.abandon = () => {
+        if (settled) return;
+        settled = true;
+        abandoned = true;
+        registry.delete(id);
+        resolveRecording({ error: 'timeout' });
+        resolve(fail('timeout', 'CocoScribe did not start recording in time'));
+      };
+
       session.on('phase', (phase) => {
+        // Late `recording` for an abandoned start: the user never saw it, so shut it down.
+        if (abandoned && phase === 'recording') { cancelQuietly(session); return; }
         if (settled) return;
         if (phase === 'recording') resolveRecording({ id });
         else if ((phase === 'transcribing' || phase === 'refining') && entry.onPhase) {
@@ -90,7 +110,13 @@ function createVoice({ getClient, saveNote }) {
     let session;
     try { session = client.startSession({ ...SESSION_OPTS }); } catch { return { error: 'transport' }; }
     const { entry } = track(session, taskId, anchor, null);
-    return entry.whenRecording;
+    // Not unref'd: a pending start is live work, and the timer is cleared on every other settle.
+    const timer = setTimeout(() => {
+      if (!registry.has(entry.id)) return;
+      cancelQuietly(session);
+      entry.abandon();
+    }, startTimeoutMs);
+    return entry.whenRecording.finally(() => clearTimeout(timer));
   }
 
   function stop(id, onPhase) {

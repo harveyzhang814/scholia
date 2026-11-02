@@ -40,7 +40,7 @@ function setup(opts = {}) {
   const fake = new FakeClient();
   const saved = [];
   const saveNote = opts.saveNote || (async (taskId, fields) => { saved.push([taskId, fields]); return { id: 'n1', ...fields }; });
-  const voice = createVoice({ getClient: opts.getClient || (() => fake), saveNote });
+  const voice = createVoice({ getClient: opts.getClient || (() => fake), saveNote, startTimeoutMs: opts.startTimeoutMs });
   return { fake, voice, saved };
 }
 
@@ -219,6 +219,53 @@ const tick = () => new Promise((r) => setImmediate(r));
     assert.equal(outcome.ok, false);
     assert.equal(outcome.code, 'timeout');
     assert.equal(voice.size(), 0);
+  });
+
+  // Start time limit: CocoScribe may accept a session but never report `recording`.
+  await test('start times out when the SDK never reports recording', async () => {
+    const { voice, fake } = setup({ startTimeoutMs: 30 });
+    const r = await voice.start('article-a', { anchor: 'x' });
+    assert.deepEqual(r, { error: 'timeout' });
+    assert.equal(voice.size(), 0);
+    assert.equal(fake.last.cancelCalls, 1);
+  });
+
+  await test('late recording after a start timeout cancels the session again', async () => {
+    const { voice, fake } = setup({ startTimeoutMs: 30 });
+    assert.deepEqual(await voice.start('article-a', { anchor: 'x' }), { error: 'timeout' });
+    fake.last.emit('phase', 'recording');
+    await tick();
+    assert.equal(fake.last.cancelCalls, 2);
+    assert.equal(voice.size(), 0);
+    // a cancel that rejects or throws must stay swallowed
+    fake.last.cancel = async () => { throw new Error('gone'); };
+    fake.last.emit('phase', 'recording');
+    fake.last.cancel = () => { throw new Error('sync gone'); };
+    fake.last.emit('phase', 'recording');
+    await tick();
+    assert.equal(voice.size(), 0);
+  });
+
+  await test('late completed after a start timeout is not saved', async () => {
+    const { voice, fake, saved } = setup({ startTimeoutMs: 30 });
+    assert.deepEqual(await voice.start('article-a', { anchor: 'x' }), { error: 'timeout' });
+    fake.last.emit('completed', { text: 'x' });
+    fake.last.emit('failed', { code: 'error', message: 'm' });
+    fake.last.emit('error', new Error('late'));
+    await tick();
+    assert.equal(saved.length, 0);
+    assert.equal(voice.size(), 0);
+  });
+
+  await test('start timer is cleared once recording arrives', async () => {
+    const { voice, fake } = setup({ startTimeoutMs: 30 });
+    const p = voice.start('article-a', { anchor: 'x' });
+    fake.last.emit('phase', 'recording');
+    const r = await p;
+    await new Promise((res) => setTimeout(res, 80));
+    assert.ok(r.id);
+    assert.equal(fake.last.cancelCalls, 0);
+    assert.equal(voice.size(), 1);
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);
