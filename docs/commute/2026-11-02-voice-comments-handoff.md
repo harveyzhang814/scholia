@@ -1,5 +1,5 @@
 ---
-status: 执行中
+status: 待验收
 date: 2026-11-02
 author_model: claude-opus-5-5
 acceptance: hard
@@ -96,3 +96,52 @@ target_node: 17b5355d-5814-4421-97a4-98ceb6b643f8
 
 - 机器校验：见提交前的 `validate-handoff.sh` 结果。
 - 冷读：分支、工作区、基线已建好并进过；计划 Task 3 的 13 个、Task 4 的 11 个后端用例名，Task 5–9 共 31 个前端用例名都可逐条核对；锚点 4–8 都是可直接判对错的命令或文本检查；锚点 9 依赖用户配合，已在工作流约定里写明先问用户。
+
+## 接手方自测记录（2026-11-02）
+
+执行方式：`superpowers:subagent-driven-development`，9 个任务逐个「实现者 + 任务审查」，全部完成后整分支审查一次（结论 With fixes，0 Critical），再做一轮统一修复并复审。审查过程的裁定与遗留项记录在工作区的 `.superpowers/sdd/2026-11-02-voice-comments/progress.md`（git 忽略，不进仓库）。分支 `feature/voice-comments`，基线 `33c9dbc`，自测时 HEAD 为 `60d927e`。工作区自测前后 `git status` 干净。
+
+环境说明：`~/.npmrc` 里有 `allow-scripts = ["scholia"]`，npm 11.19 在项目级安装里会拒绝它，根目录 `npm install` 因 postinstall 里嵌套的 `npm install` 报 `EALLOWSCRIPTS`。本分支未改动这件事，依赖用 `npm install --ignore-scripts` 装，`web/` 单独 `npm install`。`npm run release:local` 在本机同样会失败（既有问题）。
+
+### 锚点逐条
+
+1. **后端测试** — pass。`npm test`（不接管道）退出码 0；`node tests/voice.test.js` 输出 `15 passed, 0 failed`、`node tests/voice-routes.test.js` 输出 `13 passed, 0 failed`。计划 Task 3 的 13 个、Task 4 的 11 个用例名用脚本从计划里抽出，在这两个文件的输出里逐个核对，全部以 `✓` 出现；`package.json` 的 `scripts.test` 含这两个文件，且在 `server.test.js` 前。多出的 4 个用例：`saveNote rejection surfaces as save_failed outcome`、`session.stop rejection is left to the terminal event`（voice.test.js）、`voice routes require the bearer token`、DELETE 的 204/404（voice-routes.test.js）。
+2. **前端测试** — pass。`cd web && npm test` 退出码 0，`35 passed (35)` 个文件、`355 passed (355)` 个用例。计划 Task 5–9 列出的 31 个 `it('…')` 用例名都能在 `web/src/**/*.test.ts(x)` 里找到；`web/src` 下没有 `.skip` / `.only` / `.todo` / `xit`。对 merge-base 的测试文件 diff 里被删除的行只有 `web/src/routes/tasks.$id.test.tsx` 的三条 import 行（改写为带上新增的具名导入 `useState`、`useNavigate` 等），没有被删除的 `it(` / `describe(` 行。该文件对 `use-voice-comments` 的 mock 工厂还补了两个导出常量（`VOICE_PREFIX`、`VOICE_REC_PREFIX`），断言没有改动。
+3. **前端构建** — pass。`cd web && npm run build` 退出码 0，`tsc` 与 `vite build` 均通过。
+4. **依赖只加了 SDK** — pass。`git diff 33c9dbc..HEAD -- package.json web/package.json .npmrc`：根目录 `dependencies` 只多 `@harveyzhang814/host-client: ^0.3.0`；`web/package.json` 无变化；新增 `.npmrc` 一行 `@harveyzhang814:registry=https://npm.pkg.github.com`，不含 token。
+5. **分发已核对** — pass，选 (a)。`package.json` 有 `"bundleDependencies": ["@harveyzhang814/host-client"]`。自测时我重新跑了一遍：`npm pack --pack-destination <临时目录>` → `tar -tzf scholia-0.6.0.tgz | grep host-client/package.json` 输出 `package/node_modules/@harveyzhang814/host-client/package.json`（tarball 里共 14 个 `node_modules` 条目；`npm pack` 的统计行写 `bundled files: 0` 是 npm 的统计口径，不代表没打进去）；`npm install -g --ignore-scripts --prefix <临时目录>/prefix scholia-0.6.0.tgz` 输出 `added 83 packages`；在该前缀下 `require` 到 `scholia/node_modules/@harveyzhang814/host-client` 得到 `CocoScribeClient,Session,CocoScribeConnectionError,SessionError`。安装用了 `--ignore-scripts`，原因同上方环境说明（scholia 自己的 postinstall 在本机会撞 `EALLOWSCRIPTS`），所以 postinstall 的 web 构建这一段没有端到端跑。Task 1 实现者的原始证据在 `task-1-report.md`。临时目录未能删除（`rm -rf` 被拒），在系统临时目录下，不影响仓库。
+6. **阶段色 token** — pass。`#FF6B47`、`#20D5C4`、`#8B5CF6`、`#34D399` 在 `web/src/styles/globals.css` 与 `DESIGN.md` 里都出现；`globals.css` 第 27–30 行有 `--coco-recording`、`--coco-transcribing`、`--coco-refining`、`--coco-done` 四个定义；`DESIGN.md` 第 39 行和 AI Slop Check 一节（第 92 行）都写明靛紫只作为「整理中」阶段色的例外。
+7. **README 要求** — pass。`7.1.0`、`转录完成后弹出编辑窗口`、`Copy transcript to clipboard` 各出现一次。
+8. **改动没有超出计划** — pass，有一处需说明。`git diff --name-only 33c9dbc..HEAD` 共 31 个文件，除本交接文档与 `package-lock.json` 外都在计划各任务的 Files 清单内；`web/package-lock.json` 未改动。清单外的文件只有一个：`web/src/lib/api-voice.test.ts`。理由：Task 5 实现者补的 api 层映射测试（5 个用例，覆盖 `stopVoice`/`retryVoice`/`startVoice` 的结果映射、`connection_lost`、未知阶段被忽略等），计划给的测试块只覆盖 `readNdjson`；整分支审查认为应保留。`package-lock.json` 里根项目 `version` 由 0.3.0 变成 0.6.0 是 npm 在安装时把过期 lock 对齐到 `package.json` 里本来就是 0.6.0 的版本号，非本期改动。
+9. **真机验收** — 见下表。CocoScribe 7.2.0（≥ 7.1.0）、Ollama 已配好；自测开始时 CocoScribe.app 实际没有在运行（只剩一个孤儿 helper 进程、`cli.sock` 是旧的），我用 `open -a CocoScribe` 启动后再测。测试全部用 `/tmp` 下的文章副本和 `SCHOLIA_CONFIG_FILE` 重定向到临时配置，端口 7777；没有触碰真实内容目录，没有运行 `scholia config set`。浏览器用无头 Chromium（gstack browse）驱动，选区用脚本设置，语音用 macOS `say` 朗读给麦克风。
+
+### 锚点 9：docs/acceptance-testing.md 模块八逐步结果
+
+| # | 结果 | 说明 |
+|---|------|------|
+| 8.1 | pass | 阶段顺序原样：`664 phase recording` → `6686 phase transcribing` → `6769 phase refining` → `10919 phase completed`，最后文字 `"我觉得这一段需要再补充一个例子。"`。`recording` 先于 `transcribing`，之前没有出现 `starting`。会话参数与 Scholia 一致。 |
+| 8.2 | pass（指示灯未观察） | 按 `v` 后录音条出现：`录音中 0:00 · 评论「里面有一句话可以被选中」`、`结束并保存 v`、`取消 Esc`，计时在走；工具条麦克风置灰。macOS 麦克风指示灯我从命令行看不到，未确认。 |
+| 8.3 | pass | 再按 `v` 后录音条消失；占位卡片依次读到 `transcribing`（`转写中… → 整理`）、`refining`（`转写 → 整理中…`，右侧时长），随后变成普通评论卡片，没有残留占位卡。绿色闪烁和配色的视觉效果未人工目测。 |
+| 8.4 | pass | `notes.json` 新增一条，`body` 为整理后的文字、`anchor` 为所选原文、带 `markerId`；`diff -u` 只多出包住所选文字的一对 `<!-- sc:5a3e161f -->` / `<!-- /sc:5a3e161f -->`。 |
+| 8.5 | pass | 在第二段中间放下光标（折叠选区）按 `v`：录音条显示 `评论「插入点」`，正文出现 `span.vdl-note-point[data-note-id^="voice-rec:"]`；说话后结束，卡片经阶段变成普通评论。 |
+| 8.6 | pass | 新评论 `anchor` 为空、带 `prefix`/`suffix`/`position`/`markerId`；`diff -u` 只在光标处多出一个 `<!-- sc:bfee75f5 -->`。 |
+| 8.7 | 未能触发整理失败 | 我经你同意停 Ollama：`osascript` 退出被拒（`User canceled (-128)`，授权后重试仍是），改由你从菜单栏退出，`curl localhost:11434` 退出码 7 确认已停。做选区语音评论后，「整理中…」持续约 5.5 秒，随后评论成功保存（`body` 为整理后的文字）。事后 `ps` 显示 Ollama 在 09:31:51 重新启动、紧接着加载了模型：CocoScribe 发现 Ollama 不在会自动把它拉起来，所以整理成功而不是失败。属于被测环境的行为，不是 Scholia 缺陷；因此本机造不出「整理失败 + 可重试」。 |
+| 8.8 | 未执行 | 依赖 8.7 先出现失败态。Ollama 已被 CocoScribe 拉起，当前是运行状态，和测试前一致，无需我再启动。 |
+| 补充 | pass | 为验证失败卡片的渲染，改录一段没有声音的评论：卡片显示 `没有录到声音` / `检查麦克风后重新录一段`，只有 `丢弃` 没有 `重试`（`no_audio` 不可重试，与 `voiceFailureCopy` 一致）；点 `丢弃` 后卡片消失，`notes.json` 条数不变。`canRetry` 为真时的「重试」按钮只由前端单元测试覆盖，没有真机验证。 |
+| 8.9 | pass | `osascript` 退出 CocoScribe（`pgrep -x CocoScribe` 退出码 1 确认），不刷新页面选中文字按 `v`：页面出现轻提示 `CocoScribe 未运行，语音评论暂不可用`，没有录音条；几秒后提示消失。 |
+| 8.10 | pass | 刷新后选中文字：工具条麦克风按钮一开始就 `disabled`，提示 `CocoScribe 未运行`；右键菜单里 `语音评论` 置灰并带 `CocoScribe 未运行`；按 `v` 出现同 8.9 的轻提示。 |
+| 8.11 | pass | CocoScribe 仍未运行时，用工具条评论按钮和右键「在此处评论」各写一条评论并保存，刷新后两条都在（`notes.json` 里也都有）。 |
+| 8.12 | pass | 浏览器里 `voice-hint-dismissed` 为空时开始录音，录音条下方出现一次性提示；点 `知道了` 后提示消失、录音条仍在、`localStorage['voice-hint-dismissed']` 为 `'1'`。 |
+| 8.13 | pass | `Esc` 取消后录音条消失，没有占位卡片，没有 `voice-rec:` 锚点，原文改动行数不变；再开一段、以及刷新页面后再开一段，都没有再出现提示。 |
+| 8.14 | pass（见 8.15） | 第一次我在按 `v` 后到跳走页面之间隔了几秒，那次评论和标记都已写完，没有真正测到「处理中关页面」，所以重做：把「按 `v` 结束」和「整页导航离开」放在同一个 `chain` 调用里（间隔不到一秒）。 |
+| 8.15 | pass | 等 25 秒后 `notes.json` 里有这条，`body` 是整理后的文字、**没有 `markerId`**，原文没有新标记（`<!-- sc:` 总数仍是 3）；重新打开页面，评论卡片在，正文里锚点按文字定位在所选的「第二段正文」上。与清单对这一步的描述一致。 |
+
+### 偏差、裁定与遗留（原样交代，供验收时判断）
+
+- **带着 8.7/8.8 未完成送验。**这两步没有跑通（见上），原因是被测环境（CocoScribe 会自动拉起 Ollama），不是 Scholia 的失败；其余锚点 1–8 和锚点 9 的其他步骤均已实跑通过。「整理失败后点重试」这条路径只有单元测试覆盖，没有真机证据；`canRetry` 为真的失败态在真机上也没有看到过。
+- **8.1 脚本在清单里的写法有缺陷（已知，未修）**：清单里 8.1 脚本的 15 秒兜底写成 `s.cancel().finally(() => process.exit(2))`。SDK 把 `recording` 事件由服务端的 `started` 合成，所以「15 秒内没有 `recording`」时 `cancel()` 会一直排队等 `started`，`.finally` 永远不触发，脚本仍会挂住（也可能先走 `failed` 分支退出码 1）。整条分支的最终修复只有一轮，这条在复审里才发现，按流程不再开第二轮。我自己跑 8.1 时用的是直接 `s.cancel().catch(() => {}); process.exit(2);` 的写法。最小修法就是这一行，没有写进清单。
+- **未做 start 超时**：整分支审查指出，若 SDK 收下会话却一直不发 `recording`，界面会停在「正在录音」且没有录音条可取消，直到刷新。8.1 的真机证据显示 `recording` 在约 0.7 秒内出现，所以先不加；如果以后在别的环境遇到再补（服务端 `start` 上限 + 现有的「无法开始录音」分支）。
+- **其他遗留（不阻塞，已记在 ledger）**：录音中关闭标签页没有主动取消（靠 CocoScribe 的 10 分钟超时，设计里已排除在本期之外，可用 `pagehide` + `keepalive` 的 DELETE 作为后续项）；`stop` 流没有服务端上限；`authHeaders` 与 `request()` 重复了一小段 token 逻辑；`parseVoiceAnchor` 不校验 `anchor` 的类型（与 notes POST 一致）；`voice-bar.tsx` 为复用 `isTypingTarget` 引入了 `reader.tsx`（无循环依赖，耦合偏弱）。
+- **提交署名**：`4837390`（Task 6）、`92317c3`、`bfd4b8d`（Task 9）三个提交的 trailer 写的是实际执行模型 `Claude Opus 5.5`，其余是调度方要求的 `Claude Sonnet 5.5`。需要统一的话可由你决定是否 amend。
+- **用到的更强模型**：Task 6、8、9 的实现者，以及 Task 3、4、6、8、9 的审查者用了 opus；整分支审查用了更强的 fable。Task 8、9 各经历一轮修复（长按 `v` 的 `e.repeat`、右栏占位卡片高度未上报）。
+- **整分支审查指出、已处理的项**：`DESIGN.md` 第 39 行的靛紫例外、验收清单 8.14 的期望结果、`VoiceBar` 的 `Esc` 不应在输入框里取消录音、`unavailable`/`save_failed` 的失败文案、`voice:`/`voice-rec:` 前缀常量、后端路由测试的临时目录清理（提交 `60d927e`）。
