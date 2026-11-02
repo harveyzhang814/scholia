@@ -10,6 +10,8 @@ import { ModeSwitcher } from '@/components/mode-switcher';
 import { ProseThemePicker } from '@/components/prose-theme-picker';
 import { CommentViewToggle } from '@/components/comment-view-toggle';
 import { InlineCards, UnlocatedZone } from '@/components/inline-notes';
+import { VoiceBar, VoiceToast } from '@/components/voice-bar';
+import { useVoiceComments, VOICE_PREFIX, VOICE_REC_PREFIX } from '@/hooks/use-voice-comments';
 import { useUiStore } from '@/stores/ui-store';
 import type { LayoutMode } from '@/stores/ui-store';
 import { usePlayerStore } from '@/stores/player-store';
@@ -24,7 +26,14 @@ function sameLocated(a: Record<string, Located>, b: Record<string, Located>): bo
   return keys.every((k) => b[k] && a[k].start === b[k].start && a[k].end === b[k].end && a[k].grade === b[k].grade);
 }
 
+// Keyed by id: a task switch remounts the page, so no state (voice recording/pending cards included)
+// renders for one frame against the new task before its effect cleanups run.
 export default function TaskDetail() {
+  const { id = '' } = useParams();
+  return <TaskDetailPage key={id} />;
+}
+
+function TaskDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const isArticleTask = id.startsWith('article-');
@@ -58,6 +67,17 @@ export default function TaskDetail() {
     setLocated((prev) => (sameLocated(prev, next) ? prev : next));
   }, []);
   const { data: notes = [] } = useNotes(id);
+  const voice = useVoiceComments(id, isArticleTask);
+  // Reader also marks the anchors of voice comments still in flight (`voice:` processing cards, `voice-rec:` the
+  // live recording); everything else on the page (cards' notes, unlocated zone, collapse-all) uses the real notes.
+  const readerNotes = useMemo(() => [
+    ...notes,
+    ...voice.pending.map((p) => ({ id: p.id, ...p.anchor })),
+    ...(voice.recording ? [{ id: `${VOICE_REC_PREFIX}${voice.recording.id}`, ...voice.recording.anchor }] : []),
+  ], [notes, voice.pending, voice.recording]);
+  const voiceCancelRef = useRef(voice.cancel);
+  useEffect(() => { voiceCancelRef.current = voice.cancel; });
+  const cancelVoice = useCallback(() => voiceCancelRef.current(), []);
   const [hoveredNoteId, setHoveredNoteId] = useState<string | null>(null);
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
   const commentView = useUiStore((s) => s.commentView);
@@ -71,6 +91,11 @@ export default function TaskDetail() {
     });
   }, []);
   const allCollapsed = notes.every((n) => collapsed.has(n.id));
+  // Voice pseudo-note marks have no card to collapse or open for editing.
+  const onNoteAnchorClick = useCallback((noteId: string) => {
+    if (noteId.startsWith(VOICE_PREFIX) || noteId.startsWith(VOICE_REC_PREFIX)) return;
+    if (inline) toggleCollapsed(noteId); else setFocusNoteId(noteId);
+  }, [inline, toggleCollapsed]);
   const articleRef = useRef<HTMLDivElement>(null);
   const resetPlayer = usePlayerStore((s) => s.reset);
   const markRead = useMarkRead();
@@ -109,7 +134,7 @@ export default function TaskDetail() {
   if (!task) return <div className="p-8 text-sm" style={{ color: 'var(--status-err)' }}>未找到任务</div>;
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col relative">
       {/* Header */}
       <header className="h-12 flex items-center justify-between px-5 border-b flex-shrink-0"
               style={{ borderColor: 'var(--border-subtle)' }}>
@@ -225,6 +250,16 @@ export default function TaskDetail() {
 
               {/* Article + Notes row (B/C/E/F modes) */}
               <div className="flex-1 overflow-y-auto">
+                {voice.recording && (
+                  <VoiceBar
+                    startedAt={voice.recording.startedAt}
+                    anchor={voice.recording.anchor}
+                    showHint={voice.showHint}
+                    onStop={voice.stop}
+                    onCancel={cancelVoice}
+                    onDismissHint={voice.dismissHint}
+                  />
+                )}
                 <div className="article-notes-row">
                   <div className="article-col" ref={articleRef}>
                     {inline && (
@@ -244,7 +279,7 @@ export default function TaskDetail() {
                       frontmatter={tab === 'article' ? task.frontmatter : undefined}
                       highlights={highlights}
                       doc={isArticleTask ? undefined : tab}
-                      notes={notes}
+                      notes={readerNotes}
                       onNotesLocated={onNotesLocated}
                       draft={inline ? draft : undefined}
                       renderInline={inline ? (ids) => (
@@ -260,6 +295,10 @@ export default function TaskDetail() {
                           onToggle={toggleCollapsed}
                           hoveredNoteId={hoveredNoteId}
                           onHover={setHoveredNoteId}
+                          voicePending={voice.pending}
+                          onVoiceRetry={voice.retry}
+                          onVoiceDiscard={voice.discard}
+                          flashNoteId={voice.justSavedId}
                         />
                       ) : undefined}
                       onCommentDraft={layoutMode === 'A' && !inline ? undefined : setDraft}
@@ -267,7 +306,13 @@ export default function TaskDetail() {
                       onDeleteHighlight={(hlId) => deleteHighlight.mutate(hlId)}
                       hoveredNoteId={hoveredNoteId}
                       onNoteHover={setHoveredNoteId}
-                      onNoteAnchorClick={inline ? toggleCollapsed : setFocusNoteId}
+                      onNoteAnchorClick={onNoteAnchorClick}
+                      voice={isArticleTask ? {
+                        state: voice.available === false ? 'unavailable' : voice.busy ? 'recording' : 'ready',
+                        onStart: voice.start,
+                        onStop: voice.stop,
+                        onUnavailable: voice.notifyUnavailable,
+                      } : undefined}
                     />
                   </div>
                   <Toc items={toc} />
@@ -284,6 +329,10 @@ export default function TaskDetail() {
                         onNoteHover={setHoveredNoteId}
                         focusNoteId={focusNoteId}
                         onFocusConsumed={() => setFocusNoteId(null)}
+                        voicePending={voice.pending}
+                        onVoiceRetry={voice.retry}
+                        onVoiceDiscard={voice.discard}
+                        flashNoteId={voice.justSavedId}
                       />
                     </aside>
                   )}
@@ -326,6 +375,7 @@ export default function TaskDetail() {
 
         </div>{/* end mode-content */}
       </div>
+      {voice.toast && <VoiceToast text={voice.toast} />}
     </div>
   );
 }

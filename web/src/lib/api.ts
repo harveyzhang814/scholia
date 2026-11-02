@@ -1,3 +1,5 @@
+import { readNdjson } from './ndjson';
+
 function readToken(): string {
   const el = document.querySelector('meta[name="vdl-token"]');
   return el?.getAttribute('content') ?? '';
@@ -176,6 +178,48 @@ export interface Note extends NoteAnchor {
   updatedAt: number;
 }
 
+export type VoicePhase = 'transcribing' | 'refining';
+export type VoiceOutcome =
+  | { ok: true; note: Note }
+  | { ok: false; code: string; message: string; taskId: string | null; canRetry: boolean };
+
+const CONNECTION_LOST: VoiceOutcome = { ok: false, code: 'connection_lost', message: '', taskId: null, canRetry: false };
+
+function authHeaders(): Record<string, string> {
+  return TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {};
+}
+
+async function readVoiceStream(
+  url: string,
+  init: RequestInit,
+  onPhase: (p: VoicePhase) => void,
+): Promise<VoiceOutcome> {
+  let outcome = null as VoiceOutcome | null;
+  try {
+    const res = await fetch(url, init);
+    if (res.status !== 200 || !res.body) return CONNECTION_LOST;
+    await readNdjson(res.body, (line) => {
+      const msg = line as { type?: string; phase?: string; note?: Note } & Partial<Extract<VoiceOutcome, { ok: false }>>;
+      if (msg.type === 'phase' && (msg.phase === 'transcribing' || msg.phase === 'refining')) {
+        onPhase(msg.phase);
+      } else if (msg.type === 'note' && msg.note) {
+        outcome = { ok: true, note: msg.note };
+      } else if (msg.type === 'failed') {
+        outcome = {
+          ok: false,
+          code: msg.code ?? 'error',
+          message: msg.message ?? '',
+          taskId: msg.taskId ?? null,
+          canRetry: msg.canRetry === true,
+        };
+      }
+    });
+  } catch {
+    return outcome ?? CONNECTION_LOST;
+  }
+  return outcome ?? CONNECTION_LOST;
+}
+
 export interface Article {
   id: string;
   slug: string;
@@ -301,6 +345,46 @@ export const api = {
 
   deleteHighlight: (taskId: string, hlId: string) =>
     request<void>(`/api/tasks/${taskId}/highlights/${hlId}`, { method: 'DELETE' }),
+
+  voiceStatus: async (): Promise<boolean> => {
+    try {
+      const r = await request<{ available?: boolean }>('/api/voice/status');
+      return r.available === true;
+    } catch {
+      return false;
+    }
+  },
+
+  startVoice: async (taskId: string, anchor: NoteAnchor): Promise<{ ok: true; id: string } | { ok: false; code: string }> => {
+    try {
+      const res = await fetch('/api/voice/sessions', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, ...anchor }),
+      });
+      const body = await res.json().catch(() => null) as { id?: string; error?: string } | null;
+      if (!res.ok || !body?.id) return { ok: false, code: body?.error ?? 'error' };
+      return { ok: true, id: body.id };
+    } catch {
+      return { ok: false, code: 'error' };
+    }
+  },
+
+  stopVoice: (id: string, onPhase: (p: VoicePhase) => void): Promise<VoiceOutcome> =>
+    readVoiceStream(`/api/voice/sessions/${encodeURIComponent(id)}/stop`, { method: 'POST', headers: authHeaders() }, onPhase),
+
+  cancelVoice: async (id: string): Promise<void> => {
+    try {
+      await fetch(`/api/voice/sessions/${encodeURIComponent(id)}`, { method: 'DELETE', headers: authHeaders() });
+    } catch {}
+  },
+
+  retryVoice: (taskId: string, anchor: NoteAnchor, cocoTaskId: string, onPhase: (p: VoicePhase) => void): Promise<VoiceOutcome> =>
+    readVoiceStream('/api/voice/retry', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId, ...anchor, cocoTaskId }),
+    }, onPhase),
 
   listArticles: () => request<Article[]>('/api/articles'),
 

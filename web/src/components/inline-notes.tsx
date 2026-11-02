@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { usePlayerStore } from '@/stores/player-store';
 import { useAddNote, useUpdateNote, useDeleteNote } from '@/hooks/use-tasks';
 import { NoteCard } from '@/components/note-card';
+import { VoicePendingCard } from '@/components/voice-pending-card';
 import { DRAFT_ID } from '@/components/reader';
 import type { Located } from '@/lib/anchor';
 import type { Note, NoteAnchor } from '@/lib/api';
+import { VOICE_PREFIX, VOICE_REC_PREFIX, type VoicePending } from '@/hooks/use-voice-comments';
 
 interface CardsCommon {
   taskId: string;
@@ -62,12 +64,13 @@ export function DraftCard({ taskId, hasMedia, anchor, onDone }: {
 function useInlineCard({ taskId, collapsed, onToggle, hoveredNoteId, onHover }: CardsCommon) {
   const updateNote = useUpdateNote(taskId);
   const deleteNote = useDeleteNote(taskId);
-  return (note: Note, approximate = false) => (
+  return (note: Note, approximate = false, flash = false) => (
     <NoteCard
       key={note.id}
       variant="inline"
       note={note}
       approximate={approximate}
+      flash={flash}
       collapsed={collapsed.has(note.id)}
       onToggleCollapsed={() => onToggle(note.id)}
       isLinked={hoveredNoteId === note.id}
@@ -84,8 +87,12 @@ export function InlineCards(props: CardsCommon & {
   located: Record<string, Located>;
   draft: NoteAnchor | null;
   onDraftDone: () => void;
+  voicePending?: VoicePending[];
+  onVoiceRetry?: (id: string) => void;
+  onVoiceDiscard?: (id: string) => void;
+  flashNoteId?: string | null;
 }) {
-  const { ids, notes, located, draft, onDraftDone, taskId, hasMedia } = props;
+  const { ids, notes, located, draft, onDraftDone, taskId, hasMedia, voicePending, onVoiceRetry, onVoiceDiscard, flashNoteId } = props;
   const renderCard = useInlineCard(props);
   return (
     <>
@@ -93,8 +100,16 @@ export function InlineCards(props: CardsCommon & {
         if (id === DRAFT_ID) {
           return draft && <DraftCard key={id} taskId={taskId} hasMedia={hasMedia} anchor={draft} onDone={onDraftDone} />;
         }
+        if (id.startsWith(VOICE_REC_PREFIX)) return null;  // the recording's anchor is marked in the text; no card yet
+        if (id.startsWith(VOICE_PREFIX)) {
+          const item = voicePending?.find((p) => p.id === id);
+          return item && (
+            <VoicePendingCard key={id} item={item} variant="inline"
+              onRetry={() => onVoiceRetry?.(id)} onDiscard={() => onVoiceDiscard?.(id)} />
+          );
+        }
         const note = notes.find((n) => n.id === id);
-        return note && renderCard(note, located[id]?.grade === 'approximate');
+        return note && renderCard(note, located[id]?.grade === 'approximate', flashNoteId === id);
       })}
     </>
   );

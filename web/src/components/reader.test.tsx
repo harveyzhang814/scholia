@@ -215,6 +215,186 @@ describe('Reader comment entry points', () => {
   });
 });
 
+describe('Reader voice entry points', () => {
+  afterEach(() => {
+    delete (document as Partial<Document>).caretRangeFromPoint;
+    getSelection()?.removeAllRanges();
+  });
+
+  const content = '第一段有个观点在这里。';
+  const bodyText = (c: HTMLElement) => c.querySelector('[data-sc-body] p')!.firstChild as Text;
+  const makeVoice = (state: 'ready' | 'recording' | 'unavailable') => ({
+    state, onStart: vi.fn(), onStop: vi.fn(), onUnavailable: vi.fn(),
+  });
+  // jsdom has no layout; the selection bubble needs a rect to open.
+  const openBubble = (t: Text) => {
+    Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 10, 10);
+    try {
+      fireEvent.mouseUp(t.parentElement!);
+    } finally {
+      delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+    }
+  };
+
+  it('v with caret calls onStart with a point anchor', () => {
+    const voice = makeVoice('ready');
+    const { container } = render(<Reader content={content} onCommentDraft={vi.fn()} voice={voice} />);
+    getSelection()!.collapse(bodyText(container), 4);
+    const ev = createEvent.keyDown(document.body, { key: 'v' });
+    fireEvent(document.body, ev);
+    expect(voice.onStart).toHaveBeenCalledWith({ anchor: '', prefix: '第一段有', suffix: '个观点在这里。', position: 4 });
+    expect(ev.defaultPrevented).toBe(true);
+  });
+
+  it('v with a selection calls onStart with a range anchor', () => {
+    const voice = makeVoice('ready');
+    const { container } = render(<Reader content={content} onCommentDraft={vi.fn()} voice={voice} />);
+    getSelection()!.setBaseAndExtent(bodyText(container), 4, bodyText(container), 6);
+    fireEvent.keyDown(document.body, { key: 'v' });
+    expect(voice.onStart).toHaveBeenCalledWith(expect.objectContaining({ anchor: '个观', position: 4 }));
+  });
+
+  it('v inside a textarea does nothing', () => {
+    const voice = makeVoice('ready');
+    const { container, rerender } = render(<><Reader content={content} onCommentDraft={vi.fn()} voice={voice} /><textarea /></>);
+    getSelection()!.collapse(bodyText(container), 4);
+    const ev = createEvent.keyDown(container.querySelector('textarea')!, { key: 'v' });
+    fireEvent(container.querySelector('textarea')!, ev);
+    expect(ev.defaultPrevented).toBe(false);   // the v still gets typed
+    // while recording or unavailable, typing v in a textarea must not stop or warn either
+    const recording = { ...voice, state: 'recording' as const };
+    rerender(<><Reader content={content} onCommentDraft={vi.fn()} voice={recording} /><textarea /></>);
+    fireEvent.keyDown(container.querySelector('textarea')!, { key: 'v' });
+    const unavailable = { ...voice, state: 'unavailable' as const };
+    rerender(<><Reader content={content} onCommentDraft={vi.fn()} voice={unavailable} /><textarea /></>);
+    fireEvent.keyDown(container.querySelector('textarea')!, { key: 'v' });
+    expect(voice.onStart).not.toHaveBeenCalled();
+    expect(voice.onStop).not.toHaveBeenCalled();
+    expect(voice.onUnavailable).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.body, { key: 'v' });   // control: outside the textarea it does act
+    expect(voice.onUnavailable).toHaveBeenCalledTimes(1);
+  });
+
+  it('v while recording calls onStop', () => {
+    const voice = makeVoice('recording');
+    render(<Reader content={content} onCommentDraft={vi.fn()} voice={voice} />);
+    getSelection()!.removeAllRanges();   // no selection or caret anywhere
+    fireEvent.keyDown(document.body, { key: 'v' });
+    expect(voice.onStop).toHaveBeenCalledTimes(1);
+    expect(voice.onStart).not.toHaveBeenCalled();
+    expect(voice.onUnavailable).not.toHaveBeenCalled();
+  });
+
+  it('v while unavailable calls onUnavailable', () => {
+    const voice = makeVoice('unavailable');
+    const { container } = render(<Reader content={content} onCommentDraft={vi.fn()} voice={voice} />);
+    getSelection()!.collapse(bodyText(container), 4);
+    fireEvent.keyDown(document.body, { key: 'v' });
+    expect(voice.onUnavailable).toHaveBeenCalledTimes(1);
+    expect(voice.onStart).not.toHaveBeenCalled();
+    expect(voice.onStop).not.toHaveBeenCalled();
+  });
+
+  it('v held down (repeat) does not toggle recording', () => {
+    const voice = makeVoice('ready');
+    const { container, rerender } = render(<Reader content={content} onCommentDraft={vi.fn()} voice={voice} />);
+    getSelection()!.collapse(bodyText(container), 4);
+    fireEvent.keyDown(document.body, { key: 'v' });   // the real press starts
+    expect(voice.onStart).toHaveBeenCalledTimes(1);
+    // auto-repeat of the held key, in every state the first press can lead to
+    for (const state of ['recording', 'ready', 'unavailable'] as const) {
+      rerender(<Reader content={content} onCommentDraft={vi.fn()} voice={{ ...voice, state }} />);
+      fireEvent.keyDown(document.body, { key: 'v', repeat: true });
+    }
+    expect(voice.onStart).toHaveBeenCalledTimes(1);
+    expect(voice.onStop).not.toHaveBeenCalled();
+    expect(voice.onUnavailable).not.toHaveBeenCalled();
+  });
+
+  it('without voice prop v does nothing and no mic button renders', () => {
+    const onCommentDraft = vi.fn();
+    const { container, getByText, queryByText, rerender } = render(<Reader content={content} onCommentDraft={onCommentDraft} />);
+    const t = bodyText(container);
+    getSelection()!.collapse(t, 4);
+    const ev = createEvent.keyDown(document.body, { key: 'v' });
+    fireEvent(document.body, ev);
+    expect(ev.defaultPrevented).toBe(false);
+    expect(onCommentDraft).not.toHaveBeenCalled();
+
+    getSelection()!.setBaseAndExtent(t, 4, t, 6);
+    openBubble(t);
+    expect(document.querySelector('.anchor-bubble')).not.toBeNull();
+    expect(document.querySelector('[title="语音评论（v）"]')).toBeNull();
+
+    document.caretRangeFromPoint = () => { const r = document.createRange(); r.setStart(t, 4); r.collapse(true); return r; };
+    fireEvent.contextMenu(t.parentElement!, { clientX: 10, clientY: 10 });
+    expect(getByText('在此处评论')).not.toBeNull();
+    expect(queryByText('语音评论')).toBeNull();
+
+    // control: the same open menu and bubble do show the voice entries once voice is given
+    rerender(<Reader content={content} onCommentDraft={onCommentDraft} voice={makeVoice('ready')} />);
+    expect(queryByText('语音评论')).not.toBeNull();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    getSelection()!.setBaseAndExtent(t, 4, t, 6);
+    openBubble(t);
+    expect(document.querySelector('[title="语音评论（v）"]')).not.toBeNull();
+  });
+
+  it('bubble mic button is disabled with 正在录音 when recording', () => {
+    const voice = makeVoice('recording');
+    const { container, getByText, rerender } = render(<Reader content={content} onCommentDraft={vi.fn()} voice={voice} />);
+    const t = bodyText(container);
+    getSelection()!.setBaseAndExtent(t, 4, t, 6);
+    openBubble(t);
+    const mic = document.querySelector<HTMLButtonElement>('.anchor-bubble [title="语音评论（v）"]')!;
+    expect(mic).not.toBeNull();
+    expect(mic.disabled).toBe(true);
+    const tip = getByText('正在录音');
+    expect(tip.classList.contains('voice-tip')).toBe(true);
+    expect(tip.hidden).toBe(true);
+    fireEvent.mouseEnter(mic.parentElement!);
+    expect(tip.hidden).toBe(false);
+    fireEvent.click(mic);
+    expect(voice.onStart).not.toHaveBeenCalled();
+
+    // control: once ready, the same button starts on the selection and closes the bubble
+    const ready = { ...voice, state: 'ready' as const };
+    rerender(<Reader content={content} onCommentDraft={vi.fn()} voice={ready} />);
+    const enabled = document.querySelector<HTMLButtonElement>('.anchor-bubble [title="语音评论（v）"]')!;
+    expect(enabled.disabled).toBe(false);
+    expect(document.querySelector('.voice-tip')).toBeNull();
+    fireEvent.click(enabled);
+    expect(voice.onStart).toHaveBeenCalledWith(expect.objectContaining({ anchor: '个观', position: 4 }));
+    expect(document.querySelector('.anchor-bubble')).toBeNull();
+  });
+
+  it('context menu 语音评论 starts with the menu anchor', () => {
+    const voice = makeVoice('unavailable');
+    const { container, getByText, queryByText, rerender } = render(<Reader content={content} onCommentDraft={vi.fn()} voice={voice} />);
+    const t = bodyText(container);
+    document.caretRangeFromPoint = () => { const r = document.createRange(); r.setStart(t, 4); r.collapse(true); return r; };
+
+    // unavailable: the item is disabled and says why
+    fireEvent.contextMenu(t.parentElement!, { clientX: 10, clientY: 10 });
+    const off = getByText('语音评论').closest('button')!;
+    expect(off.disabled).toBe(true);
+    expect(off.querySelector('.ctx-hint')!.textContent).toBe('CocoScribe 未运行');
+    fireEvent.click(off);
+    expect(voice.onStart).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.body, { key: 'Escape' });   // close the menu
+
+    const ready = { ...voice, state: 'ready' as const };
+    rerender(<Reader content={content} onCommentDraft={vi.fn()} voice={ready} />);
+    fireEvent.contextMenu(t.parentElement!, { clientX: 10, clientY: 10 });
+    const item = getByText('语音评论').closest('button')!;
+    expect(item.disabled).toBe(false);
+    expect(item.querySelector('.ctx-key')!.textContent).toBe('v');
+    fireEvent.click(item);
+    expect(voice.onStart).toHaveBeenCalledWith({ anchor: '', prefix: '第一段有', suffix: '个观点在这里。', position: 4 });
+    expect(queryByText('语音评论')).toBeNull();   // menu closed
+  });
+});
+
 describe('Reader mermaid rendering', () => {
   it('throws if --md-mermaid-* CSS variables are not set (regression guard for the CSS bridge)', () => {
     const content = '```mermaid\ngraph TD\n  A --> B\n```';

@@ -23,6 +23,11 @@
   --status-ok:   #4A8A5A;
   --status-err:  #B05050;
   --status-busy: #C28A3D;
+  /* 语音评论阶段色：沿用 CocoScribe 悬浮窗的颜色语言，明暗模式同值；只用于圆点、边框、图标、转圈，不用于文字 */
+  --coco-recording:    #FF6B47;
+  --coco-transcribing: #20D5C4;
+  --coco-refining:     #8B5CF6;
+  --coco-done:         #34D399;
 }
 
 /* markdown-preview-core mermaid theme bridge — indirection through the
@@ -565,4 +570,117 @@ mark.vdl-note-anchor.is-linked {
   font-size: 12px;
   color: var(--text-tertiary);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* ── 工具条语音按钮（.bubble-btn 本体由工具条组件提供）── */
+.bubble-btn:disabled { opacity: 0.35; cursor: default; }
+/* CocoScribe 未运行时，悬停置灰的语音按钮出现的提示 */
+.voice-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: -6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  background: var(--text-primary);
+  color: var(--bg-surface);
+}
+
+/* ── 语音评论：录音条（滚动容器顶部 sticky，录音期间始终可见；录音 = 珊瑚色） ── */
+.voice-bar {
+  position: sticky; top: 0; z-index: 20;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--coco-recording) 8%, var(--bg-surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--coco-recording) 30%, var(--border-subtle));
+}
+.voice-bar-row { display: flex; align-items: center; gap: 8px; padding: 8px 48px; }
+.voice-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--coco-recording); animation: voice-pulse 1.4s ease-in-out infinite; }
+@keyframes voice-pulse { 50% { opacity: 0.35; } }
+.voice-label { color: var(--text-primary); font-weight: 500; }
+.voice-timer { font-family: var(--font-mono); color: var(--text-primary); }
+.voice-sep { opacity: 0.6; }
+.voice-anchor { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-tertiary); }
+.voice-actions { margin-left: auto; display: flex; gap: 14px; flex-shrink: 0; }
+.voice-actions button { display: inline-flex; align-items: center; gap: 5px; color: var(--text-secondary); cursor: pointer; }
+.voice-actions button:hover { color: var(--text-primary); }
+/* 设计稿的 .kbd 是稿内辅助类，应用里没有同名类，这里只给录音条内的 kbd 补上等价外观 */
+.voice-actions .kbd { font-size: 11px; padding: 0 4px; line-height: 16px; border-radius: 4px; border: 1px solid var(--border-subtle); }
+/* 首次录音时录音条下方的一次性提示：提醒关掉 CocoScribe 的弹窗与自动复制 */
+.voice-hint {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 8px 48px 10px;
+  border-top: 1px dashed color-mix(in srgb, var(--coco-recording) 30%, var(--border-subtle));
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.voice-hint strong { color: var(--text-primary); font-weight: 500; }
+.voice-hint button { flex-shrink: 0; margin-left: auto; color: var(--accent-10); font-weight: 500; cursor: pointer; }
+
+/* ── 语音评论：正文锚点（录音中锁定 → 停止后与普通评论锚点同样式） ── */
+.voice-locked,
+mark.vdl-note-anchor[data-note-id^="voice-rec:"],
+span.vdl-note-point[data-note-id^="voice-rec:"] {
+  background: color-mix(in srgb, var(--coco-recording) 14%, transparent);
+  border-bottom: 1px dashed var(--coco-recording);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+span.vdl-note-point[data-note-id^="voice-rec:"] { color: var(--coco-recording); }
+.voice-anchor-mark {
+  background: rgba(207, 203, 192, 0.34);
+  border-bottom: 1px dotted var(--text-tertiary);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* ── 语音评论占位卡片：转写中（青）→ 整理中（靛紫）→ 完成（绿色描边闪一下后即普通评论卡片）；失败用 Scholia 的 status-err ── */
+.sc-voice-state { display: none; }
+.sc-note-card[data-voice-state="transcribing"] { --phase: var(--coco-transcribing); }
+.sc-note-card[data-voice-state="refining"]     { --phase: var(--coco-refining); }
+.sc-note-card[data-voice-state="transcribing"] .is-processing,
+.sc-note-card[data-voice-state="refining"] .is-processing { display: flex; }
+.sc-note-card[data-voice-state="failed"] .is-failed,
+.sc-note-card[data-voice-state="done"] .is-done { display: block; }
+.sc-note-card[data-variant="inline"][data-voice-state="transcribing"],
+.sc-note-card[data-variant="inline"][data-voice-state="refining"] {
+  background: var(--bg-surface);
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--phase) 60%, var(--border-subtle));
+}
+.sc-note-card[data-variant="inline"][data-voice-state="failed"] { background: var(--bg-surface); border-color: color-mix(in srgb, var(--status-err) 45%, var(--border-subtle)); }
+.sc-note-card[data-voice-flash] { animation: voice-done 1.4s ease-out; }
+@keyframes voice-done { from { box-shadow: 0 0 0 1.5px var(--coco-done); } to { box-shadow: 0 0 0 1.5px transparent; } }
+.is-processing { align-items: center; gap: 6px; color: var(--text-secondary); }
+.is-processing .sc-voice-icon { color: var(--phase); }
+.sc-voice-icon { flex-shrink: 0; color: var(--text-tertiary); }
+.sc-voice-steps { color: var(--text-tertiary); }
+.sc-voice-steps b { font-weight: 500; color: var(--text-primary); }
+.sc-voice-spin {
+  width: 11px; height: 11px; flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-subtle);
+  border-top-color: var(--phase);
+  animation: sc-spin 0.9s linear infinite;
+}
+@keyframes sc-spin { to { transform: rotate(360deg); } }
+.sc-voice-dur { margin-left: auto; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-tertiary); }
+.sc-voice-reason { display: flex; align-items: center; gap: 6px; color: var(--status-err); }
+.sc-voice-reason .sc-voice-icon { color: var(--status-err); }
+.sc-voice-actions { margin-left: auto; display: flex; gap: 10px; }
+.sc-voice-actions button { color: var(--text-secondary); cursor: pointer; }
+.sc-voice-actions button[data-voice-act="retry"] { color: var(--accent-10); font-weight: 500; }
+
+/* ── 语音评论：CocoScribe 未运行时按 v 出现的轻提示（详情页外壳底部居中） ── */
+.voice-toast {
+  position: absolute; left: 50%; bottom: 24px; z-index: 120;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: var(--text-primary);
+  color: var(--bg-surface);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }

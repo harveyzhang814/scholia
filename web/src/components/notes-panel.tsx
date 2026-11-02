@@ -6,7 +6,9 @@ import { computePositions } from '@/lib/anchor-layout';
 import { anchorKind, type Located } from '@/lib/anchor';
 import { BLOCK } from '@/lib/text-index';
 import { NoteCard } from '@/components/note-card';
+import { VoicePendingCard } from '@/components/voice-pending-card';
 import type { NoteAnchor } from '@/lib/api';
+import type { VoicePending } from '@/hooks/use-voice-comments';
 
 interface NotesPanelProps {
   taskId: string;
@@ -19,7 +21,13 @@ interface NotesPanelProps {
   focusNoteId?: string | null;
   onFocusConsumed?: () => void;
   located?: Record<string, Located>;
+  voicePending?: VoicePending[];
+  onVoiceRetry?: (id: string) => void;
+  onVoiceDiscard?: (id: string) => void;
+  flashNoteId?: string | null;
 }
+
+const NO_PENDING: VoicePending[] = [];
 
 // Top of the block holding the note's first mark/icon in the article (the mark itself if no block).
 function noteMarkY(noteId: string, articleEl: HTMLElement): number | null {
@@ -41,7 +49,24 @@ function anchorLabel(a: NoteAnchor): string {
 const ESTIMATED_HEIGHT = 72;
 const GAP = 8;
 
-export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, articleRef, hoveredNoteId, onNoteHover, focusNoteId, onFocusConsumed, located }: NotesPanelProps) {
+// List item reporting its height as NoteCard does, for cards without their own measuring (voice pending cards).
+function MeasuredItem({ id, onHeightChange, children }: {
+  id: string;
+  onHeightChange: (id: string, h: number) => void;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => onHeightChange(id, el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [id, onHeightChange]);
+  return <li ref={ref}>{children}</li>;
+}
+
+export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, articleRef, hoveredNoteId, onNoteHover, focusNoteId, onFocusConsumed, located, voicePending = NO_PENDING, onVoiceRetry, onVoiceDiscard, flashNoteId }: NotesPanelProps) {
   const [draft, setDraft] = useState('');
   const currentTime = usePlayerStore((s) => s.currentTime);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -77,7 +102,7 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
   useLayoutEffect(() => {
     const el = articleRef?.current;
     if (!el) return;
-    const placed = notes.filter((n) => located?.[n.id]);
+    const placed = [...notes, ...voicePending].filter((n) => located?.[n.id]);
     const layouts = placed.map((n) => {
       const anchorY = noteMarkY(n.id, el) ?? 0;
       const height = heights[n.id] ?? ESTIMATED_HEIGHT;
@@ -96,7 +121,7 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
       }
       return prev;
     });
-  }, [notes, heights, articleRef, articleHeight, located]);
+  }, [notes, voicePending, heights, articleRef, articleHeight, located]);
 
   const submit = () => {
     if (!draft.trim()) return;
@@ -111,6 +136,12 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
 
   const unplaced = notes.filter((n) => !located?.[n.id]);
   const placed = notes.filter((n) => located?.[n.id]);
+  const unplacedPending = voicePending.filter((p) => !located?.[p.id]);
+  const placedPending = voicePending.filter((p) => located?.[p.id]);
+  const pendingCard = (item: VoicePending) => (
+    <VoicePendingCard item={item} variant="sidebar"
+      onRetry={() => onVoiceRetry?.(item.id)} onDiscard={() => onVoiceDiscard?.(item.id)} />
+  );
 
   return (
     <div className="flex flex-col text-sm" style={{ minHeight: '100%' }}>
@@ -190,7 +221,7 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
       </div>
 
       {/* Notes not located in the article (normal flow) */}
-      {(isLoading || unplaced.length > 0) && (
+      {(isLoading || unplaced.length > 0 || unplacedPending.length > 0) && (
         <ul className="py-2">
           {isLoading && (
             <li className="px-4 py-6 text-center text-xs" style={{ color: 'var(--text-tertiary)' }}>
@@ -209,15 +240,32 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
                 onHover={handleNoteHover}
                 autoEdit={focusNoteId === note.id}
                 onAutoEditConsumed={handleFocusConsumed}
+                flash={flashNoteId === note.id}
               />
             </li>
           ))}
+          {unplacedPending.map((item) => <li key={item.id}>{pendingCard(item)}</li>)}
         </ul>
       )}
 
       {/* Located notes (absolute layout zone) */}
-      {placed.length > 0 && (
+      {(placed.length > 0 || placedPending.length > 0) && (
         <div style={{ position: 'relative', height: articleHeight, flexShrink: 0 }}>
+          {placedPending.map((item) => (
+            <ul
+              key={item.id}
+              style={{
+                position: 'absolute',
+                top: positions[item.id] ?? 0,
+                width: '100%',
+                margin: 0,
+                padding: 0,
+                listStyle: 'none',
+              }}
+            >
+              <MeasuredItem id={item.id} onHeightChange={onHeightChange}>{pendingCard(item)}</MeasuredItem>
+            </ul>
+          ))}
           {placed.map((note) => (
             <ul
               key={note.id}
@@ -242,6 +290,7 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
                   autoEdit={focusNoteId === note.id}
                   onAutoEditConsumed={handleFocusConsumed}
                   approximate={located?.[note.id]?.grade === 'approximate'}
+                  flash={flashNoteId === note.id}
                 />
               </li>
             </ul>
@@ -249,7 +298,7 @@ export function NotesPanel({ taskId, hasMedia, pendingAnchor, onAnchorConsumed, 
         </div>
       )}
 
-      {!isLoading && notes.length === 0 && (
+      {!isLoading && notes.length === 0 && voicePending.length === 0 && (
         <div className="px-4 py-6 text-center text-xs" style={{ color: 'var(--text-tertiary)' }}>
           暂无笔记
         </div>

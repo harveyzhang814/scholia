@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { api, type Task, type Note, type NoteAnchor, type Highlight } from '@/lib/api';
 import { anchorKind } from '@/lib/anchor';
 import { writeMarker } from '@/lib/marker-write';
@@ -76,25 +76,27 @@ export function useNotes(taskId: string | undefined) {
   });
 }
 
+export function afterNoteCreated(qc: QueryClient, taskId: string, note: Note): void {
+  qc.invalidateQueries({ queryKey: ['task', taskId, 'notes'] });
+  // Fire-and-forget: a missing marker only means the comment falls back to text locating.
+  if (anchorKind(note) === 'none') return;
+  if (!taskId.startsWith('article-') && !note.doc) return;  // video transcript notes have no source file
+  const contentKey = ['task', taskId, 'content', note.doc ?? 'article'];
+  const md = qc.getQueryData<string>(contentKey);
+  if (!md) return;
+  void writeMarker(taskId, note, md).then((ok) => {
+    if (!ok) return;
+    qc.invalidateQueries({ queryKey: contentKey });
+    qc.invalidateQueries({ queryKey: ['task', taskId, 'notes'] });
+  }).catch(() => {});
+}
+
 export function useAddNote(taskId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: Partial<NoteAnchor> & { mediaTimestamp?: number; body: string }) =>
       api.addNote(taskId, data),
-    onSuccess: (note) => {
-      qc.invalidateQueries({ queryKey: ['task', taskId, 'notes'] });
-      // Fire-and-forget: a missing marker only means the comment falls back to text locating.
-      if (anchorKind(note) === 'none') return;
-      if (!taskId.startsWith('article-') && !note.doc) return;  // video transcript notes have no source file
-      const contentKey = ['task', taskId, 'content', note.doc ?? 'article'];
-      const md = qc.getQueryData<string>(contentKey);
-      if (!md) return;
-      void writeMarker(taskId, note, md).then((ok) => {
-        if (!ok) return;
-        qc.invalidateQueries({ queryKey: contentKey });
-        qc.invalidateQueries({ queryKey: ['task', taskId, 'notes'] });
-      }).catch(() => {});
-    },
+    onSuccess: (note) => afterNoteCreated(qc, taskId, note),
   });
 }
 

@@ -3,6 +3,7 @@ const Koa = require('koa');
 const Router = require('@koa/router');
 const bodyParser = require('koa-bodyparser');
 const path = require('path');
+const { PassThrough } = require('stream');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
@@ -14,6 +15,7 @@ const { sha256Hex, validateInsertions, applyInsertions, removeMarkers, newMarker
 const { listXTimelines, getXTimeline } = require('./x-source');
 const { getCreator } = require('./creator-source');
 const { createStaticServe } = require('./static-serve');
+const { createVoice } = require('./voice');
 
 const ASSET_MIME = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
@@ -369,17 +371,20 @@ function createApp(options = {}) {
     ctx.body = await readJson(paths.notes, []);
   });
 
-  router.post('/tasks/:taskId/notes', async (ctx) => {
-    const { taskId } = ctx.params;
-    const { anchor = '', mediaTimestamp, body, prefix, suffix, position, doc } = ctx.request.body || {};
-    if (!body || typeof body !== 'string' || !body.trim()) { ctx.status = 400; ctx.body = { error: 'body required' }; return; }
+  function validateAnchorFields({ prefix, suffix, position, doc }) {
     const validContext = (s) => typeof s === 'string' && s.length <= 32;
-    if ((prefix !== undefined && !validContext(prefix)) || (suffix !== undefined && !validContext(suffix))) { ctx.status = 400; ctx.body = { error: 'prefix/suffix must be a string of at most 32 chars' }; return; }
-    if (position !== undefined && !(Number.isInteger(position) && position >= 0)) { ctx.status = 400; ctx.body = { error: 'position must be a non-negative integer' }; return; }
-    if (doc !== undefined && doc !== 'summary' && doc !== 'article') { ctx.status = 400; ctx.body = { error: 'doc must be summary or article' }; return; }
-    await withMarkerLock(async () => {
+    if ((prefix !== undefined && !validContext(prefix)) || (suffix !== undefined && !validContext(suffix))) return 'prefix/suffix must be a string of at most 32 chars';
+    if (position !== undefined && !(Number.isInteger(position) && position >= 0)) return 'position must be a non-negative integer';
+    if (doc !== undefined && doc !== 'summary' && doc !== 'article') return 'doc must be summary or article';
+    return null;
+  }
+
+  // Returns the new note, or null if the task is not found. Callers must
+  // pass a non-empty, already-trimmed body.
+  function insertNote(taskId, { anchor, prefix, suffix, position, doc, mediaTimestamp, body }) {
+    return withMarkerLock(async () => {
       const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
-      if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+      if (!paths) return null;
       await fs.promises.mkdir(paths.base, { recursive: true });
       const ns = await readJson(paths.notes, []);
       const now = Date.now();
@@ -391,12 +396,125 @@ function createApp(options = {}) {
         ...(position !== undefined ? { position } : {}),
         ...(doc !== undefined ? { doc } : {}),
         ...(mediaTimestamp != null ? { mediaTimestamp: Number(mediaTimestamp) } : {}),
-        body: body.trim(), createdAt: now, updatedAt: now,
+        body, createdAt: now, updatedAt: now,
       };
       ns.unshift(note);
       await writeJson(paths.notes, ns);
-      ctx.status = 201; ctx.body = note;
+      return note;
     });
+  }
+
+  router.post('/tasks/:taskId/notes', async (ctx) => {
+    const { taskId } = ctx.params;
+    const { anchor = '', mediaTimestamp, body, prefix, suffix, position, doc } = ctx.request.body || {};
+    if (!body || typeof body !== 'string' || !body.trim()) { ctx.status = 400; ctx.body = { error: 'body required' }; return; }
+    const invalid = validateAnchorFields({ prefix, suffix, position, doc });
+    if (invalid) { ctx.status = 400; ctx.body = { error: invalid }; return; }
+    const note = await insertNote(taskId, { anchor, prefix, suffix, position, doc, mediaTimestamp, body: body.trim() });
+    if (!note) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    ctx.status = 201; ctx.body = note;
+  });
+
+  // Voice comments. voiceClient: undefined -> CocoScribe client loaded lazily on
+  // first use (the SDK is never required at createApp time); null -> disabled.
+  let lazyVoiceClient = null;
+  let lazyVoiceClientTried = false;
+  function getVoiceClient() {
+    if (options.voiceClient === null) return null;
+    if (options.voiceClient !== undefined) return options.voiceClient;
+    if (!lazyVoiceClientTried) {
+      lazyVoiceClientTried = true;
+      try {
+        const { CocoScribeClient } = require('@harveyzhang814/host-client');
+        lazyVoiceClient = new CocoScribeClient();
+      } catch { lazyVoiceClient = null; }
+    }
+    return lazyVoiceClient;
+  }
+
+  // The route passes the validated anchor fields as the module's `anchor`
+  // argument; the module hands back { ...anchorFields, body } here.
+  const voice = createVoice({
+    getClient: getVoiceClient,
+    saveNote: async (taskId, fields) => {
+      const note = await insertNote(taskId, fields);
+      if (!note) throw new Error('Task no longer exists');
+      return note;
+    },
+  });
+
+  // Validates { taskId, anchor, prefix?, suffix?, position?, doc? } like the notes
+  // POST does. Sets the error response and returns null on failure.
+  async function parseVoiceAnchor(ctx) {
+    const { taskId, anchor = '', prefix, suffix, position, doc } = ctx.request.body || {};
+    if (typeof taskId !== 'string' || !isArticleId(taskId)) { ctx.status = 400; ctx.body = { error: 'taskId must be an article id' }; return null; }
+    const invalid = validateAnchorFields({ prefix, suffix, position, doc });
+    if (invalid) { ctx.status = 400; ctx.body = { error: invalid }; return null; }
+    if (!await getPaths(taskId, WORK_DIR, CONTENT_DIR)) { ctx.status = 404; ctx.body = { error: 'not found' }; return null; }
+    return { taskId, fields: { anchor, prefix, suffix, position, doc } };
+  }
+
+  // ndjson body that survives the browser going away: the session keeps running
+  // server-side regardless, and writes after the stream is gone are dropped.
+  function openNdjson() {
+    const stream = new PassThrough();
+    stream.on('error', () => {});
+    const write = (obj) => {
+      if (stream.destroyed || stream.writableEnded) return;
+      try { stream.write(JSON.stringify(obj) + '\n'); } catch { /* client gone */ }
+    };
+    const finish = (outcome) => {
+      write(outcome.ok
+        ? { type: 'note', note: outcome.note }
+        : { type: 'failed', code: outcome.code, message: outcome.message, taskId: outcome.taskId, canRetry: outcome.canRetry });
+      if (!stream.destroyed && !stream.writableEnded) stream.end();
+    };
+    const onPhase = (phase) => write({ type: 'phase', phase });
+    return { stream, onPhase, finish };
+  }
+
+  function respondNdjson(ctx, nd, outcomeP) {
+    ctx.type = 'application/x-ndjson';
+    ctx.body = nd.stream;
+    outcomeP.then(nd.finish, (err) => nd.finish({ ok: false, code: 'error', message: err && err.message ? err.message : '', taskId: null, canRetry: false }));
+  }
+
+  router.get('/voice/status', async (ctx) => {
+    ctx.body = { available: await voice.status() };
+  });
+
+  router.post('/voice/sessions', async (ctx) => {
+    const parsed = await parseVoiceAnchor(ctx);
+    if (!parsed) return;
+    const r = await voice.start(parsed.taskId, parsed.fields);
+    if (r.error) {
+      ctx.status = r.error === 'app_not_running' || r.error === 'unavailable' ? 503 : r.error === 'busy' ? 409 : 502;
+      ctx.body = { error: r.error };
+      return;
+    }
+    ctx.status = 201; ctx.body = { id: r.id };
+  });
+
+  router.post('/voice/sessions/:id/stop', async (ctx) => {
+    const nd = openNdjson();
+    const outcomeP = voice.stop(ctx.params.id, nd.onPhase);
+    if (!outcomeP) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    respondNdjson(ctx, nd, outcomeP);
+  });
+
+  // 404 covers both an unknown id and a failed cancel (the module reports both as false).
+  router.delete('/voice/sessions/:id', async (ctx) => {
+    if (await voice.cancel(ctx.params.id)) ctx.status = 204;
+    else { ctx.status = 404; ctx.body = { error: 'not found' }; }
+  });
+
+  router.post('/voice/retry', async (ctx) => {
+    const { cocoTaskId } = ctx.request.body || {};
+    if (typeof cocoTaskId !== 'string' || !cocoTaskId) { ctx.status = 400; ctx.body = { error: 'cocoTaskId required' }; return; }
+    const parsed = await parseVoiceAnchor(ctx);
+    if (!parsed) return;
+    const nd = openNdjson();
+    respondNdjson(ctx, nd, voice.retry(parsed.taskId, parsed.fields, cocoTaskId, nd.onPhase));
   });
 
   router.patch('/tasks/:taskId/notes/:noteId', async (ctx) => {

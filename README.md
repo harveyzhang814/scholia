@@ -22,6 +22,14 @@ npm install
 npm link   # 将 scholia 命令软链接到 $PATH，指向本仓库
 ```
 
+语音评论依赖本机的 CocoScribe：
+
+- 需要 CocoScribe.app ≥ 7.1.0，且处于运行状态。
+- 建议在 CocoScribe 设置里关闭「转录完成后弹出编辑窗口」和「Copy transcript to clipboard」，否则每条语音评论都会弹窗、覆盖剪贴板。
+- 语音评论也会出现在 CocoScribe 的任务历史里。
+
+CocoScribe SDK（`@harveyzhang814/host-client`）托管在 GitHub Packages，仓库根目录的 `.npmrc` 已指定 registry，`npm install` 的认证 token 沿用 `~/.npmrc` 里已有的 `//npm.pkg.github.com/:_authToken=` 配置。SDK 已打进 tarball（`bundleDependencies`），`release:local` 装出的全局副本无需再访问该 registry。
+
 ## 快速开始
 
 ```bash

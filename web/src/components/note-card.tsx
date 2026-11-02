@@ -58,6 +58,7 @@ export interface NoteCardProps {
   onHeightChange?: (id: string, h: number) => void;
   autoEdit?: boolean;
   onAutoEditConsumed?: () => void;
+  flash?: boolean;
 }
 
 export function NoteCard({
@@ -73,6 +74,7 @@ export function NoteCard({
   onHeightChange,
   autoEdit,
   onAutoEditConsumed,
+  flash,
 }: NoteCardProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note.body);
@@ -131,6 +133,7 @@ export function NoteCard({
       data-note-card={note.id}
       data-variant={variant}
       data-collapsed={isCollapsed || undefined}
+      data-voice-flash={flash || undefined}
       style={{
         background: isLinked && !editing ? 'var(--accent-3)' : undefined,
         boxShadow: isLinked && !editing ? 'inset 2px 0 0 var(--accent-9)' : undefined,

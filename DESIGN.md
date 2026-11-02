@@ -36,7 +36,16 @@ Warm neutral base with a single sage-green accent. Correction (2026-07-11 full a
 | Tertiary text | `#868782` (updated 2026-07-11, was `#6B6C69` at ~3.29:1) |
 | Accent | `#7DAE7D` |
 
-All warm-toned (no blue-gray mixed in) — consistent per the "warm or cool consistently" rule. No purple/violet anywhere — good, avoids the AI-slop gradient trap.
+All warm-toned (no blue-gray mixed in) — consistent per the "warm or cool consistently" rule. No purple/violet anywhere — good, avoids the AI-slop gradient trap. (One scoped exception, below: indigo `#8B5CF6` is the voice-comment "整理中" phase color, used only on the pending card's border, icon and spinner — never on text or backgrounds.)
+
+**语音评论阶段色** (`--coco-*` in `:root`, identical in light and dark). Borrowed from the CocoScribe floating window so the two apps read as one pipeline. Non-text only: dots, borders, icons, spinners — never body or label text. Failure uses the existing `--status-err`.
+
+| Phase | Token | Hex | Used on |
+|---|---|---|---|
+| 录音中 | `--coco-recording` | `#FF6B47` | Recording bar dot/border, locked anchor underline, point-comment icon |
+| 转写中 | `--coco-transcribing` | `#20D5C4` | Pending card dashed border, icon, spinner |
+| 整理中 | `--coco-refining` | `#8B5CF6` | Pending card dashed border, icon, spinner |
+| 完成 | `--coco-done` | `#34D399` | One-off outline flash when the card becomes a normal note |
 
 ## Typography Scale
 
@@ -80,7 +89,7 @@ Two-tier scale (corrected 2026-07-11 — the original single "4px dominant token
 
 ## AI Slop Check
 
-None of the 11 blacklisted patterns were observed: no purple/gradient backgrounds, no 3-column icon-in-circle feature grid, no centered-everything, no decorative blobs/wavy dividers, no emoji-as-bullets, no colored left-border cards, no generic hero copy (this app has no marketing hero), no `system-ui`/`-apple-system` as the *primary* font (Inter is primary, system-ui is just the fallback stack).
+None of the 11 blacklisted patterns were observed: no purple/gradient backgrounds (one scoped exception: indigo `#8B5CF6` appears only as the voice-comment "整理中" phase color, on the pending card's border, icon and spinner), no 3-column icon-in-circle feature grid, no centered-everything, no decorative blobs/wavy dividers, no emoji-as-bullets, no colored left-border cards, no generic hero copy (this app has no marketing hero), no `system-ui`/`-apple-system` as the *primary* font (Inter is primary, system-ui is just the fallback stack).
 
 ## Full Audit (2026-07-11)
 
