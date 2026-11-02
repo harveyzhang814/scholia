@@ -1,5 +1,5 @@
 ---
-status: 待验收
+status: 已验收
 date: 2026-11-02
 author_model: claude-opus-5-5
 acceptance: hard
@@ -96,6 +96,37 @@ target_node: 17b5355d-5814-4421-97a4-98ceb6b643f8
 
 - 机器校验：见提交前的 `validate-handoff.sh` 结果。
 - 冷读：分支、工作区、基线已建好并进过；计划 Task 3 的 13 个、Task 4 的 11 个后端用例名，Task 5–9 共 31 个前端用例名都可逐条核对；锚点 4–8 都是可直接判对错的命令或文本检查；锚点 9 依赖用户配合，已在工作流约定里写明先问用户。
+
+### 原 session 验收记录（2026-11-02）
+
+结论：**达成**，`status` 置「已验收」。在本工作区实跑，HEAD `9018db0`，分支 `feature/voice-comments`，merge-base `33c9dbc`；跑前跑后 `git status` 干净。判成败的命令都没有接管道，退出码直接取自命令本身。
+
+**过程说明**：第一次开始验收时，接手方还在这个工作区里改代码（`tests/voice.test.js`、`docs/acceptance-testing.md` 有未提交改动，节点状态 `busy`）。那一轮的结果作废，没有采用。用户确认改动已做完后，接手方提交了 `accc033`、`8d7427b`、`9018db0`，以下所有结果都在 `9018db0` 上重跑。
+
+| 锚点 | 结果 | 实跑 |
+|---|---|---|
+| 1 后端测试 | pass | `npm test` 退出码 0，输出没有 `✗`；`node tests/voice.test.js` 输出 `19 passed, 0 failed`，`node tests/voice-routes.test.js` 输出 `13 passed, 0 failed`。用脚本从计划 Task 3、Task 4 的测试代码块抽出用例名（13 + 11），在输出里逐个找 `✓ <名字>`，没有缺。`scripts.test` 已包含这两个文件。 |
+| 2 前端测试 | pass | `cd web && npm test` 退出码 0，`35 passed` 个文件、`355 passed` 个用例；`vitest run --reporter=verbose` 的输出里，计划 Task 5–9 的 31 个 `it` 用例名都以 `✓` 出现；`web/src` 下 grep 不到 `.skip(` / `.only(` / `.todo(` / `xit(` / `xdescribe(`；`git diff 33c9dbc..HEAD -- web/src` 里没有被删除的 `it(` / `describe(` 行。 |
+| 3 前端构建 | pass | `cd web && npm run build` 退出码 0（`tsc` + `vite build`）。 |
+| 4 依赖 | pass | 根目录 `dependencies` 只多了 `@harveyzhang814/host-client: ^0.3.0`；`web/package.json` 没有出现在 diff 里；`.npmrc` 只有一行 `@harveyzhang814:registry=https://npm.pkg.github.com`。 |
+| 5 分发 | pass，方案 (a) | `npm pack --pack-destination <mktemp 目录>` 退出码 0，tar 列表里有 `package/node_modules/@harveyzhang814/host-client/package.json`（共 14 个 `node_modules/` 条目）；`npm install -g --ignore-scripts --prefix <临时目录>/prefix scholia-0.6.0.tgz` 退出码 0（`added 83 packages`）；在安装后的 `scholia` 目录里 `require('@harveyzhang814/host-client')` 解析到包内自带的副本，导出 `CocoScribeClient,Session,CocoScribeConnectionError,SessionError`。和接手方一样用了 `--ignore-scripts`，postinstall 里构建前端那一段没有端到端跑过。 |
+| 6 阶段色 | pass | 四个色值在 `globals.css` 与 `DESIGN.md` 里都出现；`globals.css` 第 27–30 行定义了四个 `--coco-*` 变量；`DESIGN.md` 第 39、92 行写明 indigo `#8B5CF6` 只作为「整理中」阶段色的例外（原文是英文 indigo，没有用「靛紫」二字，意思相符）。 |
+| 7 README | pass | `7.1.0`、`转录完成后弹出编辑窗口`、`Copy transcript to clipboard` 各出现 1 次。 |
+| 8 改动范围 | pass | `git diff --name-only 33c9dbc..HEAD` 共 32 个文件，都在计划的 Files 清单内，例外是本文档、`package-lock.json` 和 `web/src/lib/api-voice.test.ts`；后者接手方已说明理由（api 层结果映射测试），我认可。`server/voice.js` 新增的启动超时属于 Task 3 文件内的改动，补的是整分支审查指出的缺口，不算超范围。 |
+| 9 真机记录 | pass | 自测记录里 8.1–8.15 每步都有 pass/fail 或原因说明；8.1 附了阶段事件顺序（`recording` → `transcribing` → `refining` → `completed`，`recording` 之前没有 `starting`）。8.7、8.8 没跑通，原因是 CocoScribe 会自动拉起 Ollama，属于环境原因而不是空着，符合本条「写明原因」的要求。 |
+
+**补充真机冒烟（锚点之外）**：接手方的真机记录是在 `60d927e` 上做的，之后 `accc033` 改了 `server/voice.js` 的开始录音这一段，所以我在 `9018db0` 上补跑了一次接口级冒烟。做法：临时目录里放一篇文章副本，在进程内用 `createApp` 起服务；真实的 CocoScribe.app 在运行，用 `say` 朗读一句话；脚本在仓库外的 `/tmp`，跑完后临时目录已删除。结果：`/api/voice/status` 返回 `available: true`；`POST /api/voice/sessions` 在约 0.7 秒内返回 201 和会话 id；`stop` 返回 200，类型是 `application/x-ndjson`，依次是 `transcribing`、`refining`、`note`；`body` 为「这是一条验收冒烟测试，补充一个例子。」，`notes.json` 已写入；服务端没有改动原文，原文标记由浏览器负责。
+
+**回归面**：改动面是 `server/`、`tests/`、`web/src/`、文档和依赖清单。被波及组件已有的回归测试都在锚点 1、2 的完整测试集里（含 `server.test.js`、`integration.test.js` 和全部 35 个前端测试文件），全绿，没有锚点之外还需要另跑的测试。
+
+**对接手方记录的更正**：
+- 「偏差」一节把 8.1 脚本修正和启动超时写成「验收后补的一轮」，不准确：这两项是在接手方自测之后、我验收之前补的，验收当时还没有做。另外，补这一轮时接手方是直接改写原有的自测记录，没有另起一节，`status` 也没有先退回「执行中」，不符合 handoff 流程，但不影响本次判定。
+- 自测记录开头写「工作区自测前后 `git status` 干净」。这和我第一次进来验收时看到的情况不符：当时有未提交的改动，后来已经提交。
+
+**带进合并决定的遗留**（不影响本次判定）：
+- 「整理失败 → 重试」以及 `canRetry` 为真的失败卡片，只有单元测试覆盖，没有真机证据。
+- 启动超时默认 20 秒，可能误伤第一次使用时的 macOS 麦克风授权弹窗（用户点授权慢了，录音会被取消）。本机早已授权过，验证不了。
+- 提交署名不统一：`4837390`、`92317c3`、`bfd4b8d` 写的是 Opus 5.5，其余提交是 Sonnet 5.5。
 
 ## 接手方自测记录（2026-11-02）
 
