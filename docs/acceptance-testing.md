@@ -211,7 +211,7 @@ node -e '
 const { CocoScribeClient } = require("@harveyzhang814/host-client");
 const t0 = Date.now(), log = (...a) => console.log(String(Date.now() - t0).padStart(6), ...a);
 const s = new CocoScribeClient().startSession({ mode: "comprehend", silent: true, awaitEdit: false });
-const kill = setTimeout(() => { log("no recording phase within 15s, cancelling"); s.cancel().finally(() => process.exit(2)); }, 15000);
+const kill = setTimeout(() => { log("no recording phase within 15s, cancelling"); s.cancel().catch(() => {}); process.exit(2); }, 15000);
 s.on("phase", (p) => { log("phase", p); if (p === "recording") { clearTimeout(kill); setTimeout(() => s.stop(), 3000); } });
 s.on("completed", (r) => { log("completed", JSON.stringify(r.text)); process.exit(0); });
 s.on("failed", (e) => { log("failed", e.code, e.message); process.exit(1); });
