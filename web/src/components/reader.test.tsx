@@ -295,6 +295,22 @@ describe('Reader voice entry points', () => {
     expect(voice.onStop).not.toHaveBeenCalled();
   });
 
+  it('v held down (repeat) does not toggle recording', () => {
+    const voice = makeVoice('ready');
+    const { container, rerender } = render(<Reader content={content} onCommentDraft={vi.fn()} voice={voice} />);
+    getSelection()!.collapse(bodyText(container), 4);
+    fireEvent.keyDown(document.body, { key: 'v' });   // the real press starts
+    expect(voice.onStart).toHaveBeenCalledTimes(1);
+    // auto-repeat of the held key, in every state the first press can lead to
+    for (const state of ['recording', 'ready', 'unavailable'] as const) {
+      rerender(<Reader content={content} onCommentDraft={vi.fn()} voice={{ ...voice, state }} />);
+      fireEvent.keyDown(document.body, { key: 'v', repeat: true });
+    }
+    expect(voice.onStart).toHaveBeenCalledTimes(1);
+    expect(voice.onStop).not.toHaveBeenCalled();
+    expect(voice.onUnavailable).not.toHaveBeenCalled();
+  });
+
   it('without voice prop v does nothing and no mic button renders', () => {
     const onCommentDraft = vi.fn();
     const { container, getByText, queryByText, rerender } = render(<Reader content={content} onCommentDraft={onCommentDraft} />);

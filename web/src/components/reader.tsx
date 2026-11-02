@@ -329,7 +329,8 @@ export function Reader({ taskId, content, frontmatter, highlights, doc, notes, o
     if (!hasVoice) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const v = voiceRef.current;
-      if (!v || e.key !== 'v' || e.metaKey || e.ctrlKey || e.altKey) return;
+      // `v` toggles, so auto-repeat of a held key must not stop/restart recording.
+      if (!v || e.key !== 'v' || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement;
       if (isTypingTarget(t)) return;
       if (v.state === 'recording') { e.preventDefault(); v.onStop(); return; }
