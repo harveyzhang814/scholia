@@ -1,5 +1,5 @@
 ---
-status: 待执行
+status: 执行中
 date: 2026-11-02
 author_model: claude-opus-5-5
 acceptance: hard
@@ -8,7 +8,7 @@ branch: feature/voice-comments
 worktree: /Users/harveyzhang96/Projects/scholia/.claude/worktrees/feature+voice-comments
 base_commit: 33c9dbc5a5d36d20bc0be70e161ce65ad9379714
 source_node: 7102e7ee-fd13-46d3-abea-1539cb897b85
-target_node:
+target_node: 17b5355d-5814-4421-97a4-98ceb6b643f8
 ---
 
 # 交接：实施语音评论第一期
