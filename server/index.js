@@ -369,17 +369,20 @@ function createApp(options = {}) {
     ctx.body = await readJson(paths.notes, []);
   });
 
-  router.post('/tasks/:taskId/notes', async (ctx) => {
-    const { taskId } = ctx.params;
-    const { anchor = '', mediaTimestamp, body, prefix, suffix, position, doc } = ctx.request.body || {};
-    if (!body || typeof body !== 'string' || !body.trim()) { ctx.status = 400; ctx.body = { error: 'body required' }; return; }
+  function validateAnchorFields({ prefix, suffix, position, doc }) {
     const validContext = (s) => typeof s === 'string' && s.length <= 32;
-    if ((prefix !== undefined && !validContext(prefix)) || (suffix !== undefined && !validContext(suffix))) { ctx.status = 400; ctx.body = { error: 'prefix/suffix must be a string of at most 32 chars' }; return; }
-    if (position !== undefined && !(Number.isInteger(position) && position >= 0)) { ctx.status = 400; ctx.body = { error: 'position must be a non-negative integer' }; return; }
-    if (doc !== undefined && doc !== 'summary' && doc !== 'article') { ctx.status = 400; ctx.body = { error: 'doc must be summary or article' }; return; }
-    await withMarkerLock(async () => {
+    if ((prefix !== undefined && !validContext(prefix)) || (suffix !== undefined && !validContext(suffix))) return 'prefix/suffix must be a string of at most 32 chars';
+    if (position !== undefined && !(Number.isInteger(position) && position >= 0)) return 'position must be a non-negative integer';
+    if (doc !== undefined && doc !== 'summary' && doc !== 'article') return 'doc must be summary or article';
+    return null;
+  }
+
+  // Returns the new note, or null if the task is not found. Callers must
+  // pass a non-empty, already-trimmed body.
+  function insertNote(taskId, { anchor, prefix, suffix, position, doc, mediaTimestamp, body }) {
+    return withMarkerLock(async () => {
       const paths = await getPaths(taskId, WORK_DIR, CONTENT_DIR);
-      if (!paths) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+      if (!paths) return null;
       await fs.promises.mkdir(paths.base, { recursive: true });
       const ns = await readJson(paths.notes, []);
       const now = Date.now();
@@ -391,12 +394,23 @@ function createApp(options = {}) {
         ...(position !== undefined ? { position } : {}),
         ...(doc !== undefined ? { doc } : {}),
         ...(mediaTimestamp != null ? { mediaTimestamp: Number(mediaTimestamp) } : {}),
-        body: body.trim(), createdAt: now, updatedAt: now,
+        body, createdAt: now, updatedAt: now,
       };
       ns.unshift(note);
       await writeJson(paths.notes, ns);
-      ctx.status = 201; ctx.body = note;
+      return note;
     });
+  }
+
+  router.post('/tasks/:taskId/notes', async (ctx) => {
+    const { taskId } = ctx.params;
+    const { anchor = '', mediaTimestamp, body, prefix, suffix, position, doc } = ctx.request.body || {};
+    if (!body || typeof body !== 'string' || !body.trim()) { ctx.status = 400; ctx.body = { error: 'body required' }; return; }
+    const invalid = validateAnchorFields({ prefix, suffix, position, doc });
+    if (invalid) { ctx.status = 400; ctx.body = { error: invalid }; return; }
+    const note = await insertNote(taskId, { anchor, prefix, suffix, position, doc, mediaTimestamp, body: body.trim() });
+    if (!note) { ctx.status = 404; ctx.body = { error: 'not found' }; return; }
+    ctx.status = 201; ctx.body = note;
   });
 
   router.patch('/tasks/:taskId/notes/:noteId', async (ctx) => {
