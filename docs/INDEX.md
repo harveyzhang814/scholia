@@ -29,6 +29,7 @@
 | 文件 | 用途 |
 |------|------|
 | [adr/2026-07-20-no-idle-auto-shutdown.md](adr/2026-07-20-no-idle-auto-shutdown.md) | 为什么 `scholia serve`/`start` 不做空闲自动退出 |
+| [adr/2026-11-02-scholia-positioning.md](adr/2026-11-02-scholia-positioning.md) | Scholia 定位为阅读 + 批注产品、不作为插件；语音批注在 Scholia 内升级而非另起项目 |
 
 ## 未分类
 
