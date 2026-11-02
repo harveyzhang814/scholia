@@ -4,6 +4,15 @@ const { EventEmitter } = require('node:events');
 const { createVoice } = require('../server/voice');
 
 let passed = 0; let failed = 0;
+// If a promise never settles the event loop drains and Node exits 0 with no summary;
+// treat that as a failure instead of a silent pass.
+let finished = false;
+process.on('exit', () => {
+  if (!finished && !process.exitCode) {
+    console.error('  ✗ suite did not finish (a promise never settled)');
+    process.exitCode = 1;
+  }
+});
 async function test(name, fn) {
   try { await fn(); console.log(`  ✓ ${name}`); passed++; }
   catch (e) { console.error(`  ✗ ${name}: ${e.message}`); failed++; }
@@ -268,6 +277,7 @@ const tick = () => new Promise((r) => setImmediate(r));
     assert.equal(voice.size(), 1);
   });
 
+  finished = true;
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 })();

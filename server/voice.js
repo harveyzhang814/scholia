@@ -113,8 +113,8 @@ function createVoice({ getClient, saveNote, startTimeoutMs = DEFAULT_START_TIMEO
     // Not unref'd: a pending start is live work, and the timer is cleared on every other settle.
     const timer = setTimeout(() => {
       if (!registry.has(entry.id)) return;
+      entry.abandon(); // first: a synchronous terminal event from cancel() must not win
       cancelQuietly(session);
-      entry.abandon();
     }, startTimeoutMs);
     return entry.whenRecording.finally(() => clearTimeout(timer));
   }
