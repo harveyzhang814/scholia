@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { render, fireEvent, act } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router';
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router';
 import type { NoteAnchor } from '@/lib/api';
 import type { Located } from '@/lib/anchor';
 import { useUiStore } from '@/stores/ui-store';
@@ -16,9 +16,37 @@ const h = vi.hoisted(() => ({
     renderInline?: unknown;
     draft?: unknown;
     onNoteAnchorClick?: unknown;
+    notes?: { id: string }[];
+    voice?: { state: string; onStart: (a: NoteAnchor) => void; onStop: () => void; onUnavailable: () => void };
   },
   inlineProps: {} as { collapsed?: Set<string>; draft?: unknown; onDraftDone?: () => void; notes?: { id: string }[] },
   zoneProps: {} as { collapsed?: Set<string>; notes?: { id: string }[] },
+  voiceArgs: [] as [string, boolean][],
+}));
+
+// Stand-in for useVoiceComments: start/stop flip a local recording, as the real hook does once the server answers.
+vi.mock('@/hooks/use-voice-comments', () => ({
+  useVoiceComments: (taskId: string, enabled: boolean) => {
+    h.voiceArgs.push([taskId, enabled]);
+    const [recording, setRecording] = useState<{ id: string; anchor: NoteAnchor; startedAt: number } | null>(null);
+    const noop = () => {};
+    return {
+      available: true,
+      busy: recording !== null,
+      recording,
+      pending: [],
+      toast: null,
+      showHint: false,
+      justSavedId: null,
+      start: (anchor: NoteAnchor) => setRecording({ id: 's1', anchor, startedAt: Date.now() }),
+      stop: () => setRecording(null),
+      cancel: () => setRecording(null),
+      retry: noop,
+      discard: noop,
+      dismissHint: noop,
+      notifyUnavailable: noop,
+    };
+  },
 }));
 
 vi.mock('@/hooks/use-tasks', () => {
@@ -49,11 +77,13 @@ vi.mock('@/components/reader', () => ({
     onNotesLocated?: (l: Record<string, Located>) => void;
     renderInline?: (ids: string[]) => React.ReactNode;
     onNoteAnchorClick?: (id: string) => void;
+    voice?: typeof h.readerProps.voice;
   }) => {
     h.readerProps = props;
     useEffect(() => { props.onNotesLocated?.(h.located as Record<string, Located>); }); // eslint-disable-line react-hooks/exhaustive-deps
     return (
       <>
+        {props.voice && <button>mic</button>}
         <button onClick={() => props.onCommentDraft?.({ anchor: '选中的文字' })}>draft</button>
         <button onClick={() => props.onNoteAnchorClick?.('a')}>anchor-a</button>
         {props.renderInline?.([])}
@@ -211,6 +241,73 @@ describe('TaskDetail', () => {
       const zone = getByTestId('zone');
       const reader = getByText('draft');
       expect(zone.compareDocumentPosition(reader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+  });
+
+  describe('voice comments', () => {
+    it('article page shows the voice bar while recording and hides it after stop', () => {
+      h.notes = [{ id: 'a', anchor: 'A' }];
+      h.located = {};
+      h.mediaInfo = { video: { exists: false }, audio: { exists: false } };
+      h.voiceArgs = [];
+      useUiStore.setState({ commentView: 'inline', layoutMode: 'E' });
+      const { getByText, getByRole, queryByRole } = renderTask('article-x');
+      expect(h.voiceArgs.at(-1)).toEqual(['article-x', true]);
+      expect(getByText('mic')).toBeInTheDocument();
+      expect(h.readerProps.voice?.state).toBe('ready');
+      expect(queryByRole('status')).toBeNull();
+
+      act(() => h.readerProps.voice!.onStart({ anchor: '选中的文字' }));
+      const bar = getByRole('status');
+      expect(bar).toHaveTextContent('录音中');
+      expect(bar).toHaveTextContent('评论「选中的文字」');
+      expect(bar.parentElement?.className).toBe('flex-1 overflow-y-auto');
+      expect(bar.parentElement?.firstElementChild).toBe(bar);
+      expect(h.readerProps.voice?.state).toBe('recording');
+      // The recording pseudo-note reaches the Reader only; cards, the zone and collapse-all see real notes.
+      expect(h.readerProps.notes?.map((n) => n.id)).toEqual(['a', 'voice-rec:s1']);
+      expect(h.inlineProps.notes?.map((n) => n.id)).toEqual(['a']);
+      expect(h.zoneProps.notes?.map((n) => n.id)).toEqual(['a']);
+      fireEvent.click(getByText('全部收起'));
+      expect(h.inlineProps.collapsed).toEqual(new Set(['a']));
+
+      fireEvent.click(getByRole('button', { name: /结束并保存/ }));
+      expect(queryByRole('status')).toBeNull();
+      expect(h.readerProps.voice?.state).toBe('ready');
+      expect(h.readerProps.notes?.map((n) => n.id)).toEqual(['a']);
+    });
+
+    it('video page passes no voice prop and renders no mic button', () => {
+      h.notes = [];
+      h.mediaInfo = { video: { exists: true }, audio: { exists: false } };
+      h.voiceArgs = [];
+      useUiStore.setState({ commentView: 'sidebar' });
+      const { queryByText } = renderTask('vid1');
+      expect(h.readerProps.voice).toBeUndefined();
+      expect(queryByText('mic')).toBeNull();
+      expect(h.voiceArgs.length).toBeGreaterThan(0);
+      expect(h.voiceArgs.every(([taskId, enabled]) => taskId === 'vid1' && enabled === false)).toBe(true);
+    });
+
+    it('switching task drops the previous task\'s recording in the same render', () => {
+      h.notes = [];
+      h.located = {};
+      h.mediaInfo = { video: { exists: false }, audio: { exists: false } };
+      useUiStore.setState({ commentView: 'inline', layoutMode: 'E' });
+      const Next = () => {
+        const navigate = useNavigate();
+        return <button onClick={() => navigate('/tasks/article-y')}>next</button>;
+      };
+      const { getByText, getByRole, queryByRole } = render(
+        <MemoryRouter initialEntries={['/tasks/article-x']}>
+          <Routes><Route path="/tasks/:id" element={<><TaskDetail /><Next /></>} /></Routes>
+        </MemoryRouter>,
+      );
+      act(() => h.readerProps.voice!.onStart({ anchor: '选中的文字' }));
+      expect(getByRole('status')).toBeInTheDocument();
+      fireEvent.click(getByText('next'));
+      expect(queryByRole('status')).toBeNull();
+      expect(h.readerProps.notes).toEqual([]);
     });
   });
 });

@@ -6,6 +6,7 @@ import { DraftCard, InlineCards, UnlocatedZone } from './inline-notes';
 import { DRAFT_ID } from './reader';
 import { usePlayerStore } from '@/stores/player-store';
 import { api, type Note } from '@/lib/api';
+import type { VoicePending } from '@/hooks/use-voice-comments';
 
 const mk = (id: string, body: string, anchor = 'x'): Note =>
   ({ id, anchor, body, createdAt: Date.now(), updatedAt: Date.now() });
@@ -123,6 +124,28 @@ describe('inline notes', () => {
     expect(onToggle).toHaveBeenCalledWith('a');
     fireEvent.click(getByText('删除'));
     await waitFor(() => expect(del).toHaveBeenCalledWith('t', 'a'));
+  });
+
+  it('renders a VoicePendingCard for voice: ids and nothing for voice-rec: ids', () => {
+    const onVoiceRetry = vi.fn();
+    const onVoiceDiscard = vi.fn();
+    const voicePending: VoicePending[] = [
+      { id: 'voice:s1', anchor: { anchor: '原文' }, durationSec: 5, phase: 'transcribing' },
+      { id: 'voice:s2', anchor: { anchor: '原文' }, durationSec: 9, phase: 'failed',
+        failure: { code: 'refine_failed', canRetry: true, taskId: 'coco-1' } },
+    ];
+    const { container, getByText } = renderWithClient(
+      <InlineCards {...common} ids={['voice:s1', 'voice-rec:s9', 'a', 'voice:s2', 'voice:gone']} notes={[mk('a', '笔记A')]}
+        located={{}} draft={null} onDraftDone={noop}
+        voicePending={voicePending} onVoiceRetry={onVoiceRetry} onVoiceDiscard={onVoiceDiscard} flashNoteId="a" />);
+    const cards = Array.from(container.querySelectorAll('.sc-note-card'));
+    expect(cards.map((el) => el.getAttribute('data-voice-state') ?? el.getAttribute('data-note-card'))).toEqual(['transcribing', 'a', 'failed']);
+    expect(cards.every((el) => el.getAttribute('data-variant') === 'inline')).toBe(true);
+    expect(container.querySelector('[data-note-card="a"]')).toHaveAttribute('data-voice-flash');
+    fireEvent.click(getByText('重试'));
+    expect(onVoiceRetry).toHaveBeenCalledWith('voice:s2');
+    fireEvent.click(getByText('丢弃'));
+    expect(onVoiceDiscard).toHaveBeenCalledWith('voice:s2');
   });
 
   it('unlocated zone lists notes and adds an anchorless note', async () => {

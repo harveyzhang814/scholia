@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ReactElement } from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { render, fireEvent, waitFor, getByText } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NotesPanel } from './notes-panel';
 import { api, type Note } from '@/lib/api';
+import type { VoicePending } from '@/hooks/use-voice-comments';
 
 const note: Note = {
   id: 'n1',
@@ -57,6 +58,34 @@ describe('NotesPanel', () => {
     const tableCard = (await findByText('表格笔记')).closest('ul')!;
     await waitFor(() => expect(card.style.top).toBe('100px'));
     expect(tableCard.style.top).toBe('400px');
+  });
+
+  it('places a pending voice card and excludes it from the note count', async () => {
+    vi.spyOn(api, 'listNotes').mockResolvedValue([{ ...note, id: 'c', anchor: 'x' }]);
+    const article = document.createElement('div');
+    article.innerHTML = '<p><mark data-note-id="c">x</mark></p><p><mark data-note-id="voice:s1">y</mark></p>';
+    const top = (el: Element, y: number) => { el.getBoundingClientRect = () => ({ top: y } as DOMRect); };
+    const [p1, p2] = Array.from(article.querySelectorAll('p'));
+    top(p1, 100);
+    top(p2, 120);
+    const located = {
+      c: { start: 0, end: 1, grade: 'exact' as const },
+      'voice:s1': { start: 2, end: 3, grade: 'exact' as const },
+      'voice-rec:s2': { start: 2, end: 3, grade: 'exact' as const },
+    };
+    const voicePending: VoicePending[] = [{ id: 'voice:s1', anchor: { anchor: 'y' }, durationSec: 4, phase: 'refining' }];
+    const { findByText, container } = renderWithClient(
+      <NotesPanel taskId="t" hasMedia={false} articleRef={{ current: article }} located={located}
+        voicePending={voicePending} onVoiceRetry={() => {}} onVoiceDiscard={() => {}} flashNoteId="c" />);
+    const card = (await findByText(note.body)).closest('ul')!;
+    const pending = container.querySelector('[data-voice-state="refining"]')!;
+    expect(pending).toHaveAttribute('data-variant', 'sidebar');
+    // Pushed below the real card: 100 + estimated 72 + gap 8.
+    await waitFor(() => expect(pending.closest('ul')!.style.top).toBe('180px'));
+    expect(card.style.top).toBe('100px');
+    expect(container.querySelector('[data-note-card="c"]')).toHaveAttribute('data-voice-flash');
+    expect(container.querySelectorAll('.sc-note-card')).toHaveLength(2);
+    expect(getByText(container, (_, el) => el?.tagName === 'DIV' && el.textContent === '笔记 · 1')).toBeInTheDocument();
   });
 
   it('unlocated anchored notes render in the top list', async () => {
